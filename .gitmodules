@@ -1,0 +1,3 @@
+[submodule "Coh lean core"]
+	path = Coh lean core
+	url = https://github.com/noeticanlabs/coh-lean.git

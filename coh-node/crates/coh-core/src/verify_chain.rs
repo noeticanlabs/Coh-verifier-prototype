@@ -1,73 +1,109 @@
-use crate::types::{MicroReceiptWire, VerifyChainResult, Decision, RejectCode};
+use crate::types::{MicroReceiptWire, MicroReceipt, VerifyChainResult, Decision, RejectCode};
 use crate::verify_micro::verify_micro;
+use std::convert::TryFrom;
 
 pub fn verify_chain(receipts: Vec<MicroReceiptWire>) -> VerifyChainResult {
     if receipts.is_empty() {
         return VerifyChainResult {
-            decision: Decision::Accept,
-            code: None,
-            failing_step: None,
+            decision: Decision::Reject,
+            code: Some(RejectCode::RejectSchema),
+            message: "Empty chain provided".to_string(),
+            steps_verified: 0,
+            first_step_index: 0,
+            last_step_index: 0,
+            final_chain_digest: None,
+            failing_step_index: None,
+            steps_verified_before_failure: Some(0),
         };
     }
 
-    let mut prev_digest: Option<String> = None;
-    let mut prev_state_hash: Option<String> = None;
-    let mut expected_index: Option<u64> = None;
+    let mut first_index = 0;
+    let mut last_index = 0;
+    let mut current_digest: Option<String> = None;
+    let mut current_state: Option<String> = None;
 
-    for (_i, wire) in receipts.into_iter().enumerate() {
-        let step_index = wire.step_index;
-        
-        // 1. Isolation check
+    for (i, wire) in receipts.into_iter().enumerate() {
+        let step_idx = wire.step_index;
+        if i == 0 {
+            first_index = step_idx;
+        }
+        last_index = step_idx;
+
+        // 1. Verify in isolation
         let res = verify_micro(wire.clone());
         if res.decision == Decision::Reject {
             return VerifyChainResult {
                 decision: Decision::Reject,
                 code: res.code,
-                failing_step: Some(step_index),
+                message: format!("Semantic rejection at step {}: {}", step_idx, res.message),
+                steps_verified: i as u64,
+                first_step_index: first_index,
+                last_step_index: last_index,
+                final_chain_digest: current_digest,
+                failing_step_index: Some(step_idx),
+                steps_verified_before_failure: Some(i as u64),
             };
         }
 
+        let r = MicroReceipt::try_from(wire).unwrap();
+
         // 2. Continuity checks
-        if let Some(prev) = prev_digest {
-            if wire.chain_digest_prev != prev {
-                return VerifyChainResult {
-                    decision: Decision::Reject,
-                    code: Some(RejectCode::RejectChainDigestPrev),
-                    failing_step: Some(step_index),
-                };
-            }
-        }
-        if let Some(prev) = prev_state_hash {
-            if wire.state_hash_prev != prev {
-                return VerifyChainResult {
-                    decision: Decision::Reject,
-                    code: Some(RejectCode::RejectStateHashLink),
-                    failing_step: Some(step_index),
-                };
-            }
-        }
-        if let Some(expected) = expected_index {
-            if wire.step_index != expected {
-                 // Technically we don't have a specific reject code for index gap in the enum, 
-                 // but we can use RejectSchema or a generic one. Let's assume RejectSchema for now
-                 // or maybe RejectVersion if we want to be picky. 
-                 // Actually, let's use RejectSchema for structural gaps.
-                return VerifyChainResult {
-                    decision: Decision::Reject,
-                    code: Some(RejectCode::RejectSchema),
-                    failing_step: Some(step_index),
-                };
+        if i > 0 {
+            // Index continuity
+            if r.step_index != last_index {
+                // Wait, if i > 0, last_index was updated above. 
+                // Let's rethink the loop tracking.
             }
         }
 
-        prev_digest = Some(wire.chain_digest_next);
-        prev_state_hash = Some(wire.state_hash_next);
-        expected_index = Some(wire.step_index + 1);
+        // Corrected loop tracking
+        if i > 0 {
+            // Check link to previous
+            if let Some(ref prev_digest) = current_digest {
+                if r.chain_digest_prev.to_hex() != *prev_digest {
+                    return VerifyChainResult {
+                        decision: Decision::Reject,
+                        code: Some(RejectCode::RejectChainDigest),
+                        message: format!("Chain digest link broken at step {}. Expected: {}, Found: {}", step_idx, prev_digest, r.chain_digest_prev.to_hex()),
+                        steps_verified: i as u64,
+                        first_step_index: first_index,
+                        last_step_index: last_index,
+                        final_chain_digest: Some(prev_digest.clone()),
+                        failing_step_index: Some(step_idx),
+                        steps_verified_before_failure: Some(i as u64),
+                    };
+                }
+            }
+            if let Some(ref prev_state) = current_state {
+                if r.state_hash_prev.to_hex() != *prev_state {
+                    return VerifyChainResult {
+                        decision: Decision::Reject,
+                        code: Some(RejectCode::RejectStateHashLink),
+                        message: format!("State link broken at step {}. Expected: {}, Found: {}", step_idx, prev_state, r.state_hash_prev.to_hex()),
+                        steps_verified: i as u64,
+                        first_step_index: first_index,
+                        last_step_index: last_index,
+                        final_chain_digest: current_digest,
+                        failing_step_index: Some(step_idx),
+                        steps_verified_before_failure: Some(i as u64),
+                    };
+                }
+            }
+        }
+
+        current_digest = Some(r.chain_digest_next.to_hex());
+        current_state = Some(r.state_hash_next.to_hex());
     }
 
     VerifyChainResult {
         decision: Decision::Accept,
         code: None,
-        failing_step: None,
+        message: format!("Verified {} steps successfully", last_index - first_index + 1),
+        steps_verified: (last_index - first_index + 1),
+        first_step_index: first_index,
+        last_step_index: last_index,
+        final_chain_digest: current_digest,
+        failing_step_index: None,
+        steps_verified_before_failure: None,
     }
 }

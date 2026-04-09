@@ -1,18 +1,14 @@
-﻿use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RejectCode {
     RejectSchema,
-    RejectVersion,
     RejectCanonProfile,
-    RejectObjectId,
-    RejectPolicyHash,
-    RejectChainDigestPrev,
-    RejectChainDigestNext,
+    RejectChainDigest,
     RejectStateHashLink,
     RejectNumericParse,
     RejectOverflow,
-    RejectMerkleRoot,
+    RejectPolicyViolation,
     RejectSlabSummary,
-    RejectRiskBound,
+    RejectSlabMerkle,
 }

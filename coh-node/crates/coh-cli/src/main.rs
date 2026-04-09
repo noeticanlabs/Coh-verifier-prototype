@@ -72,17 +72,24 @@ fn main() {
                 Ok(r) => r,
                 Err(e) => exit_with_error(e.to_string(), 2, cli.format),
             };
-            let res = build_slab(receipts);
-            if res.decision == Decision::Accept {
+            let mut res = build_slab(receipts);
+            if res.decision == Decision::SlabBuilt {
                 if let Some(ref slab) = res.slab {
                     if let Err(e) = save_json(&out, &slab) {
                         exit_with_error(e.to_string(), 3, cli.format);
                     }
+                    res.output = Some(out.clone());
                 }
                 output_result(res, cli.format);
             } else {
-                // Exit code 4 if it was a chain failure during build
-                let exit_code = if res.code.is_some() { 4 } else { 1 };
+                let exit_code = if let Some(code) = &res.code {
+                    match code {
+                        RejectCode::RejectChainDigest | RejectCode::RejectStateHashLink => 4,
+                        _ => 1,
+                    }
+                } else {
+                    1
+                };
                 output_result_with_exit(res, cli.format, exit_code);
             }
         }
@@ -124,19 +131,18 @@ fn save_json<T: serde::Serialize>(path: &str, val: &T) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn output_result<T: serde::Serialize + IntoDecision>(res: T, format: Format) {
+fn output_result<T: serde::Serialize + DisplayResult>(res: T, format: Format) {
     let exit_code = if res.is_accept() { 0 } else { 1 };
     output_result_with_exit(res, format, exit_code);
 }
 
-fn output_result_with_exit<T: serde::Serialize>(res: T, format: Format, exit_code: i32) {
+fn output_result_with_exit<T: serde::Serialize + DisplayResult>(res: T, format: Format, exit_code: i32) {
     match format {
         Format::Json => {
             println!("{}", serde_json::to_string_pretty(&res).unwrap());
         }
         Format::Text => {
-            // Basic text output for demo:
-            println!("{}", serde_json::to_string_pretty(&res).unwrap());
+            println!("{}", res.to_text());
         }
     }
     process::exit(exit_code);
@@ -155,19 +161,72 @@ fn exit_with_error(err: String, code: i32, format: Format) -> ! {
     process::exit(code);
 }
 
-trait IntoDecision {
+trait DisplayResult {
     fn is_accept(&self) -> bool;
+    fn to_text(&self) -> String;
 }
 
-impl IntoDecision for VerifyMicroResult {
-    fn is_accept(&self) -> bool { self.decision == Decision::Accept }
+fn decision_to_text(d: &Decision) -> String {
+    match d {
+        Decision::Accept => "ACCEPT".to_string(),
+        Decision::Reject => "REJECT".to_string(),
+        Decision::SlabBuilt => "SLAB_BUILT".to_string(),
+    }
 }
-impl IntoDecision for VerifyChainResult {
+
+impl DisplayResult for VerifyMicroResult {
     fn is_accept(&self) -> bool { self.decision == Decision::Accept }
+    fn to_text(&self) -> String {
+        let mut s = format!("{}\n", decision_to_text(&self.decision));
+        if let Some(code) = &self.code { s.push_str(&format!("code: {:?}\n", code)); }
+        s.push_str(&format!("message: {}\n", self.message));
+        if let Some(idx) = self.step_index { s.push_str(&format!("step_index: {}\n", idx)); }
+        if let Some(oid) = &self.object_id { s.push_str(&format!("object_id: {}\n", oid)); }
+        if let Some(digest) = &self.chain_digest_next { s.push_str(&format!("chain_digest_next: {}\n", digest)); }
+        s
+    }
 }
-impl IntoDecision for BuildSlabResult {
+
+impl DisplayResult for VerifyChainResult {
     fn is_accept(&self) -> bool { self.decision == Decision::Accept }
+    fn to_text(&self) -> String {
+        let mut s = format!("{}\n", decision_to_text(&self.decision));
+        if let Some(code) = &self.code { s.push_str(&format!("code: {:?}\n", code)); }
+        s.push_str(&format!("message: {}\n", self.message));
+        s.push_str(&format!("steps_verified: {}\n", self.steps_verified));
+        s.push_str(&format!("first_step_index: {}\n", self.first_step_index));
+        s.push_str(&format!("last_step_index: {}\n", self.last_step_index));
+        if let Some(digest) = &self.final_chain_digest { s.push_str(&format!("final_chain_digest: {}\n", digest)); }
+        if let Some(fidx) = self.failing_step_index { s.push_str(&format!("failing_step_index: {}\n", fidx)); }
+        s
+    }
 }
-impl IntoDecision for VerifySlabResult {
+
+impl DisplayResult for BuildSlabResult {
+    fn is_accept(&self) -> bool { self.decision == Decision::SlabBuilt }
+    fn to_text(&self) -> String {
+        let mut s = format!("{}\n", decision_to_text(&self.decision));
+        if let Some(code) = &self.code { s.push_str(&format!("code: {:?}\n", code)); }
+        s.push_str(&format!("message: {}\n", self.message));
+        if let Some(rs) = self.range_start { s.push_str(&format!("range_start: {}\n", rs)); }
+        if let Some(re) = self.range_end { s.push_str(&format!("range_end: {}\n", re)); }
+        if let Some(mc) = self.micro_count { s.push_str(&format!("micro_count: {}\n", mc)); }
+        if let Some(root) = &self.merkle_root { s.push_str(&format!("merkle_root: {}\n", root)); }
+        if let Some(out) = &self.output { s.push_str(&format!("output: {}\n", out)); }
+        s
+    }
+}
+
+impl DisplayResult for VerifySlabResult {
     fn is_accept(&self) -> bool { self.decision == Decision::Accept }
+    fn to_text(&self) -> String {
+        let mut s = format!("{}\n", decision_to_text(&self.decision));
+        if let Some(code) = &self.code { s.push_str(&format!("code: {:?}\n", code)); }
+        s.push_str(&format!("message: {}\n", self.message));
+        s.push_str(&format!("range_start: {}\n", self.range_start));
+        s.push_str(&format!("range_end: {}\n", self.range_end));
+        if let Some(mc) = self.micro_count { s.push_str(&format!("micro_count: {}\n", mc)); }
+        if let Some(root) = &self.merkle_root { s.push_str(&format!("merkle_root: {}\n", root)); }
+        s
+    }
 }

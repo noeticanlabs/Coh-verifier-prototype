@@ -11,7 +11,7 @@ REM   1. verify-micro valid.json        -> ACCEPT
 REM   2. verify-micro tampered.json     -> REJECT (digest mismatch)
 REM   3. verify-chain valid.jsonl       -> ACCEPT
 REM   4. verify-chain broken.jsonl      -> REJECT (continuity break)
-REM   5. build-slab valid.jsonl          -> SLAB_BUILT
+REM   5. build-slab valid.jsonl         -> SLAB_BUILT
 REM   6. verify-slab slab.json          -> ACCEPT
 REM   7. verify-slab broken_slab.json   -> REJECT (optional add-on)
 REM

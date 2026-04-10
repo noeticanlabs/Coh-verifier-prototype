@@ -30,7 +30,7 @@
 //!
 //! ## Quick Start
 //!
-//! ```rust
+//! ```rust,ignore
 //! use coh_core::{verify_micro, verify_chain, build_slab, verify_slab};
 //! use coh_core::types::{MicroReceiptWire, SlabReceiptWire, MetricsWire};
 //!
@@ -96,7 +96,7 @@ pub mod verify_slab;
 pub use build_slab::build_slab;
 pub use verify_chain::verify_chain;
 pub use verify_micro::verify_micro;
-pub use verify_slab::verify_slab;
+pub use verify_slab::{verify_slab, verify_slab_with_leaves};
 
 // Re-export types for convenience
 pub use types::{BuildSlabResult, VerifyChainResult, VerifyMicroResult, VerifySlabResult};

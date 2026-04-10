@@ -2,13 +2,18 @@ use serde::{Deserialize, Serialize};
 pub use crate::reject::RejectCode;
 use std::convert::TryFrom;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Hash32(pub [u8; 32]);
 
 impl Hash32 {
     pub fn from_hex(hex: &str) -> Result<Self, RejectCode> {
+        // Overbuilt: Explicitly check length before decoding to provide cleaner RejectNumericParse
+        if hex.len() != 64 {
+            return Err(RejectCode::RejectNumericParse);
+        }
         let bytes = hex::decode(hex).map_err(|_| RejectCode::RejectNumericParse)?;
         if bytes.len() != 32 {
+            // Should be covered by hex length 64, but safety first
             return Err(RejectCode::RejectNumericParse);
         }
         let mut arr = [0u8; 32];
@@ -21,7 +26,13 @@ impl Hash32 {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+impl Default for Hash32 {
+    fn default() -> Self {
+        Hash32([0u8; 32])
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Decision {
     Accept,
@@ -202,7 +213,7 @@ pub struct BuildSlabResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub slab: Option<SlabReceiptWire>, // Still need this for writing the file
+    pub slab: Option<SlabReceiptWire>,
 }
 
 #[derive(Serialize)]
@@ -274,7 +285,7 @@ impl TryFrom<SlabReceiptWire> for SlabReceipt {
             schema_id: w.schema_id,
             version: w.version,
             object_id: w.object_id,
-            canon_profile_hash: Hash32::from_hex(&w.canon_profile_hash)?, // Wait, did I use Hash256 or Hash32? I should stick to Hash32.
+            canon_profile_hash: Hash32::from_hex(&w.canon_profile_hash)?,
             policy_hash: Hash32::from_hex(&w.policy_hash)?,
             range_start: w.range_start,
             range_end: w.range_end,

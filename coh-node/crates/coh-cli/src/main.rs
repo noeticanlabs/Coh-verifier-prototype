@@ -54,7 +54,7 @@ fn main() {
         Commands::VerifyMicro { input } => {
             let wire: MicroReceiptWire = match load_json(&input) {
                 Ok(w) => w,
-                Err(e) => exit_with_error(e.to_string(), 2, cli.format),
+                Err(e) => exit_with_error(format!("Failed to load micro-receipt from {}: {}", input, e), 2, cli.format),
             };
             let res = verify_micro(wire);
             output_result(res, cli.format);
@@ -62,7 +62,7 @@ fn main() {
         Commands::VerifyChain { input } => {
             let receipts = match load_jsonl(&input) {
                 Ok(r) => r,
-                Err(e) => exit_with_error(e.to_string(), 2, cli.format),
+                Err(e) => exit_with_error(format!("Failed to load chain from {}: {}", input, e), 2, cli.format),
             };
             let res = verify_chain(receipts);
             output_result(res, cli.format);
@@ -70,13 +70,13 @@ fn main() {
         Commands::BuildSlab { input, out } => {
             let receipts = match load_jsonl(&input) {
                 Ok(r) => r,
-                Err(e) => exit_with_error(e.to_string(), 2, cli.format),
+                Err(e) => exit_with_error(format!("Failed to load source chain from {}: {}", input, e), 2, cli.format),
             };
             let mut res = build_slab(receipts);
             if res.decision == Decision::SlabBuilt {
                 if let Some(ref slab) = res.slab {
                     if let Err(e) = save_json(&out, &slab) {
-                        exit_with_error(e.to_string(), 3, cli.format);
+                        exit_with_error(format!("Failed to save slab to {}: {}", out, e), 3, cli.format);
                     }
                     res.output = Some(out.clone());
                 }
@@ -97,7 +97,7 @@ fn main() {
         Commands::VerifySlab { input } => {
             let wire: SlabReceiptWire = match load_json(&input) {
                 Ok(w) => w,
-                Err(e) => exit_with_error(e.to_string(), 2, cli.format),
+                Err(e) => exit_with_error(format!("Failed to load slab-receipt from {}: {}", input, e), 2, cli.format),
             };
             let res = verify_slab(wire);
             output_result(res, cli.format);
@@ -116,11 +116,20 @@ fn load_jsonl<T: serde::de::DeserializeOwned>(path: &str) -> anyhow::Result<Vec<
     let file = File::open(path)?;
     let reader = BufReader::new(file);
     let mut results = Vec::new();
-    for line in reader.lines() {
+    for (i, line) in reader.lines().enumerate() {
         let line = line?;
-        if line.trim().is_empty() { continue; }
-        let val = serde_json::from_str(&line)?;
-        results.push(val);
+        let trimmed = line.trim();
+        // Overbuilt Parser: Skip comments and empty lines
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        match serde_json::from_str::<T>(trimmed) {
+            Ok(val) => results.push(val),
+            Err(e) => return Err(anyhow::anyhow!("Line {}: JSON parsing failed: {}", i + 1, e)),
+        }
+    }
+    if results.is_empty() {
+        return Err(anyhow::anyhow!("File is empty or contains no valid records"));
     }
     Ok(results)
 }
@@ -152,7 +161,11 @@ fn output_result_with_exit<T: serde::Serialize + DisplayResult>(res: T, format: 
 fn exit_with_error(err: String, code: i32, format: Format) -> ! {
     match format {
         Format::Json => {
-            let msg = serde_json::json!({ "decision": "REJECT", "message": err, "code": "RejectNumericParse" });
+            let msg = serde_json::json!({
+                "decision": "REJECT",
+                "code": "RejectNumericParse",
+                "message": err
+            });
             println!("{}", serde_json::to_string_pretty(&msg).unwrap());
         }
         Format::Text => {
@@ -243,4 +256,3 @@ impl DisplayResult for VerifySlabResult {
         s
     }
 }
-

@@ -44,7 +44,7 @@ fn test_micro_lhs_overflow() {
     let res = verify_micro(wire);
     assert_eq!(res.decision, Decision::Reject);
     assert_eq!(res.code, Some(RejectCode::RejectOverflow));
-    assert!(res.message.contains("left side"));
+    assert!(res.message.contains("v_post + spend"));
 }
 
 #[test]
@@ -56,7 +56,7 @@ fn test_micro_rhs_overflow() {
     let res = verify_micro(wire);
     assert_eq!(res.decision, Decision::Reject);
     assert_eq!(res.code, Some(RejectCode::RejectOverflow));
-    assert!(res.message.contains("right side"));
+    assert!(res.message.contains("v_pre + defect"));
 }
 
 #[test]

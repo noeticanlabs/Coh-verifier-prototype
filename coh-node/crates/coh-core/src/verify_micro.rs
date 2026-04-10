@@ -1,19 +1,22 @@
 use crate::types::{MicroReceiptWire, MicroReceipt, VerifyMicroResult, Decision, RejectCode};
 use crate::math::CheckedMath;
-use crate::canon::{to_prehash_view, to_canonical_json_bytes, EXPECTED_MICRO_SCHEMA_ID, EXPECTED_MICRO_VERSION, EXPECTED_CANON_PROFILE_HASH};
+use crate::canon::{EXPECTED_MICRO_SCHEMA_ID, EXPECTED_MICRO_VERSION, EXPECTED_CANON_PROFILE_HASH, to_prehash_view, to_canonical_json_bytes};
 use crate::hash::compute_chain_digest;
 use std::convert::TryFrom;
 
 pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
-    // 1. Wire to runtime conversion
+    let step_index = wire.step_index;
+    let object_id = wire.object_id.clone();
+
+    // 1. Wire to runtime (handles hex validation and numeric parsing)
     let r = match MicroReceipt::try_from(wire) {
         Ok(r) => r,
         Err(e) => return VerifyMicroResult { 
             decision: Decision::Reject, 
-            code: Some(e.clone()), 
-            message: format!("Wire conversion failed: {:?}", e),
-            step_index: None,
-            object_id: None,
+            code: Some(e), 
+            message: "Malformed input: invalid hex or numeric format".to_string(),
+            step_index: Some(step_index),
+            object_id: Some(object_id),
             chain_digest_next: None,
         },
     };
@@ -22,8 +25,8 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
     if r.schema_id != EXPECTED_MICRO_SCHEMA_ID {
         return VerifyMicroResult { 
             decision: Decision::Reject, 
-            code: Some(RejectCode::RejectSchema),
-            message: format!("Invalid schema_id: {}", r.schema_id),
+            code: Some(RejectCode::RejectSchema), 
+            message: format!("Invalid schema_id: {} (Expected: {})", r.schema_id, EXPECTED_MICRO_SCHEMA_ID),
             step_index: Some(r.step_index),
             object_id: Some(r.object_id),
             chain_digest_next: None,
@@ -32,97 +35,84 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
     if r.version != EXPECTED_MICRO_VERSION {
         return VerifyMicroResult { 
             decision: Decision::Reject, 
-            code: Some(RejectCode::RejectSchema),
-            message: format!("Unsupported version: {}", r.version),
+            code: Some(RejectCode::RejectSchema), 
+            message: format!("Unsupported version: {} (Expected: {})", r.version, EXPECTED_MICRO_VERSION),
             step_index: Some(r.step_index),
             object_id: Some(r.object_id),
             chain_digest_next: None,
         };
     }
 
-    // 3. Canon profile check
+    // 3. Object ID sanity
+    if r.object_id.trim().is_empty() {
+        return VerifyMicroResult { 
+            decision: Decision::Reject, 
+            code: Some(RejectCode::RejectSchema), 
+            message: "Missing object_id".to_string(),
+            step_index: Some(r.step_index),
+            object_id: Some("".to_string()),
+            chain_digest_next: None,
+        };
+    }
+
+    // 4. Profile check
     if r.canon_profile_hash.to_hex() != EXPECTED_CANON_PROFILE_HASH {
         return VerifyMicroResult { 
             decision: Decision::Reject, 
-            code: Some(RejectCode::RejectCanonProfile),
-            message: "Canon profile hash mismatch".to_string(),
+            code: Some(RejectCode::RejectCanonProfile), 
+            message: format!("Canonical profile mismatch: {} (Expected: {})", r.canon_profile_hash.to_hex(), EXPECTED_CANON_PROFILE_HASH),
             step_index: Some(r.step_index),
             object_id: Some(r.object_id),
             chain_digest_next: None,
         };
     }
 
-    // 4. Field sanity
-    if r.object_id.is_empty() {
-        return VerifyMicroResult { 
-            decision: Decision::Reject, 
-            code: Some(RejectCode::RejectSchema),
-            message: "object_id is empty".to_string(),
-            step_index: Some(r.step_index),
-            object_id: None,
-            chain_digest_next: None,
-        };
-    }
-
-    // 5. Checked arithmetic
-    // v_post + spend
-    let left_side = match r.metrics.v_post.safe_add(r.metrics.spend) {
+    // 5. Policy logic (Arithmetic boundary check)
+    // Constraint: v_post + spend <= v_pre + defect
+    let lhs = match r.metrics.v_post.safe_add(r.metrics.spend) {
         Ok(val) => val,
         Err(e) => return VerifyMicroResult { 
             decision: Decision::Reject, 
-            code: Some(e.clone()),
-            message: format!("Arithmetic overflow on left side: {:?}", e),
+            code: Some(e), 
+            message: "Policy arithmetic overflow (v_post + spend)".to_string(),
             step_index: Some(r.step_index),
             object_id: Some(r.object_id),
             chain_digest_next: None,
         },
     };
-    // v_pre + defect
-    let right_side = match r.metrics.v_pre.safe_add(r.metrics.defect) {
+    let rhs = match r.metrics.v_pre.safe_add(r.metrics.defect) {
         Ok(val) => val,
         Err(e) => return VerifyMicroResult { 
             decision: Decision::Reject, 
-            code: Some(e.clone()),
-            message: format!("Arithmetic overflow on right side: {:?}", e),
+            code: Some(e), 
+            message: "Policy arithmetic overflow (v_pre + defect)".to_string(),
             step_index: Some(r.step_index),
             object_id: Some(r.object_id),
             chain_digest_next: None,
         },
     };
 
-    // 6. Policy inequality
-    if left_side > right_side {
+    if lhs > rhs {
         return VerifyMicroResult { 
             decision: Decision::Reject, 
-            code: Some(RejectCode::RejectPolicyViolation),
-            message: format!("v_post + spend ({}) exceeds v_pre + defect ({})", left_side, right_side),
+            code: Some(RejectCode::RejectPolicyViolation), 
+            message: format!("Policy violation: v_post + spend ({}) exceeds v_pre + defect ({})", lhs, rhs),
             step_index: Some(r.step_index),
             object_id: Some(r.object_id),
             chain_digest_next: None,
         };
     }
 
-    // 7. Digest recomputation
+    // 6. Cryptographic integrity (Canonicalization + Hashing)
     let prehash = to_prehash_view(&r);
-    let canon_bytes = match to_canonical_json_bytes(&prehash) {
-        Ok(b) => b,
-        Err(_) => return VerifyMicroResult { 
-            decision: Decision::Reject, 
-            code: Some(RejectCode::RejectNumericParse),
-            message: "Canonical serialization failed".to_string(),
-            step_index: Some(r.step_index),
-            object_id: Some(r.object_id),
-            chain_digest_next: None,
-        },
-    };
-    let recomputed_digest = compute_chain_digest(r.chain_digest_prev, &canon_bytes);
+    let canon_bytes = to_canonical_json_bytes(&prehash).unwrap();
+    let computed_digest = compute_chain_digest(r.chain_digest_prev, &canon_bytes);
 
-    // 8. Digest compare
-    if r.chain_digest_next != recomputed_digest {
+    if computed_digest != r.chain_digest_next {
         return VerifyMicroResult { 
             decision: Decision::Reject, 
-            code: Some(RejectCode::RejectChainDigest),
-            message: format!("Digest mismatch. Received: {}, Computed: {}", r.chain_digest_next.to_hex(), recomputed_digest.to_hex()),
+            code: Some(RejectCode::RejectChainDigest), 
+            message: format!("Cryptographic digest mismatch: computed {} but found {}", computed_digest.to_hex(), r.chain_digest_next.to_hex()),
             step_index: Some(r.step_index),
             object_id: Some(r.object_id),
             chain_digest_next: Some(r.chain_digest_next.to_hex()),
@@ -131,8 +121,8 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
 
     VerifyMicroResult { 
         decision: Decision::Accept, 
-        code: None,
-        message: "Micro-receipt accepted".to_string(),
+        code: None, 
+        message: "Micro-receipt verified successfully".to_string(),
         step_index: Some(r.step_index),
         object_id: Some(r.object_id),
         chain_digest_next: Some(r.chain_digest_next.to_hex()),

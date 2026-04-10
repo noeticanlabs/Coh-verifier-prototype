@@ -7,7 +7,7 @@ pub fn verify_chain(receipts: Vec<MicroReceiptWire>) -> VerifyChainResult {
         return VerifyChainResult {
             decision: Decision::Reject,
             code: Some(RejectCode::RejectSchema),
-            message: "Empty chain provided".to_string(),
+            message: "Empty chain provided: proof requires at least one micro-receipt.".to_string(),
             steps_verified: 0,
             first_step_index: 0,
             last_step_index: 0,
@@ -26,7 +26,6 @@ pub fn verify_chain(receipts: Vec<MicroReceiptWire>) -> VerifyChainResult {
         let step_idx = wire.step_index;
         if i == 0 {
             first_index = step_idx;
-            last_good_index = step_idx;
         }
 
         // 1. Verify in isolation
@@ -54,7 +53,7 @@ pub fn verify_chain(receipts: Vec<MicroReceiptWire>) -> VerifyChainResult {
                 return VerifyChainResult {
                     decision: Decision::Reject,
                     code: Some(RejectCode::RejectSchema),
-                    message: format!("Index discontinuity at step {}. Expected: {}, Found: {}", step_idx, last_good_index + 1, r.step_index),
+                    message: format!("Index discontinuity at step {}: expected next step to be {}, but found {}.", step_idx, last_good_index + 1, r.step_index),
                     steps_verified: i as u64,
                     first_step_index: first_index,
                     last_step_index: last_good_index,
@@ -70,7 +69,7 @@ pub fn verify_chain(receipts: Vec<MicroReceiptWire>) -> VerifyChainResult {
                     return VerifyChainResult {
                         decision: Decision::Reject,
                         code: Some(RejectCode::RejectChainDigest),
-                        message: format!("Chain digest link broken at step {}. Expected: {}, Found: {}", step_idx, prev_digest, r.chain_digest_prev.to_hex()),
+                        message: format!("Chain digest link broken at step {}: expected link to {}, but found {}.", step_idx, prev_digest, r.chain_digest_prev.to_hex()),
                         steps_verified: i as u64,
                         first_step_index: first_index,
                         last_step_index: last_good_index,
@@ -85,7 +84,7 @@ pub fn verify_chain(receipts: Vec<MicroReceiptWire>) -> VerifyChainResult {
                     return VerifyChainResult {
                         decision: Decision::Reject,
                         code: Some(RejectCode::RejectStateHashLink),
-                        message: format!("State link broken at step {}. Expected: {}, Found: {}", step_idx, prev_state, r.state_hash_prev.to_hex()),
+                        message: format!("State link broken at step {}: expected link to {}, but found {}.", step_idx, prev_state, r.state_hash_prev.to_hex()),
                         steps_verified: i as u64,
                         first_step_index: first_index,
                         last_step_index: last_good_index,
@@ -105,7 +104,7 @@ pub fn verify_chain(receipts: Vec<MicroReceiptWire>) -> VerifyChainResult {
     VerifyChainResult {
         decision: Decision::Accept,
         code: None,
-        message: format!("Verified {} steps successfully", last_good_index - first_index + 1),
+        message: format!("Linear proof chain verified: {} contiguous steps accepted.", last_good_index - first_index + 1),
         steps_verified: (last_good_index - first_index + 1),
         first_step_index: first_index,
         last_step_index: last_good_index,

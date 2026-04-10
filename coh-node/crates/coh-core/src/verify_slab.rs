@@ -23,7 +23,7 @@ pub fn verify_slab(wire: SlabReceiptWire) -> VerifySlabResult {
         return VerifySlabResult { 
             decision: Decision::Reject, 
             code: Some(RejectCode::RejectSchema), 
-            message: format!("Invalid schema_id: {}", r.schema_id),
+            message: format!("Invalid schema_id: {} (Expected: {})", r.schema_id, EXPECTED_SLAB_SCHEMA_ID),
             range_start: r.range_start,
             range_end: r.range_end,
             micro_count: Some(r.micro_count),
@@ -34,7 +34,7 @@ pub fn verify_slab(wire: SlabReceiptWire) -> VerifySlabResult {
         return VerifySlabResult { 
             decision: Decision::Reject, 
             code: Some(RejectCode::RejectSchema), 
-            message: format!("Unsupported version: {}", r.version),
+            message: format!("Unsupported version: {} (Expected: {})", r.version, EXPECTED_SLAB_VERSION),
             range_start: r.range_start,
             range_end: r.range_end,
             micro_count: Some(r.micro_count),
@@ -47,7 +47,7 @@ pub fn verify_slab(wire: SlabReceiptWire) -> VerifySlabResult {
         return VerifySlabResult { 
             decision: Decision::Reject, 
             code: Some(RejectCode::RejectSlabSummary), 
-            message: "Slab is empty (micro_count = 0)".to_string(),
+            message: "Slab is empty (micro_count = 0). Slab must contain at least one micro-receipt.".to_string(),
             range_start: r.range_start,
             range_end: r.range_end,
             micro_count: Some(0),
@@ -58,7 +58,7 @@ pub fn verify_slab(wire: SlabReceiptWire) -> VerifySlabResult {
         return VerifySlabResult { 
             decision: Decision::Reject, 
             code: Some(RejectCode::RejectSlabSummary), 
-            message: format!("Invalid range: {}..{}", r.range_start, r.range_end),
+            message: format!("Invalid range: {}..{} (End index cannot be less than start index)", r.range_start, r.range_end),
             range_start: r.range_start,
             range_end: r.range_end,
             micro_count: Some(r.micro_count),
@@ -67,11 +67,12 @@ pub fn verify_slab(wire: SlabReceiptWire) -> VerifySlabResult {
     }
     
     // Exactly count matches interval check:
-    if (r.range_end - r.range_start + 1) != r.micro_count {
+    let expected_count = r.range_end - r.range_start + 1;
+    if expected_count != r.micro_count {
         return VerifySlabResult { 
             decision: Decision::Reject, 
             code: Some(RejectCode::RejectSlabSummary), 
-            message: format!("Range {}..{} does not match micro_count {}", r.range_start, r.range_end, r.micro_count),
+            message: format!("Range count mismatch: interval {}..{} implies {} steps, but micro_count is {}", r.range_start, r.range_end, expected_count, r.micro_count),
             range_start: r.range_start,
             range_end: r.range_end,
             micro_count: Some(r.micro_count),
@@ -85,7 +86,7 @@ pub fn verify_slab(wire: SlabReceiptWire) -> VerifySlabResult {
         Err(e) => return VerifySlabResult { 
             decision: Decision::Reject, 
             code: Some(e.clone()), 
-            message: format!("Macro arithmetic overflow (left side): {:?}", e),
+            message: format!("Macro arithmetic overflow (v_post_last + total_spend): {:?}", e),
             range_start: r.range_start,
             range_end: r.range_end,
             micro_count: Some(r.micro_count),
@@ -97,7 +98,7 @@ pub fn verify_slab(wire: SlabReceiptWire) -> VerifySlabResult {
         Err(e) => return VerifySlabResult { 
             decision: Decision::Reject, 
             code: Some(e.clone()), 
-            message: format!("Macro arithmetic overflow (right side): {:?}", e),
+            message: format!("Macro arithmetic overflow (v_pre_first + total_defect): {:?}", e),
             range_start: r.range_start,
             range_end: r.range_end,
             micro_count: Some(r.micro_count),
@@ -109,7 +110,7 @@ pub fn verify_slab(wire: SlabReceiptWire) -> VerifySlabResult {
         return VerifySlabResult { 
             decision: Decision::Reject, 
             code: Some(RejectCode::RejectPolicyViolation), 
-            message: format!("Macro inequality violated: v_post_last + total_spend ({}) > v_pre_first + total_defect ({})", left_side, right_side),
+            message: format!("Macro inequality violated: v_post_last + total_spend ({}) exceeds v_pre_first + total_defect ({})", left_side, right_side),
             range_start: r.range_start,
             range_end: r.range_end,
             micro_count: Some(r.micro_count),
@@ -120,7 +121,7 @@ pub fn verify_slab(wire: SlabReceiptWire) -> VerifySlabResult {
     VerifySlabResult { 
         decision: Decision::Accept, 
         code: None, 
-        message: "Slab accepted".to_string(),
+        message: "Slab verified successfully: range checked and macro-accounting balanced.".to_string(),
         range_start: r.range_start,
         range_end: r.range_end,
         micro_count: Some(r.micro_count),

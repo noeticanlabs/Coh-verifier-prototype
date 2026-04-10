@@ -1,5 +1,7 @@
 error: unexpected key or value, expected newline, `#`
-  --> Cargo.toml:19:14
+  --> crates\coh-sidecar\Cargo.toml:15:30
    |
-19 | colored = "2"`npythonize = "0.23"
-   |              ^
+15 | anyhow = { workspace = true }`ntracing = { workspace = true }`ntracing-subscriber = { workspace = true }
+   |                              ^
+error: failed to load manifest for workspace member `C:\Users\truea\.gemini\antigravity\brain\75ab5e4c-a69b-451c-b975-f05bf7a3baf3\Coh wedge\coh-node\crates\coh-sidecar`
+referenced by workspace at `C:\Users\truea\.gemini\antigravity\brain\75ab5e4c-a69b-451c-b975-f05bf7a3baf3\Coh wedge\coh-node\Cargo.toml`

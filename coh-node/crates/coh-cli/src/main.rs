@@ -82,9 +82,13 @@ fn main() {
                 }
                 output_result(res, cli.format);
             } else {
+                // Determine exit code
                 let exit_code = if let Some(code) = &res.code {
                     match code {
-                        RejectCode::RejectChainDigest | RejectCode::RejectStateHashLink => 4,
+                        // EXIT 4 ONLY for invalid chain/linkage per Step 6/9
+                        RejectCode::RejectChainDigest | 
+                        RejectCode::RejectStateHashLink |
+                        RejectCode::RejectSchema if res.message.contains("Index discontinuity") => 4,
                         _ => 1,
                     }
                 } else {
@@ -142,7 +146,7 @@ fn output_result_with_exit<T: serde::Serialize + DisplayResult>(res: T, format: 
             println!("{}", serde_json::to_string_pretty(&res).unwrap());
         }
         Format::Text => {
-            println!("{}", res.to_text());
+            print!("{}", res.to_text());
         }
     }
     process::exit(exit_code);
@@ -151,11 +155,12 @@ fn output_result_with_exit<T: serde::Serialize + DisplayResult>(res: T, format: 
 fn exit_with_error(err: String, code: i32, format: Format) -> ! {
     match format {
         Format::Json => {
-            let msg = serde_json::json!({ "error": err, "code": code });
+            let msg = serde_json::json!({ "decision": "REJECT", "message": err, "code": "RejectNumericParse" });
             println!("{}", serde_json::to_string_pretty(&msg).unwrap());
         }
         Format::Text => {
-            eprintln!("Error: {}", err);
+            println!("REJECT");
+            println!("message: {}", err);
         }
     }
     process::exit(code);

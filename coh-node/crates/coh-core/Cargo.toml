@@ -27,3 +27,11 @@ path = "examples/benchmark.rs"
 [[example]]
 name = "stress_test"
 path = "examples/stress_test.rs"
+
+[[example]]
+name = "gen_ai_fixtures"
+path = "examples/gen_ai_fixtures.rs"
+
+[[example]]
+name = "benchmark_ai_demo"
+path = "examples/benchmark_ai_demo.rs"

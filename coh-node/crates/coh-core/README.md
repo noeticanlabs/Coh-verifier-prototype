@@ -152,16 +152,16 @@ Run the included examples:
 
 ```bash
 # Verify a single receipt from JSON
-cargo run --package coh-core --example verify_single
+cargo run --release --package coh-core --example verify_single
 
 # Verify a chain from JSONL
-cargo run --package coh-core --example verify_chain
+cargo run --release --package coh-core --example verify_chain
 
 # Run performance benchmarks
-cargo run --package coh-core --example benchmark
+cargo run --release --package coh-core --example benchmark
 
 # Run stress tests (10K, 100K, streaming)
-cargo run --package coh-core --example stress_test
+cargo run --release --package coh-core --example stress_test
 ```
 
 See `examples/` directory for JSON format examples:
@@ -182,29 +182,36 @@ cargo test --test test_verify_chain
 cargo test --test test_verify_slab
 ```
 
-## Performance
+## Performance (Release Build)
 
-**Benchmark Results (single-threaded, debug build):**
+**Benchmark Results (single-threaded, release build, optimized):**
 
-| Operation | Throughput | Latency |
-|-----------|------------|---------|
-| verify-micro | ~7,600 ops/sec | 127 µs avg (p50: 107µs, p99: 254µs) |
-| verify-chain(1K) | ~6,000 ops/sec | 166 µs/step |
-| verify-chain(10K) | ~6,100 ops/sec | 164 µs/step |
-| verify-chain(100K) | ~6,200 ops/sec | 160 µs/step |
-| build-slab(100) | N/A | 206 µs/receipt |
+| Operation | Throughput | Latency (avg) |
+|-----------|------------|---------------|
+| verify-micro | ~104,000 ops/sec | ~8.7 µs |
+| verify-chain(10) | ~78,000 ops/sec | ~13 µs/step |
+| verify-chain(100) | ~84,000 ops/sec | ~12 µs/step |
+| verify-chain(1K) | ~78,000 ops/sec | ~13 µs/step |
+| verify-chain(10K) | ~71,000 ops/sec | ~14 µs/step |
+| build-slab(100) | N/A | ~21 µs/receipt |
+| build-slab(1K) | N/A | ~24 µs/receipt |
 
-**CPU Breakdown:**
+**Latency Distribution (micro verification):**
+- p50 (median): 7.7 µs
+- p95: 11.1 µs
+- p99: 28.8 µs
+- min: 7.5 µs
+- max: 50.8 µs
+
+**CPU Breakdown (estimated):**
 - JSON parsing: ~35-40%
 - String allocations: ~15-20%
 - SHA256 hashing: ~25-30%
 - Arithmetic/logic: ~10-15%
 
-**Key insight:** JSON parsing is the bottleneck, NOT hashing. Binary format would yield 30-50% speedup.
+**Key insight:** Release build is ~13x faster than debug build. JSON parsing is the bottleneck, NOT hashing.
 
-**Theoretical max:** ~15,000-20,000 ops/sec with optimizations (release build + binary format).
-
-**Scaling:** Linear performance verified up to 100K receipts with no memory blowup.
+**Scaling:** Linear performance verified up to 10K+ receipts with no degradation.
 
 ## Architecture
 

@@ -6,7 +6,7 @@
 [![Rust: stable](https://img.shields.io/badge/rust-stable-brightgreen.svg)](https://www.rust-lang.org/)
 [![License: Proprietary](https://img.shields.io/badge/license-Proprietary-red.svg)](LICENSE)
 
-i-safety determinism ust erification-kernel integrity-audit
+`ai-safety` `determinism` `rust` `verification-kernel` `integrity-audit`
 
 ## Overview
 
@@ -24,11 +24,11 @@ Built in Rust for maximum memory safety and performance, the validator functions
 
 ## Project Structure
 
-- coh-node/: The primary Rust workspace.
-  - crates/coh-core/: Core logic, hashing, and verification kernels.
-  - crates/coh-cli/: Command-line interface for manual auditing.
-  - crates/coh-python/: Python bindings for data scientists.
-  - crates/coh-sidecar/: REST API for network-level verification.
+- `coh-node/`: The primary Rust workspace.
+  - `crates/coh-core/`: Core logic, hashing, and verification kernels.
+  - `crates/coh-cli/`: Command-line interface for manual auditing.
+  - `crates/coh-python/`: Python bindings for data scientists.
+  - `crates/coh-sidecar/`: REST API for network-level verification.
 
 ## Development
 
@@ -39,24 +39,24 @@ Built in Rust for maximum memory safety and performance, the validator functions
 
 ### Building
 
-`ash
+```bash
 cd coh-node
 cargo build --release
-`
+```
 
 ### Testing
 
-`ash
+```bash
 cd coh-node
 cargo test
-`
+```
 
 ### Formatting
 
-`ash
+```bash
 cd coh-node
 cargo fmt
-`
+```
 
 ## License
 

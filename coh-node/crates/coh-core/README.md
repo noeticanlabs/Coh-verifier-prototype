@@ -232,4 +232,4 @@ cargo test --test test_verify_slab
 
 ## License
 
-MIT
+Proprietary software owned by **NoeticanLabs (Micheal Ellington)**. All rights reserved. No commercial use, redistribution, or branding use is permitted without prior written permission. See the repository [`LICENSE`](LICENSE) for governing terms.

@@ -87,4 +87,8 @@ cargo build --release -p coh-validator
 
 ---
 
+## Licensing
+
+This repository is proprietary software owned by **NoeticanLabs (Micheal Ellington)**. No commercial use, redistribution, hosting, or derivative commercial deployment is permitted without prior written permission. The project name, product identity, and related branding are reserved trademarks/service identifiers of NoeticanLabs.
+
 **Built with rigor by the Antigravity Team.**

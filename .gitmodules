@@ -1,0 +1,3 @@
+[submodule "coh-lean"]
+	path = coh-lean
+	url = https://github.com/noeticanlabs/coh-lean.git

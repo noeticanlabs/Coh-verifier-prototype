@@ -47,15 +47,19 @@ fn parse_chain_input(_py: Python<'_>, input: Bound<'_, PyAny>) -> PyResult<Vec<M
             .lines()
             .filter(|l| !l.trim().is_empty())
             .map(|l| {
-                serde_json::from_str(l)
-                    .map_err(|e| CohMalformedError::new_err(format!("JSONL line parse error: {}", e)))
+                serde_json::from_str(l).map_err(|e| {
+                    CohMalformedError::new_err(format!("JSONL line parse error: {}", e))
+                })
             })
             .collect()
     } else if let Ok(list) = input.downcast::<PyList>() {
         list.iter()
             .map(|item| {
                 depythonize(&item).map_err(|e| {
-                    CohMalformedError::new_err(format!("List item to Receipt conversion failed: {}", e))
+                    CohMalformedError::new_err(format!(
+                        "List item to Receipt conversion failed: {}",
+                        e
+                    ))
                 })
             })
             .collect()

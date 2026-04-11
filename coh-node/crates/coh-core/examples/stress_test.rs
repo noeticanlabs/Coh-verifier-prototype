@@ -3,7 +3,7 @@
 //! Tests large-scale performance, streaming IO, and provides CPU breakdown estimates.
 
 use coh_core::types::{MetricsWire, MicroReceipt, MicroReceiptWire};
-use coh_core::{build_slab, canon::*, hash::compute_chain_digest, verify_chain, verify_micro};
+use coh_core::{canon::*, hash::compute_chain_digest, verify_chain};
 use std::convert::TryFrom;
 use std::io::{BufRead, BufWriter, Write};
 use std::time::Instant;
@@ -156,7 +156,6 @@ fn main() {
 
     let mut receipts = Vec::with_capacity(10_000);
     let mut prev_digest = "0".repeat(64);
-    let mut prev_state = "0".repeat(64);
 
     let mut line = String::new();
     while reader.read_line(&mut line).unwrap() > 0 {
@@ -168,7 +167,6 @@ fn main() {
                 break;
             }
             prev_digest = r.chain_digest_next.clone();
-            prev_state = r.state_hash_next.clone();
             receipts.push(r);
         }
         line.clear();

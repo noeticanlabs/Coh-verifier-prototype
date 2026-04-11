@@ -88,20 +88,18 @@ pub async fn execute_verified_handler(
     let request_id = Uuid::new_v4().to_string();
     let result = verify_micro(payload.receipt);
 
-    let mut error = None;
     if result.decision != Decision::Accept {
-        error = Some(ApiError {
-            code: result.code.map(|c| c.into()).unwrap_or(CohErrorCode::E003),
-            message: format!("Execution blocked: {}", result.message),
-            request_id: request_id.clone(),
-        });
-
+        let req_id = request_id.clone();
         return Json(UnifiedResponse {
             request_id,
             coh_version: "0.1.0".to_string(),
             status: result.decision,
             data: None::<serde_json::Value>,
-            error,
+            error: Some(ApiError {
+                code: result.code.map(|c| c.into()).unwrap_or(CohErrorCode::E003),
+                message: format!("Execution blocked: {}", result.message),
+                request_id: req_id,
+            }),
         });
     }
 

@@ -110,7 +110,7 @@ fn main() {
         }
 
         let start = Instant::now();
-        let result = verify_chain(receipts);
+        let _result = verify_chain(receipts);
         let duration = start.elapsed();
 
         let ns_per_op = duration.as_nanos() as f64 / chain_len as f64;

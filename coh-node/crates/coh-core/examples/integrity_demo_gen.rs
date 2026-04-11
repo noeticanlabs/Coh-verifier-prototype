@@ -7,7 +7,7 @@ use coh_core::canon::{to_canonical_json_bytes, to_prehash_view};
 use coh_core::hash::compute_chain_digest;
 use coh_core::types::{MetricsWire, MicroReceipt, MicroReceiptWire};
 use std::convert::TryFrom;
-use std::fs::{self, File};
+use std::fs::File;
 use std::io::Write;
 
 const VALID_PROFILE: &str = "4fb5a33116a4e393ad7900f0744e8ec5d1b7a2d67d71003666d628d7a1cded09";

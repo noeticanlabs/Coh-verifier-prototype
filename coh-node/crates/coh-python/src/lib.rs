@@ -16,7 +16,6 @@ pyo3::create_exception!(coh, CohMalformedError, CohError);
 // --- Result Object ---
 
 #[pyclass]
-#[derive(Clone)]
 pub struct CohResult {
     #[pyo3(get)]
     pub normalized: PyObject,
@@ -26,7 +25,7 @@ pub struct CohResult {
 
 // --- Internal Helpers ---
 
-fn parse_polymorphic_input(py: Python<'_>, input: Bound<'_, PyAny>) -> PyResult<MicroReceiptWire> {
+fn parse_polymorphic_input(_py: Python<'_>, input: Bound<'_, PyAny>) -> PyResult<MicroReceiptWire> {
     if let Ok(json_str) = input.extract::<String>() {
         serde_json::from_str(&json_str)
             .map_err(|e| CohMalformedError::new_err(format!("JSON parse error: {}", e)))
@@ -56,7 +55,7 @@ fn normalize(py: Python<'_>, input: Bound<'_, PyAny>) -> PyResult<CohResult> {
     let normalized_dict = pythonize(py, &prehash)?;
 
     Ok(CohResult {
-        normalized: normalized_dict,
+        normalized: normalized_dict.unbind(),
         hash: digest.to_hex(),
     })
 }

@@ -78,3 +78,59 @@ jobs:
 
       - name: Run benchmark (smoke test — verify it completes without error)
         run: cargo run --example benchmark -p coh-core --release
+
+  demo-test:
+    name: Demo Test (CI regression guard)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: coh-node
+    needs: build-and-test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            coh-node/target
+          key: ${{ runner.os }}-cargo-demo-${{ hashFiles('coh-node/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build binary
+        run: cargo build --release
+
+      - name: Run demo test (shell script)
+        run: bash tests/demo_test.sh
+        env:
+          BIN: target/release/coh-validator
+
+  dashboard-test:
+    name: Dashboard UI Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: coh-dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: coh-dashboard
+
+      - name: Run UI tests
+        run: npm run test:run

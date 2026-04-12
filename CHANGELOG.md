@@ -7,6 +7,37 @@ Version numbers follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Added
+
+**CI Infrastructure**
+- Demo test script (`tests/demo_test.sh`) for automated regression testing in CI
+- Dashboard UI test suite using Vitest + React Testing Library
+- Tests verify real demo data from `public/demo/` (not mocked)
+
+**Dashboard**
+- Scenario-driven fixture loading
+- Live sidecar verification option
+- Real-time chain break derivation
+- SlabCheck validation visualization
+
+### Fixed
+
+**CLI Exit Codes**
+- Documented exit code 4 (SOURCE) removed - implementation uses 0-3 only
+- Docs now match implementation: 0=accept, 1=reject, 2=malformed, 3=error
+
+**Documentation**
+- Error/Reject contract created (plans/ERROR_REJECT_CONTRACT.md)
+- Interface behavior matrix (plans/INTERFACE_BEHAVIOR_MATRIX.md)
+- Sidecar API documentation (plans/SIDECAR_API.md)
+- Python bindings guide (plans/PYTHON_BINDINGS.md)
+- Receipt schema specification (plans/RECEIPT_SCHEMA_SPEC.md)
+- Dashboard architecture doc (plans/DASHBOARD_ARCHITECTURE.md)
+
+---
+
 ## [0.1.0] — 2026-04-10
 
 ### Added

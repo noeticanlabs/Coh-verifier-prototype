@@ -93,39 +93,6 @@ export default function App() {
     };
   }, [scenarioKey, preferLiveVerification, reloadTick]);
 
-  if (loading && !dashboardData) {
-    return (
-      <div className="app-shell">
-        <div className="dashboard">
-          <section className="panel hero-panel load-panel">
-            <div className="eyebrow">COH AUDIT CONSOLE</div>
-            <h1>Loading AI demo data…</h1>
-            <p>Hydrating real receipt chains, slab summaries, and verification contracts.</p>
-          </section>
-        </div>
-      </div>
-    );
-  }
-
-  if (loadError && !dashboardData) {
-    return (
-      <div className="app-shell">
-        <div className="dashboard">
-          <section className="panel hero-panel load-panel">
-            <div className="eyebrow">COH AUDIT CONSOLE</div>
-            <h1>Unable to load demo data</h1>
-            <p>{loadError}</p>
-            <div className="command-actions">
-              <button type="button" className="button button-secondary" onClick={() => setReloadTick((tick) => tick + 1)}>
-                <RefreshCw size={14} /> Retry load
-              </button>
-            </div>
-          </section>
-        </div>
-      </div>
-    );
-  }
-
   const scenario = dashboardData?.scenario;
   const chainSteps = dashboardData?.chainSteps ?? [];
   const selectedStep = chainSteps[selectedIdx] ?? chainSteps[0];
@@ -215,6 +182,39 @@ export default function App() {
     ],
     [chainSteps, dashboardData?.sidecarBaseUrl, liveNote, preferLiveVerification, scenario, slab, slabCheck, verification]
   );
+
+  if (loading && !dashboardData) {
+    return (
+      <div className="app-shell">
+        <div className="dashboard">
+          <section className="panel hero-panel load-panel">
+            <div className="eyebrow">COH AUDIT CONSOLE</div>
+            <h1>Loading AI demo data…</h1>
+            <p>Hydrating real receipt chains, slab summaries, and verification contracts.</p>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError && !dashboardData) {
+    return (
+      <div className="app-shell">
+        <div className="dashboard">
+          <section className="panel hero-panel load-panel">
+            <div className="eyebrow">COH AUDIT CONSOLE</div>
+            <h1>Unable to load demo data</h1>
+            <p>{loadError}</p>
+            <div className="command-actions">
+              <button type="button" className="button button-secondary" onClick={() => setReloadTick((tick) => tick + 1)}>
+                <RefreshCw size={14} /> Retry load
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell">

@@ -90,10 +90,11 @@ JSON output is suitable for pipeline integration and log aggregation.
 | Code | Label | Meaning |
 |---|---|---|
 | 0 | ACCEPT | Verification passed |
-| 1 | REJECT | Semantic rejection (policy violation, digest mismatch, etc.) |
-| 2 | MALFORMED | Input error (JSON parse failure, invalid hex, missing field) |
-| 3 | ERROR | Internal execution error |
-| 4 | SOURCE | Invalid source chain provided to `build-slab` |
+| 1 | REJECT | Semantic rejection (policy violation, schema mismatch, chain break, etc.) |
+| 2 | MALFORMED | Input error (file not found, JSON parse failure, invalid hex) |
+| 3 | ERROR | Internal execution error (file write failure, etc.) |
+
+**Note:** Shell scripts should branch on exit code. For detailed rejection reasons (RejectCode), use `--format json` and inspect the `code` field. See `plans/ERROR_REJECT_CONTRACT.md` for the full error taxonomy.
 
 Automation tools should branch on exit code, not parse stdout.
 

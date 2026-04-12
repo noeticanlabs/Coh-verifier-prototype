@@ -30,7 +30,7 @@
 //!
 //! ## Quick Start
 //!
-//! ```rust,ignore
+//! ```rust
 //! use coh_core::{verify_micro, verify_chain, build_slab, verify_slab};
 //! use coh_core::types::{MicroReceiptWire, SlabReceiptWire, MetricsWire};
 //!

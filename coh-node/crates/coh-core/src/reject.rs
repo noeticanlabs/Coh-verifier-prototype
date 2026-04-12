@@ -11,4 +11,6 @@ pub enum RejectCode {
     RejectPolicyViolation,
     RejectSlabSummary,
     RejectSlabMerkle,
+    /// Interval/range validation failure (e.g., step index out of expected range)
+    RejectIntervalInvalid,
 }

@@ -14,6 +14,8 @@ fn create_valid_wire(index: u64, prev_digest: String, prev_state: String) -> Mic
         canon_profile_hash: VALID_PROFILE.to_string(),
         policy_hash: "0".repeat(64),
         step_index: index,
+        step_type: None,
+        signatures: None,
         state_hash_prev: prev_state.clone(),
         state_hash_next: prev_state, // Identity transition
         chain_digest_prev: prev_digest,

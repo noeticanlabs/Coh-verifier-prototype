@@ -13,6 +13,8 @@ fn test_canonical_json_order() {
             .to_string(),
         policy_hash: "0000000000000000000000000000000000000000000000000000000000000002".to_string(),
         step_index: 0,
+        step_type: None,
+        signatures: None,
         state_hash_prev: "0000000000000000000000000000000000000000000000000000000000000003"
             .to_string(),
         state_hash_next: "0000000000000000000000000000000000000000000000000000000000000004"

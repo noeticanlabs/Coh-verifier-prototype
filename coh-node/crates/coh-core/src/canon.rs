@@ -1,5 +1,5 @@
 use crate::reject::RejectCode;
-use crate::types::{MetricsPrehash, MicroReceipt, MicroReceiptPrehash};
+use crate::types::{MetricsPrehash, MicroReceipt, MicroReceiptPrehash, SignaturePrehash};
 
 pub const EXPECTED_MICRO_SCHEMA_ID: &str = "coh.receipt.micro.v1";
 pub const EXPECTED_MICRO_VERSION: &str = "1.0.0";
@@ -9,6 +9,22 @@ pub const EXPECTED_CANON_PROFILE_HASH: &str =
     "4fb5a33116a4e393ad7900f0744e8ec5d1b7a2d67d71003666d628d7a1cded09";
 
 pub fn to_prehash_view(r: &MicroReceipt) -> MicroReceiptPrehash {
+    // Convert signatures to prehash form if present
+    let sigs = match &r.signatures {
+        Some(sigs) => {
+            let mut prehash_sigs = Vec::with_capacity(sigs.len());
+            for s in sigs {
+                prehash_sigs.push(SignaturePrehash {
+                    signer: s.signer.clone(),
+                    signature: s.signature.to_hex(),
+                    timestamp: s.timestamp.to_string(),
+                });
+            }
+            Some(prehash_sigs)
+        }
+        None => None,
+    };
+
     MicroReceiptPrehash {
         canon_profile_hash: r.canon_profile_hash.to_hex(),
         chain_digest_prev: r.chain_digest_prev.to_hex(),
@@ -21,9 +37,11 @@ pub fn to_prehash_view(r: &MicroReceipt) -> MicroReceiptPrehash {
         object_id: r.object_id.clone(),
         policy_hash: r.policy_hash.to_hex(),
         schema_id: r.schema_id.clone(),
+        signatures: sigs,
         state_hash_next: r.state_hash_next.to_hex(),
         state_hash_prev: r.state_hash_prev.to_hex(),
         step_index: r.step_index,
+        step_type: r.step_type.clone(),
         version: r.version.clone(),
     }
 }

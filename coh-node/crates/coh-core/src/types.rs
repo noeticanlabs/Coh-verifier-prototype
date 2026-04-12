@@ -38,7 +38,7 @@ pub enum Decision {
 
 // --- Wire Layer ---
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct MetricsWire {
     pub v_pre: String,
@@ -56,6 +56,12 @@ pub struct MicroReceiptWire {
     pub canon_profile_hash: String,
     pub policy_hash: String,
     pub step_index: u64,
+    /// Optional step type for categorization (e.g., "generate", "review", "execute")
+    #[serde(default)]
+    pub step_type: Option<String>,
+    /// Optional signatures for multi-party approval
+    #[serde(default)]
+    pub signatures: Option<Vec<SignatureWire>>,
     pub state_hash_prev: String,
     pub state_hash_next: String,
     pub chain_digest_prev: String,
@@ -107,6 +113,10 @@ pub struct MicroReceipt {
     pub canon_profile_hash: Hash32,
     pub policy_hash: Hash32,
     pub step_index: u64,
+    /// Optional step type for categorization (e.g., "generate", "review", "execute")
+    pub step_type: String,
+    /// Optional signatures for multi-party approval
+    pub signatures: Option<Vec<Signature>>,
     pub state_hash_prev: Hash32,
     pub state_hash_next: Hash32,
     pub chain_digest_prev: Hash32,
@@ -156,10 +166,20 @@ pub struct MicroReceiptPrehash {
     pub object_id: String,
     pub policy_hash: String,
     pub schema_id: String,
+    pub signatures: Option<Vec<SignaturePrehash>>,
     pub state_hash_next: String,
     pub state_hash_prev: String,
     pub step_index: u64,
+    pub step_type: String,
     pub version: String,
+}
+
+/// Signature prehash for canonicalization
+#[derive(Serialize)]
+pub struct SignaturePrehash {
+    pub signer: String,
+    pub signature: String,
+    pub timestamp: String,
 }
 
 // --- Result Layer ---
@@ -244,9 +264,71 @@ impl TryFrom<MetricsWire> for Metrics {
     }
 }
 
+/// Signature wire for multi-party signing support
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct SignatureWire {
+    pub signer: String,
+    pub signature: String,
+    pub timestamp: u64,
+}
+
+/// Helper macro to create MicroReceiptWire with required fields only
+/// Usage: micro_wire!(schema_id, version, object_id, ...)
+#[macro_export]
+macro_rules! micro_wire {
+    ($s:expr, $v:expr, $o:expr, $cph:expr, $polh:expr, $si:expr, $shp:expr, $shn:expr, $cdp:expr, $cdn:expr, $m:expr) => {
+        MicroReceiptWire {
+            schema_id: $s,
+            version: $v,
+            object_id: $o,
+            canon_profile_hash: $cph,
+            policy_hash: $polh,
+            step_index: $si,
+            step_type: None,
+            signatures: None,
+            state_hash_prev: $shp,
+            state_hash_next: $shn,
+            chain_digest_prev: $cdp,
+            chain_digest_next: $cdn,
+            metrics: $m,
+        }
+    };
+}
+
+/// Signature runtime type
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Signature {
+    pub signer: String,
+    pub signature: Hash32,
+    pub timestamp: u64,
+}
+
+impl TryFrom<SignatureWire> for Signature {
+    type Error = RejectCode;
+    fn try_from(w: SignatureWire) -> Result<Self, Self::Error> {
+        Ok(Signature {
+            signer: w.signer,
+            signature: Hash32::from_hex(&w.signature)?,
+            timestamp: w.timestamp,
+        })
+    }
+}
+
 impl TryFrom<MicroReceiptWire> for MicroReceipt {
     type Error = RejectCode;
     fn try_from(w: MicroReceiptWire) -> Result<Self, Self::Error> {
+        // Parse optional signatures
+        let signatures = match w.signatures {
+            Some(sigs) => {
+                let mut parsed = Vec::with_capacity(sigs.len());
+                for s in sigs {
+                    parsed.push(Signature::try_from(s)?);
+                }
+                Some(parsed)
+            }
+            None => None,
+        };
+
         Ok(MicroReceipt {
             schema_id: w.schema_id,
             version: w.version,
@@ -254,6 +336,9 @@ impl TryFrom<MicroReceiptWire> for MicroReceipt {
             canon_profile_hash: Hash32::from_hex(&w.canon_profile_hash)?,
             policy_hash: Hash32::from_hex(&w.policy_hash)?,
             step_index: w.step_index,
+            // Optional fields - uses unwrap_or_default for backward compatibility
+            step_type: w.step_type.unwrap_or_default(),
+            signatures,
             state_hash_prev: Hash32::from_hex(&w.state_hash_prev)?,
             state_hash_next: Hash32::from_hex(&w.state_hash_next)?,
             chain_digest_prev: Hash32::from_hex(&w.chain_digest_prev)?,

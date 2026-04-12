@@ -14,6 +14,8 @@ fn create_valid_wire() -> MicroReceiptWire {
         canon_profile_hash: VALID_PROFILE.to_string(),
         policy_hash: "0".repeat(64),
         step_index: 0,
+        step_type: None,
+        signatures: None,
         state_hash_prev: "0".repeat(64),
         state_hash_next: "0".repeat(64),
         chain_digest_prev: "0".repeat(64),

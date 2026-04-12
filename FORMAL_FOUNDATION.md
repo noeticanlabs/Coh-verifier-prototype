@@ -22,65 +22,72 @@ Where:
 
 ---
 
+## Lean to Rust Traceability
+
+The core accounting invariant is **formally proved** in Lean 4.
+
+Lean source: [coh-lean/Coh/Core/Chain.lean](coh-lean/Coh/Core/Chain.lean)
+
+---
+
+### The IsLawful Predicate
+
+In `Chain.lean`, the `IsLawful` predicate formalizes the single-step accounting law:
+
+```lean
+def IsLawful {V : Type*}
+    [NormedAddCommGroup V] [NormedSpace R V] [InnerProductSpace R V] [CarrierSpace V]
+    (r : Receipt) (obj obj' : CohObject V) : Prop :=
+  obj'.potential obj'.state + r.spend <= obj.potential obj.state + r.defect + r.authority
+```
+
+**Rust enforcement**: `crates/coh-core/src/verify_micro.rs`:
+
+```rust
+// Constraint: v_post + spend <= v_pre + defect
+let lhs = r.metrics.v_post.safe_add(r.metrics.spend)?;
+let rhs = r.metrics.v_pre.safe_add(r.metrics.defect)?;
+if lhs > rhs { return Reject(RejectPolicyViolation) }
+```
+
+---
+
+### The lawful_composition Theorem
+
+In Lean, the composition theorem proves that if every micro-step in a chain is lawful, the aggregate slab is also lawful:
+
+```lean
+theorem lawful_composition {V : Type*}
+    (r1 r2 : Receipt) (obj1 obj2 obj3 : CohObject V)
+    (h1 : IsLawful r1 obj1 obj2)
+    (h2 : IsLawful r2 obj2 obj3) :
+    IsLawful (combineReceipts r1 r2) obj1 obj3
+```
+
+**Rust enforcement**: `verify_slab_envelope` in `crates/coh-core/src/verify_slab.rs`:
+
+```rust
+// Macro inequality: v_post_last + total_spend <= v_pre_first + total_defect
+let lhs = r.summary.v_post_last.safe_add(r.summary.total_spend)?;
+let rhs = r.summary.v_pre_first.safe_add(r.summary.total_defect)?;
+if lhs > rhs { return Reject(RejectSlabSummary) }
+```
+
+---
+
 ## System Layers
 
 ### Layer 1: Wire
 - All numerical fields encoded as **Decimal Strings**
-- JSON format with strict schema enforcement
-- `deny_unknown_fields` prevents extra data
+- JSON format with strict schema enforcement (JCS compatible)
 
 ### Layer 2: Runtime
 - Converted to `u128` for exact-integer arithmetic
 - All arithmetic uses checked operations (`checked_add`, `checked_sub`, `checked_mul`)
-- No floating-point arithmetic is permitted in the validation path.
 
 ### Layer 3: Prehash
-- Alphabetized canonical view (JCS compat) for deterministic hashing.
-- Structurally excludes the `chain_digest_next` field to guarantee non-circularity.
-- Serialized as JSON bytes for input to the cryptographic digest function.
-
-### Layer 4: Result
-- `Decision::Accept` — Verification passed.
-- `Decision::Reject` — Verification failed with an explicit `RejectCode`.
-- `Decision::SlabBuilt` — Slab construction succeeded.
-
----
-
-## Cryptographic Design
-
-### Digest Computation
-
-```
-chain_digest = SHA256("COH_V1_CHAIN" || "|" || prev_digest_bytes || "|" || canonical_json)
-```
-
-- **Domain Separation**: The tag `COH_V1_CHAIN` prevents cross-context hash collisions.
-- **Deterministic Input**: JCS normalization ensures identical semantic receipts produce identical bytes.
-
-### Merkle Root
-
-```
-merkle_inner = SHA256("COH_V1_MERKLE" || "|" || left_bytes || "|" || right_bytes)
-```
-
-- Root is computed over the `chain_digest_next` entries of a contiguous micro-receipt window.
-
----
-
-## Reject Code Taxonomy
-
-| Code | Condition |
-|------|-----------|
-| `RejectSchema` | Invalid schema_id or version. |
-| `RejectCanonProfile` | Canon profile hash mismatch. |
-| `RejectChainDigest` | Digest linkage or integrity failure. |
-| `RejectStateHashLink` | State transition discontinuity. |
-| `RejectNumericParse` | Invalid decimal string format (overflow or non-numeric). |
-| `RejectOverflow` | Arithmetic overflow in checked math. |
-| `RejectPolicyViolation` | Accounting law inequality violated. |
-| `RejectSlabSummary` | Slab macro-accounting failure. |
-| `RejectSlabMerkle` | Slab Merkle root mismatch. |
-| `RejectIntervalInvalid` | Transition interval gap detected. |
+- Alphabetized canonical view for deterministic hashing.
+- Structurally excludes circular fields.
 
 ---
 
@@ -89,11 +96,5 @@ merkle_inner = SHA256("COH_V1_MERKLE" || "|" || left_bytes || "|" || right_bytes
 The Coh Safety Wedge is designed for absolute execution determinism:
 - **No Floating-Point**: Entirely integer-based arithmetic.
 - **No Randomness**: Zero reliance on RNG or non-deterministic sources.
-- **Canonical Serialization**: Field-alphabetized JSON ensures bit-identical digests across different implementations.
-- **Pure Functions**: Verification logic is isolated from time, network, and file system variability.
-
----
-
-## Maintenance Note
-
-Formal proofs previously maintained in-repo have been moved to a separate high-rigor repository to focus the wedge on runtime stability and adversarial resistance.
+- **Canonical Serialization**: Field-alphabetized JSON ensures bit-identical digests.
+- **Pure Functions**: Verification logic is isolated from time and external state variability.

@@ -20,7 +20,8 @@ impl From<RejectCode> for CohErrorCode {
             RejectCode::RejectSchema
             | RejectCode::RejectCanonProfile
             | RejectCode::RejectNumericParse
-            | RejectCode::RejectOverflow => CohErrorCode::E001,
+            | RejectCode::RejectOverflow
+            | RejectCode::RejectIntervalInvalid => CohErrorCode::E001,
 
             RejectCode::RejectChainDigest | RejectCode::RejectSlabMerkle => CohErrorCode::E002,
 

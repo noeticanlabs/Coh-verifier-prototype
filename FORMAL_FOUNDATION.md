@@ -31,18 +31,18 @@ Where:
 
 ### Layer 2: Runtime
 - Converted to `u128` for exact-integer arithmetic
-- All arithmetic uses checked operations (`checked_add`, `checked_sub`)
-- No floating-point, no overflow possible
+- All arithmetic uses checked operations (`checked_add`, `checked_sub`, `checked_mul`)
+- No floating-point arithmetic is permitted in the validation path.
 
 ### Layer 3: Prehash
-- Alphabetized canonical view for deterministic hashing
-- Structurally excludes `chain_digest_next` to guarantee non-circularity
-- Serialized as JSON bytes for digest computation
+- Alphabetized canonical view (JCS compat) for deterministic hashing.
+- Structurally excludes the `chain_digest_next` field to guarantee non-circularity.
+- Serialized as JSON bytes for input to the cryptographic digest function.
 
 ### Layer 4: Result
-- `Decision::Accept` — verification passed
-- `Decision::Reject` — verification failed with explicit `RejectCode`
-- `Decision::SlabBuilt` — slab construction succeeded
+- `Decision::Accept` — Verification passed.
+- `Decision::Reject` — Verification failed with an explicit `RejectCode`.
+- `Decision::SlabBuilt` — Slab construction succeeded.
 
 ---
 
@@ -54,9 +54,8 @@ Where:
 chain_digest = SHA256("COH_V1_CHAIN" || "|" || prev_digest_bytes || "|" || canonical_json)
 ```
 
-- Domain tag `COH_V1_CHAIN` prevents cross-context hash collisions
-- Uses raw bytes of previous digest (not hex-encoded)
-- Canonical JSON ensures deterministic output
+- **Domain Separation**: The tag `COH_V1_CHAIN` prevents cross-context hash collisions.
+- **Deterministic Input**: JCS normalization ensures identical semantic receipts produce identical bytes.
 
 ### Merkle Root
 
@@ -64,9 +63,7 @@ chain_digest = SHA256("COH_V1_CHAIN" || "|" || prev_digest_bytes || "|" || canon
 merkle_inner = SHA256("COH_V1_MERKLE" || "|" || left_bytes || "|" || right_bytes)
 ```
 
-- Domain tag `COH_V1_MERKLE` separates from chain digests
-- Odd leaf count handled by self-duplication
-- Empty input returns zero hash
+- Root is computed over the `chain_digest_next` entries of a contiguous micro-receipt window.
 
 ---
 
@@ -74,127 +71,29 @@ merkle_inner = SHA256("COH_V1_MERKLE" || "|" || left_bytes || "|" || right_bytes
 
 | Code | Condition |
 |------|-----------|
-| `RejectSchema` | Invalid schema_id or version |
-| `RejectCanonProfile` | Canon profile hash mismatch |
-| `RejectChainDigest` | Digest linkage or integrity failure |
-| `RejectStateHashLink` | State transition discontinuity |
-| `RejectNumericParse` | Invalid decimal string format |
-| `RejectOverflow` | Arithmetic overflow in checked math |
-| `RejectPolicyViolation` | Accounting law inequality violated |
-| `RejectSlabSummary` | Slab macro-accounting failure |
-| `RejectSlabMerkle` | Slab Merkle root mismatch |
-| `RejectIntervalInvalid` | Transition interval gap detected |
-
----
-
-## Verification Functions
-
-### verify_micro
-1. Parse wire to runtime (hex + numeric validation)
-2. Check schema_id and version
-3. Verify canon profile hash
-4. Verify policy inequality (checked arithmetic)
-5. Compute and verify cryptographic digest
-
-### verify_chain
-1. For each receipt:
-   - Call verify_micro
-   - Verify step_index is strictly +1 from previous
-   - Verify chain_digest_prev matches previous chain_digest_next
-   - Verify state_hash_prev matches previous state_hash_next
-2. Return decision with first failing step index
-
-### build_slab
-1. Call verify_chain on entire receipt vector
-2. Aggregate totals: `total_spend`, `total_defect` (checked arithmetic)
-3. Build Merkle tree from chain_digest_next of each receipt
-4. Construct SlabReceiptWire with computed merkle_root
-
-### verify_slab_envelope (standalone)
-1. Parse wire to runtime
-2. Verify schema and version
-3. Verify range and count consistency
-4. Verify macro inequality: `v_post_last + total_spend <= v_pre_first + total_defect`
-5. Return Accept/Reject with details
-
-### verify_slab_with_leaves (full verification)
-1. Run verify_slab_envelope for schema/range/policy checks
-2. Extract chain digests from receipts (leaves)
-3. Compute Merkle root from leaves
-4. Compare computed root against slab's merkle_root
-5. Return RejectSlabMerkle if mismatch
+| `RejectSchema` | Invalid schema_id or version. |
+| `RejectCanonProfile` | Canon profile hash mismatch. |
+| `RejectChainDigest` | Digest linkage or integrity failure. |
+| `RejectStateHashLink` | State transition discontinuity. |
+| `RejectNumericParse` | Invalid decimal string format (overflow or non-numeric). |
+| `RejectOverflow` | Arithmetic overflow in checked math. |
+| `RejectPolicyViolation` | Accounting law inequality violated. |
+| `RejectSlabSummary` | Slab macro-accounting failure. |
+| `RejectSlabMerkle` | Slab Merkle root mismatch. |
+| `RejectIntervalInvalid` | Transition interval gap detected. |
 
 ---
 
 ## Determinism Guarantees
 
-- No floating-point arithmetic
-- No randomness / RNG
-- No external system calls (time, network, filesystem)
-- Canonical JSON ordering (JCS) ensures identical digest for semantic input
-- Checked arithmetic prevents overflow-attacks
+The Coh Safety Wedge is designed for absolute execution determinism:
+- **No Floating-Point**: Entirely integer-based arithmetic.
+- **No Randomness**: Zero reliance on RNG or non-deterministic sources.
+- **Canonical Serialization**: Field-alphabetized JSON ensures bit-identical digests across different implementations.
+- **Pure Functions**: Verification logic is isolated from time, network, and file system variability.
 
 ---
 
-## Lean to Rust Traceability
+## Maintenance Note
 
-The core accounting invariant is **formally proved** in Lean 4 (minimal verified stack).
-
-Lean source: [formal/Coh/VerifiedCore.lean](formal/Coh/VerifiedCore.lean)
-
----
-
-### The IsLawful Predicate
-
-In `VerifiedCore.lean`, the `IsLawful` predicate formalizes the single-step accounting law:
-
-```lean
-def IsLawful {V : Type*}
-    [NormedAddCommGroup V] [NormedSpace R V] [InnerProductSpace R V] [CarrierSpace V]
-    (r : Receipt) (obj obj' : CohObject V) : Prop :=
-  obj'.potential obj'.state + r.spend = obj.potential obj.state + r.defect + r.authority
-```
-
-**Rust enforcement**: `crates/coh-core/src/verify_micro.rs`:
-
-```rust
-// Constraint: v_post + spend <= v_pre + defect
-let lhs = r.metrics.v_post.safe_add(r.metrics.spend)?;
-let rhs = r.metrics.v_pre.safe_add(r.metrics.defect)?;
-if lhs > rhs { return Reject(RejectPolicyViolation) }
-```
-
----
-
-### The lawful_composition Theorem
-
-In Lean, the composition theorem proves that if every micro-step in a chain is lawful, the aggregate slab is also lawful:
-
-```lean
-theorem lawful_composition {V : Type*}
-    (r1 r2 : Receipt) (obj1 obj2 obj3 : CohObject V)
-    (h1 : IsLawful r1 obj1 obj2)
-    (h2 : IsLawful r2 obj2 obj3) :
-    IsLawful (combineReceipts r1 r2) obj1 obj3
-```
-
-**Rust enforcement**: `verify_slab_envelope` in `crates/coh-core/src/verify_slab.rs`:
-
-```rust
-// Macro inequality: v_post_last + total_spend <= v_pre_first + total_defect
-let lhs = r.summary.v_post_last.safe_add(r.summary.total_spend)?;
-let rhs = r.summary.v_pre_first.safe_add(r.summary.total_defect)?;
-if lhs > rhs { return Reject(RejectSlabSummary) }
-```
-
----
-
-## Traceability Summary
-
-| Lean Construct | Rust Location | Enforcement Point |
-|---|---|---|
-| `IsLawful` predicate | `verify_micro.rs` | Policy inequality check |
-| `lawful_composition` | `verify_slab.rs` | Slab macro-inequality |
-| Exact integer arithmetic | `math.rs` | All arithmetic operations |
-| Non-circular digest | `types.rs` | Structural field exclusion |
-| Alphabetized canon (JCS) | `canon.rs` | JSON byte ordering |
+Formal proofs previously maintained in-repo have been moved to a separate high-rigor repository to focus the wedge on runtime stability and adversarial resistance.

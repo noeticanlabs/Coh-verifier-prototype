@@ -19,12 +19,13 @@
 | Error: file not found | — | 2 | — | — | 400 | — | raises exception | — |
 | Error: file write fail | — | 3 | — | — | 500 | — | raises exception | — |
 | Error: internal panic | — | 3 | — | — | 500 | — | raises exception | — |
+| `build-slab`: source chain invalid | REJECT | 4 | `"REJECT"` | `"RejectChainDigest"` / `"RejectStateHashLink"` / source index discontinuity path | N/A | N/A | N/A | N/A |
 
 ---
 
 ## Key Design Principles
 
-1. **CLI Exit = Coarse**: 0-3 only (accept/reject/malformed/error)
+1. **CLI Exit = Coarse**: verifier commands use 0-3; `build-slab` additionally reserves 4 for source-chain failure
 2. **JSON/Sidecar/Python = Fine-grained**: Include full `RejectCode` for debugging
 3. **HTTP 200 for REJECT**: Sidecar returns 200 with error body (not HTTP error) for verifier rejection decisions
 4. **HTTP 400/500 for transport errors**: Only for non-verification errors (malformed request, internal error)

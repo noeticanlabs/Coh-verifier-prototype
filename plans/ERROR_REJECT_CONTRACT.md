@@ -14,10 +14,13 @@ Coarse-grained process outcomes for shell scripting:
 | **1** | REJECT | Any rejection (policy, schema, chain, etc.) |
 | **2** | MALFORMED | Input file not found / parse error |
 | **3** | ERROR | Internal error (file write, etc.) |
+| **4** | SOURCE | `build-slab` source chain failed validation before slab output |
 
 **Design Rationale**: 
 - Shell branching only needs coarse outcome (accept/reject)
 - Fine-grained semantics live in structured outputs
+- Codes `0`-`3` are shared across verifier commands
+- Code `4` is reserved for `build-slab` only; it is not a universal verifier exit
 
 ---
 
@@ -142,8 +145,10 @@ Input Receipt/Slab
 └──────────────┘
        │
        ▼
-    ACCEPT (exit 0)
+     ACCEPT (exit 0)
 ```
+
+`build-slab` follows the same malformed/internal error paths, returns `SLAB_BUILT` with exit `0` on success, and exits `4` when the source chain fails verification before slab emission.
 
 ---
 
@@ -155,6 +160,7 @@ Input Receipt/Slab
 | **Reject** | 1 | `decision: "REJECT"` | HTTP 200 + `"error": {...}` | `.decision == Reject` |
 | **Parse Error** | 2 | `"code": "RejectNumericParse"` | HTTP 400 | raises exception |
 | **Internal Error**| 3 | N/A | HTTP 500 | raises exception |
+| **Build Source Failure** | 4 (`build-slab` only) | `decision: "REJECT"` + source-chain `RejectCode` | N/A | N/A |
 
 ---
 

@@ -1,6 +1,6 @@
 # Coh Validator Wedge Stabilization Checklist (v1)
 
-This document tracks the progress of aligning the repository with the locked **Step 1–10 Wedge Specification**.
+This document tracks the progress of aligning the repository with the locked **Step 1ï¿½10 Wedge Specification**.
 
 ## Step 1: Freeze the Wedge
 - [x] Update README.md to reflect the "Constraint Verifier Engine" identity.
@@ -13,7 +13,7 @@ This document tracks the progress of aligning the repository with the locked **S
   - verify-chain <input.jsonl>
   - build-slab <input.jsonl> --out <output.json>
   - verify-slab <input.json>
-- [x] Implement strict exit code contract (0, 1, 2, 3, 4).
+- [x] Implement strict CLI exit contract: shared verifier codes (0, 1, 2, 3) plus command-specific source code 4 for `build-slab`.
 - [x] Support --format text and --format json.
 
 ## Step 3: Rust Data Contracts
@@ -52,7 +52,7 @@ This document tracks the progress of aligning the repository with the locked **S
 ## Step 9: Make build-slab Real
 - [x] Implement build_slab.rs with deterministic Merkle root (leaves = chain_digest_next).
 - [x] Perform checked aggregation of totals.
-- [x] Handle exit code 4 for invalid source chains.
+- [x] Handle command-specific exit code 4 for invalid source chains.
 
 ## Step 10: Make verify-slab Real
 - [x] Implement verify_slab.rs with standalone macro inequality check.

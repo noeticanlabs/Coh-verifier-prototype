@@ -33,18 +33,17 @@
 ### CLI Exit Codes
 | Code | Meaning | Implementation |
 |------|---------|----------------|
-| 0 | ACCEPT | `if res.is_accept() { 0 } else { 1 }` (line 169) |
-| 1 | REJECT | All non-accept decisions |
-| 2 | MALFORMED | File load errors (line 51, 63, 75) |
-| 3 | ERROR | Catch-all errors (line 85, 113) |
+| 0 | ACCEPT | Successful verifier result, or successful `build-slab` emission |
+| 1 | REJECT | Verifier rejection decisions |
+| 2 | MALFORMED | File load / parse errors |
+| 3 | ERROR | Internal execution errors |
+| 4 | SOURCE | `build-slab` source-chain failure (`RejectChainDigest`, `RejectStateHashLink`, index discontinuity path) |
 
-**Current Docs**: `coh-node/docs/05-cli-usage.md` - exit codes 0-4 documented
+**Current Docs**: `coh-node/docs/05-cli-usage.md` - shared verifier codes 0-3 plus command-specific `build-slab` code 4 documented
 
-**Gap**: ⚠️ **MISMATCH** - Docs list 0-4 but implementation uses 0-3 only
+**Status**: ✅ Reconciled - docs now match implementation semantics
 
-**Resolution needed**: Either:
-1. Update docs to match implementation (0=accept, 1=reject, 2=malformed, 3=error)
-2. Add exit codes 4+ for schema/version to match docs
+**Resolution**: Freeze the implementation as canonical: verifier commands use 0-3, while `build-slab` additionally uses 4 for invalid source chains.
 
 ---
 
@@ -159,10 +158,10 @@
 
 | Area | Severity | Action |
 |------|-----------|--------|
-| Exit codes | HIGH | Reconcile implementation vs docs |
+| Exit codes | RESOLVED | Reconciled implementation vs docs |
 | Sidecar API | HIGH | Document routes and error codes |
 | Python API | HIGH | Create usage guide |
-| CLI exit codes | MEDIUM | Update docs to match 0-3 |
+| CLI exit codes | RESOLVED | Shared 0-3 verifier contract plus `build-slab` source code 4 documented |
 | Receipt schemas | MEDIUM | Add formal JSON schema |
 | Dashboard | MEDIUM | Document architecture |
 | Lean mapping | LOW | Create correspondence table |
@@ -172,10 +171,9 @@
 
 ## Recommended Execution Order
 
-1. **Fix exit code mismatch** (HIGH priority) - decide whether to update code or docs
-2. **Document sidecar API** (HIGH) - routes and error contracts  
-3. **Document Python API** (HIGH) - usage guide
-4. Add JSON schemas for wire types
-5. Document dashboard architecture  
-6. Create Lean correspondence table
-7. Refresh CHANGELOG/ROADMAP
+1. **Document sidecar API** (HIGH) - routes and error contracts  
+2. **Document Python API** (HIGH) - usage guide
+3. Add JSON schemas for wire types
+4. Document dashboard architecture  
+5. Create Lean correspondence table
+6. Refresh CHANGELOG/ROADMAP

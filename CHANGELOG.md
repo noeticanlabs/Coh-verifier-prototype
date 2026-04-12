@@ -25,8 +25,8 @@ Version numbers follow [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 **CLI Exit Codes**
-- Documented exit code 4 (SOURCE) removed - implementation uses 0-3 only
-- Docs now match implementation: 0=accept, 1=reject, 2=malformed, 3=error
+- Reconciled docs with actual CLI behavior: verifier commands use 0=accept, 1=reject, 2=malformed, 3=error
+- Documented command-specific exit code 4 (SOURCE) for `build-slab` source-chain failures
 
 **Documentation**
 - Error/Reject contract created (plans/ERROR_REJECT_CONTRACT.md)
@@ -72,7 +72,7 @@ Version numbers follow [Semantic Versioning](https://semver.org/).
 **CLI (coh-validator)**
 
 - Commands: `verify-micro`, `verify-chain`, `build-slab`, `verify-slab`
-- Exit code contract: 0 ACCEPT, 1 REJECT, 2 MALFORMED, 3 ERROR, 4 SOURCE
+- Exit code contract: verifier commands use 0 ACCEPT, 1 REJECT, 2 MALFORMED, 3 ERROR; `build-slab` additionally uses 4 SOURCE for invalid source chains
 - Output formats: `--format text` (default), `--format json`
 
 **Testing**

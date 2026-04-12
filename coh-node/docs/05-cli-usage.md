@@ -87,6 +87,8 @@ JSON output is suitable for pipeline integration and log aggregation.
 
 ## Exit Code Contract
 
+For `verify-micro`, `verify-chain`, and `verify-slab`, the CLI uses a shared four-code contract.
+
 | Code | Label | Meaning |
 |---|---|---|
 | 0 | ACCEPT | Verification passed |
@@ -94,7 +96,13 @@ JSON output is suitable for pipeline integration and log aggregation.
 | 2 | MALFORMED | Input error (file not found, JSON parse failure, invalid hex) |
 | 3 | ERROR | Internal execution error (file write failure, etc.) |
 
-**Note:** Shell scripts should branch on exit code. For detailed rejection reasons (RejectCode), use `--format json` and inspect the `code` field. See `plans/ERROR_REJECT_CONTRACT.md` for the full error taxonomy.
+`build-slab` uses the same malformed/error handling, returns `0` on successful slab creation, and additionally reserves exit code `4` for source-chain verification failures discovered before slab emission.
+
+| Code | Label | Meaning |
+|---|---|---|
+| 4 | SOURCE | `build-slab` rejected the input chain as an invalid source for slab construction |
+
+**Note:** Shell scripts should branch on exit code first. For detailed rejection reasons (`RejectCode`), use `--format json` and inspect the `code` field. See `plans/ERROR_REJECT_CONTRACT.md` for the full error taxonomy.
 
 Automation tools should branch on exit code, not parse stdout.
 

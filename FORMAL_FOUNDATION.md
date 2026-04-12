@@ -1,43 +1,48 @@
 # Coh Safety Wedge — Formal Foundation
 
-This document specifies the mathematical and categorical foundations of the Coh system.
+The Coh system is anchored by the **T-Stack Federated Ledger**, a multi-phase machine-verified proof system.
 
 ---
 
-## The T-Stack Ledger Architecture
+## The T-Stack Ledger (Verified T1–T5)
 
-Formal verification of the Coh system is structured as a **T-Stack Federated Ledger**. Each "T" module provides a machine-verified proof of a foundational claim, building toward the complete Dirac Inevitability theorem.
-
-### T1: Categorical Foundation
-- **Theorem**: `StrictCoh ? Category`
-- **Formal Source**: [coh-t-stack/Coh/Ledger/T1_StrictCohCategory.lean](coh-t-stack/Coh/Ledger/T1_StrictCohCategory.lean)
-- **Claim**: The admissible fragment of a Strict Coh System (defined by a deterministic verifier and source-target compatibleArrow arrows) satisfies all Small Category axioms.
-- **Verification Status**: [PROVED] zero-sorry.
+| Phase | Theorem | Verified Pillar | Formal Source |
+|-------|---------|-----------------|---------------|
+| **A** | **T1** | Categorical Extraction | `Coh.Kernel.T1_Category` |
+| **B** | **T2** | Oplax Slack Bridge | `Coh.Slack.T2_OplaxBridge` |
+| **C** | **T3** | Macro-Slab Aggregate | `Coh.Trace.T3_MacroSlab` |
+| **D** | **T4** | Anomaly Visibility | `Coh.Spectral.T4_Visibility` |
+| **E** | **T5** | Dirac Representation | `Coh.Selection.T5_DiracSelection` |
 
 ---
 
-## Core Invariant: The Accounting Law of Transitions
+## Core Invariants
 
-The Coh Safety Wedge enforces a discrete trace accounting law at the runtime kernel level.
+### 1. The Accounting Law (Kernel Level)
 
+The absolute discrete verifier enforces:
 ```
-v_post + spend <= v_pre + defect
+v_post + spend <= v_pre + defect + authority
 ```
+**Decision Logic**: `ACCEPT` if the inequality holds, otherwise `REJECT`.
+**Source**: [Coh/Kernel/Verifier.lean](coh-t-stack/Coh/Kernel/Verifier.lean)
 
-Where:
-- `v_pre` = unresolved risk/value before the agent step.
-- `v_post` = unresolved risk/value after the agent step.  
-- `spend` = operational cost / work consumed.
-- `defect` = tolerated uncertainty / slack.
+### 2. Oplax Preservation (Slack Layer)
 
-**Rust enforcement**: `crates/coh-core/src/verify_micro.rs`.
+Finite precision and coarse-graining are managed via the **Oplax Injection**, proving that:
+`LawfulUpTo ? ? Lawful (paySlack ?)`
+This allows the stack to maintain global safety while internalizing operational slack.
+**Source**: [Coh/Slack/T2_OplaxBridge.lean](coh-t-stack/Coh/Slack/T2_OplaxBridge.lean)
+
+### 3. Trace Homomorphism (Macro Layer)
+
+Individual micro-transitions are algebraically aggregatable into macro-slabs via telescoping sums, preserving the integrity of the total chain trace.
+**Source**: [Coh/Trace/T3_MacroSlab.lean](coh-t-stack/Coh/Trace/T3_MacroSlab.lean)
 
 ---
 
-## Determinism and Integrity
+## Physical Necessity (Spectral Wedge)
 
-The Coh system guarantees absolute execution determinism:
-- **Integer Arithmetic**: `u128` checked math (`safe_add`, `safe_sub`).
-- **Canonical Serialization**: JCS-compatible JSON field ordering.
-- **Domain Separation**: Contextual tagging for all cryptographic digests.
-- **Environment Isolation**: No reliance on RNG, network, or system clock.
+The **Visibility Theorem (T4)** guarantees that any broken symmetry or adversarial tamper produces a strictly observable anomaly ($|\Delta| \ge \varepsilon$), ensuring that the verifier cannot be bypassed by infinitesimal violations.
+
+The **Dirac Selection Theorem (T5)** proves that the Dirac spinor is the unique minimal faithful metabolic carrier, grounding the security stack in thermodynamic necessity.

@@ -12,5 +12,9 @@ export default defineConfig({
             provider: 'v8',
             reporter: ['text', 'json', 'html'],
         },
+        server: {
+            port: 4173,
+            host: true,
+        },
     },
 });

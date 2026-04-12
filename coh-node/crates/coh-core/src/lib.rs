@@ -42,6 +42,8 @@
 //!     canon_profile_hash: "4fb5a33116a4e393ad7900f0744e8ec5d1b7a2d67d71003666d628d7a1cded09".to_string(),
 //!     policy_hash: "0".repeat(64),
 //!     step_index: 0,
+//!     step_type: None,
+//!     signatures: None,
 //!     state_hash_prev: "0".repeat(64),
 //!     state_hash_next: "0".repeat(64),
 //!     chain_digest_prev: "0".repeat(64),

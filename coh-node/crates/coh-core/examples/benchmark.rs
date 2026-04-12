@@ -17,6 +17,8 @@ fn create_valid_receipt(step_index: u64, prev_digest: &str, prev_state: &str) ->
         canon_profile_hash: VALID_PROFILE.to_string(),
         policy_hash: "0".repeat(64),
         step_index,
+        step_type: None,
+        signatures: None,
         state_hash_prev: prev_state.to_string(),
         state_hash_next: prev_state.to_string(),
         chain_digest_prev: prev_digest.to_string(),

@@ -118,6 +118,20 @@ Checks:
 - Macro policy inequality
 - Summary arithmetic
 
+## Lean 4 Traceability
+
+This crate's verification logic is connected to formal proofs in the Lean T-Stack:
+
+| Lean Theorem | Invariant | Rust Function | Verification Method |
+|--------------|-----------|---------------|---------------------|
+| `T1_Category.Closure` | Valid state transitions | `verify_micro::check_state_link` | Unit test + property test |
+| `T2_OplaxBridge.admissibility` | Policy bounds respected | `verify_micro::check_policy` | Fuzz test |
+| `T3_MacroSlab.telescope` | Chain → slab aggregation | `build_slab::aggregate` | Golden test |
+| `T4_Visibility.anomaly_detected` | Invalid inputs → reject | `reject.rs` exhaustive match | Coverage 100% |
+| `AccountingLaw.budget` | v_post + spend ≤ v_pre + defect + authority | `verify_micro::check_accounting` | Property-based test |
+
+See [FORMAL_FOUNDATION.md](../../FORMAL_FOUNDATION.md) for the complete theorem mapping.
+
 ## Types
 
 ### Decision

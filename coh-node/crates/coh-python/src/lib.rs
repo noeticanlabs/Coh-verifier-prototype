@@ -133,10 +133,29 @@ fn verify(py: Python<'_>, input: Bound<'_, PyAny>) -> PyResult<()> {
 }
 
 /// Verify a chain of micro-receipts (continuity and individual validity).
+/// Raises CohVerificationError on failure (unified with verify() API).
 #[pyfunction]
 fn verify_chain_api(py: Python<'_>, input: Bound<'_, PyAny>) -> PyResult<PyObject> {
     let receipts = parse_chain_input(py, input)?;
     let result = verify_chain(receipts);
+
+    // RFAP V1.0 Compliance: Unify error behavior with verify()
+    if result.decision != Decision::Accept {
+        let msg = format!("Chain verification failed: {}", result.message);
+        let err = CohVerificationError::new_err(msg);
+
+        let py_err_obj = err.value(py);
+        let _ = py_err_obj.setattr("reason", result.message.clone());
+        if let Some(h) = result.final_chain_digest {
+            let _ = py_err_obj.setattr("hash", h);
+        }
+        if let Some(idx) = result.failing_step_index {
+            let _ = py_err_obj.setattr("step_index", idx);
+        }
+
+        return Err(err);
+    }
+
     pythonize(py, &result)
         .map(|b| b.unbind())
         .map_err(|e| CohError::new_err(format!("Result conversion failed: {}", e)))

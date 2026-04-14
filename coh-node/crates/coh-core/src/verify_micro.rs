@@ -128,7 +128,19 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
 
     // 6. Cryptographic integrity (Canonicalization + Hashing)
     let prehash = to_prehash_view(&r);
-    let canon_bytes = to_canonical_json_bytes(&prehash).unwrap();
+    let canon_bytes = match to_canonical_json_bytes(&prehash) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            return VerifyMicroResult {
+                decision: Decision::Reject,
+                code: Some(e),
+                message: "Canonicalization failed: invalid JSON encoding".to_string(),
+                step_index: Some(r.step_index),
+                object_id: Some(r.object_id),
+                chain_digest_next: None,
+            };
+        }
+    };
     let computed_digest = compute_chain_digest(r.chain_digest_prev, &canon_bytes);
 
     if computed_digest != r.chain_digest_next {

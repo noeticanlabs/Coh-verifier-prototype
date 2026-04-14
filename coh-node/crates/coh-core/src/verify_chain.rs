@@ -45,7 +45,22 @@ pub fn verify_chain(receipts: Vec<MicroReceiptWire>) -> VerifyChainResult {
             };
         }
 
-        let r = MicroReceipt::try_from(wire).unwrap();
+        let r = match MicroReceipt::try_from(wire) {
+            Ok(r) => r,
+            Err(e) => {
+                return VerifyChainResult {
+                    decision: Decision::Reject,
+                    code: Some(e),
+                    message: format!("Redundant conversion failed at step {}: {:?}", step_idx, e),
+                    steps_verified: i as u64,
+                    first_step_index: first_index,
+                    last_step_index: last_good_index,
+                    final_chain_digest: current_digest,
+                    failing_step_index: Some(step_idx),
+                    steps_verified_before_failure: Some(i as u64),
+                };
+            }
+        };
 
         // 2. Continuity checks
         if i > 0 {

@@ -220,6 +220,35 @@ Slab (compressed macro-receipt)
    Trusted Output + Merkle Root
 ```
 
+### Current Verification Status
+
+- [TESTED] [`verify_micro()`](coh-node/crates/coh-core/src/verify_micro.rs:11) accepts properly signed, schema-valid receipts.
+- [TESTED] [`verify_chain()`](coh-node/crates/coh-core/src/verify_chain.rs:9) accepts bounded valid chains through 1000 steps and rejects invalid linkage/state trajectories.
+- [PROVED] Chain acceptance is currently bounded by [`MAX_CHAIN_LENGTH`](coh-node/crates/coh-core/src/verify_chain.rs:6).
+- [TESTED] Signed valid fixture generation is available via [`gen_ai_fixtures.rs`](coh-node/crates/coh-core/examples/gen_ai_fixtures.rs:1).
+- [TESTED] CI exercises bounded-valid acceptance, fixture generation, and generated-vector existence via [`.github/workflows/ci.yml`](.github/workflows/ci.yml:1).
+
+### Claim Discipline
+
+Use the following claim language:
+
+- [TESTED] "valid trajectories acceptance validated"
+- [TESTED] "micro + bounded chain verification validated"
+- [TESTED] "mixed distribution robustness tested"
+- [COUNTEREXAMPLE-RISK] Do **not** say "full trajectory space solved" while [`verify_chain()`](coh-node/crates/coh-core/src/verify_chain.rs:9) remains explicitly bounded.
+
+### Signed Fixture Surface
+
+Current generated signed fixtures include:
+
+- [`ai_workflow_micro_valid.json`](coh-node/examples/ai_demo/ai_workflow_micro_valid.json)
+- [`ai_workflow_chain_valid.jsonl`](coh-node/examples/ai_demo/ai_workflow_chain_valid.jsonl)
+- [`valid_chain_10.jsonl`](coh-node/vectors/valid/valid_chain_10.jsonl)
+- [`valid_chain_100.jsonl`](coh-node/vectors/valid/valid_chain_100.jsonl)
+- [`valid_chain_1000.jsonl`](coh-node/vectors/valid/valid_chain_1000.jsonl)
+- [`ai_workflow_valid.jsonl`](coh-node/vectors/semi_realistic/ai_workflow_valid.jsonl)
+- [`ai_workflow_noisy.jsonl`](coh-node/vectors/semi_realistic/ai_workflow_noisy.jsonl)
+
 ---
 
 ## Reject Codes (Failure Modes)

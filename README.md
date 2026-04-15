@@ -1,6 +1,6 @@
 # Coh Safety Wedge
 
-**Deterministic AI Verification Kernel & Formal T-Stack Ledger**
+**Deterministic verification kernel for AI receipt chains, with a React audit console and a Lean 4 formal layer.**
 
 [![CI](https://github.com/noeticanlabs/Coh-wedge/actions/workflows/ci.yml/badge.svg)](https://github.com/noeticanlabs/Coh-wedge/actions/workflows/ci.yml)
 [![Rust: stable](https://img.shields.io/badge/rust-stable-brightgreen.svg)](https://www.rust-lang.org/)
@@ -11,145 +11,172 @@
 
 ## Overview
 
-The **Coh Safety Wedge** is the high-integrity core of the Coh Network. It provides a dual-layer security guarantee:
-1. **Rust Verification Kernel**: A high-performance, deterministic engine for auditing AI receipt chains and state transitions.
-2. **Lean T-Stack Ledger**: A machine-verified formal foundation proving the categorical and physical invariants of the safety contract.
+**Coh Safety Wedge** is the trust boundary between untrusted agent output and committed application state.
+
+Instead of accepting an LLM's narration of what happened, Coh requires machine-checkable receipts and rejects workflows that break canonical structure, chain continuity, or the accounting law. The repository combines three layers:
+
+1. **Rust verification kernel** in `coh-node/` for deterministic receipt validation.
+2. **React audit console** in `coh-dashboard/` for replaying and inspecting valid and invalid chains.
+3. **Lean 4 formal layer** in `coh-t-stack/` for theorem work and formalization artifacts around the protocol model.
+
+## Why It Exists
+
+AI systems fail silently when they:
+
+- report state transitions that never happened,
+- skip required intermediate steps,
+- produce impossible accounting updates,
+- or continue execution after integrity has already broken.
+
+Coh turns those hidden failures into explicit `ACCEPT` / `REJECT` decisions with stable machine-readable surfaces.
+
+## What Coh Verifies
+
+The current repository centers on a frozen V1 verification surface:
+
+- **Micro receipts**: a single step and its local accounting constraints.
+- **Receipt chains**: ordered JSONL workflows with state-hash and chain-digest linkage.
+- **Slab receipts**: aggregated summaries with macro-accounting and Merkle integrity.
+- **Operator visibility**: dashboard and sidecar surfaces for inspecting outcomes.
+
+## Core Invariant
+
+The core accounting law enforced by the current V1 documentation surface is:
+
+```text
+v_post + spend <= v_pre + defect
+```
+
+| Term | Meaning |
+|---|---|
+| `v_pre` | Value or unresolved risk before the step |
+| `v_post` | Value or unresolved risk after the step |
+| `spend` | Resources consumed by the step |
+| `defect` | Explicitly tolerated slack or variance |
+
+If the inequality fails, the workflow is rejected before state should be committed.
+
+## Repository Map
+
+| Path | Purpose | Start here |
+|---|---|---|
+| `coh-node/` | Rust workspace containing the verifier, CLI, Python bindings, sidecar, fixtures, and protocol docs | [`coh-node/README.md`](coh-node/README.md) |
+| `coh-dashboard/` | React/Vite dashboard for replaying demo chains and optionally calling the live sidecar | [`coh-dashboard/README.md`](coh-dashboard/README.md) |
+| `coh-t-stack/` | Lean 4 formalization workspace and related theorem artifacts | [`FORMAL_FOUNDATION.md`](FORMAL_FOUNDATION.md) |
+| `ape/` | Adversarial fixture and experimental support area | [`ape/fixtures/README.md`](ape/fixtures/README.md) |
+| `plans/` | Design notes, audits, roadmap material, and implementation plans | [`plans/DOCUMENTATION_AND_SPEC_PLAN.md`](plans/DOCUMENTATION_AND_SPEC_PLAN.md) |
 
 ## Quick Start
 
-New to Coh? Try the [QUICKSTART.md](QUICKSTART.md) for a 5-minute end-to-end walkthrough.
+New to the repo? Start with [`QUICKSTART.md`](QUICKSTART.md), then use the flows below.
 
-## Project Structure
+### 1. Build the CLI verifier
 
-- **`coh-node/`**: The production Rust workspace.
-  - `crates/coh-core/`: Core verification logic (JCS, SHA-256, Accounting Law).
-  - `crates/coh-cli/`: `coh-validator` CLI for manual and automated auditing.
-  - `crates/coh-python/`: High-level bindings for AI workflow integration.
-  - `crates/coh-sidecar/`: Axum-based REST API for remote verification.
-- **`coh-t-stack/`**: The Formal T-Stack Ledger (Lean 4).
-  - `Coh/Ledger/`: Verified theorems (T1: Strict Coh ? Category).
-- **`coh-dashboard/`**: The Integrity Inspector (React/Vite).
-  - Visual timeline and audit inspector for AI receipt chains.
-
-## Core Concepts
-
-### T-Stack (The Federated Ledger)
-
-The **T-Stack** is a layered proof system that verifies AI behavior at different granularities:
-
-| Layer | What it proves | Analogy |
-|-------|----------------|---------|
-| **T1** | Individual actions are well-formed (categorical structure) | Grammar check |
-| **T2** | Actions respect operational slack (oplax bridge) | Tolerance bounds |
-| **T3** | Multiple actions aggregate correctly (macro-slab) | Running total |
-| **T4** | Errors are visible to auditors (visibility) | Audit trail |
-| **T5** | System selects minimal valid paths (dirac selection) | Optimization |
-
-Each T-layer catches different failure modes, forming a **defense-in-depth** verification stack.
-
-### Accounting Law
-
-The fundamental **budget constraint** enforced on every AI action:
-
-```
-v_post + spend ≤ v_pre + defect + authority
-```
-
-| Term | Meaning | Example |
-|------|---------|---------|
-| `v_pre` | Value before action | 1000 tokens |
-| `v_post` | Value after action | 950 tokens |
-| `spend` | Resources consumed | 30 tokens |
-| `defect` | Known losses/bugs | 5 tokens |
-| `authority` | External additions | 10 tokens |
-
-**Decision**: ACCEPT if inequality holds, REJECT otherwise.
-
-This prevents AI systems from "spending" resources they don't have — a fundamental integrity invariant.
-
-### Receipt Chain
-
-A **tamper-evident log** of all AI actions, where each entry:
-1. References the previous entry's hash (chain integrity)
-2. Contains a canonical (deterministic) representation (JCS)
-3. Includes a Merkle root for efficient auditing
-
-```
-Receipt 0 → Hash0
-Receipt 1 → Hash1 = SHA256(Hash0 | Canonical(Receipt1))
-Receipt 2 → Hash2 = SHA256(Hash1 | Canonical(Receipt2))
-```
-
-Altering a past receipt breaks the chain — providing **non-repudiation**.
-
-## Formal Foundations
-
-The system is anchored by the **T-Stack Federated Ledger**. Every foundational claim is machine-verified using Lean 4 to ensure total mathematical soundness. See [FORMAL_FOUNDATION.md](FORMAL_FOUNDATION.md) for the complete theorem mapping.
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     UNTRUSTED ZONE                          │
-│  AI System Output → Raw Receipts                           │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      WEDGE (Rust Kernel)                    │
-│  verify_micro → verify_chain → verify_slab                 │
-│  [Decision: ACCEPT or REJECT with RejectCode]              │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    TRUSTED ZONE                             │
-│  Verified Receipt Chain → Dashboard / Audit Trail          │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## Security Model
-
-For detailed threat model, trust boundaries, and security assumptions, see [SECURITY_MODEL.md](SECURITY_MODEL.md).
-
-## Development
-
-### Prerequisites
-- Rust stable
-- Lean 4 (Elan)
-- Node.js 20+
-
-### Building the Kernel
 ```bash
-cd coh-node
-cargo build --release
+cargo build --manifest-path coh-node/Cargo.toml -p coh-validator --release
 ```
 
-### Building the Ledger
+### 2. Verify a bundled valid chain
+
 ```bash
-cd coh-t-stack
-lake build
+cargo run --manifest-path coh-node/Cargo.toml -p coh-validator --release -- \
+  verify-chain coh-node/vectors/valid/valid_chain_10.jsonl
 ```
 
-### Running the Dashboard
+### 3. Build and verify a slab
+
+```bash
+cargo run --manifest-path coh-node/Cargo.toml -p coh-validator --release -- \
+  build-slab coh-node/vectors/valid/valid_chain_10.jsonl --out coh-node/slab.json
+
+cargo run --manifest-path coh-node/Cargo.toml -p coh-validator --release -- \
+  verify-slab coh-node/slab.json
+```
+
+### 4. Start the sidecar API
+
+```bash
+cargo run --manifest-path coh-node/Cargo.toml -p coh-sidecar --release
+```
+
+Default routes are `/health`, `/v1/verify-micro`, `/v1/verify-chain`, and `/v1/execute-verified`.
+
+### 5. Launch the dashboard
+
 ```bash
 cd coh-dashboard
 npm install
 npm run dev
 ```
 
-### Docker Quick Start
+The dashboard works in fixture mode by default and can optionally call the live sidecar at `http://127.0.0.1:3030`.
 
-For containerized execution without installing Rust:
+## Operational Flow
+
+```text
+Untrusted agent output
+        |
+        v
+Adapter / receipt emission
+        |
+        v
+Coh verifier (micro -> chain -> slab)
+        |
+        +--> ACCEPT -> commit / publish / archive
+        |
+        +--> REJECT -> halt / alert / inspect
+```
+
+## Documentation Guide
+
+| Topic | Document |
+|---|---|
+| End-to-end walkthrough | [`QUICKSTART.md`](QUICKSTART.md) |
+| Rust workspace overview | [`coh-node/README.md`](coh-node/README.md) |
+| Dashboard usage | [`coh-dashboard/README.md`](coh-dashboard/README.md) |
+| Security assumptions and threat model | [`SECURITY_MODEL.md`](SECURITY_MODEL.md) |
+| Formal layer overview | [`FORMAL_FOUNDATION.md`](FORMAL_FOUNDATION.md) |
+| System diagram | [`SPEC_DIAGRAM.md`](SPEC_DIAGRAM.md) |
+| Roadmap | [`ROADMAP.md`](ROADMAP.md) |
+
+## Development Prerequisites
+
+- Rust stable
+- Node.js 20+
+- Lean 4 via Elan/Lake for formal work
+
+## Common Development Commands
+
+### Rust workspace
 
 ```bash
-# Build and run verifier
-docker build -f coh-node/Dockerfile -t coh-validator .
-docker run -v ./receipts:/data coh-validator verify-micro /data/input.json
+cargo test --manifest-path coh-node/Cargo.toml
+```
 
-# Or use Docker Compose
+### Dashboard
+
+```bash
+cd coh-dashboard
+npm run test:run
+npm run build
+```
+
+### Lean workspace
+
+```bash
+cd coh-t-stack
+lake build
+```
+
+## Docker
+
+For containerized verifier usage:
+
+```bash
+docker build -f coh-node/Dockerfile -t coh-validator .
 docker-compose up --profile interactive
 ```
 
 ## License
-Proprietary - Noetican Labs. All rights reserved.
+
+Proprietary software owned by Noetican Labs. See [`LICENSE`](LICENSE) for governing terms.

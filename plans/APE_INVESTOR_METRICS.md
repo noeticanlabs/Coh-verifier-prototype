@@ -64,11 +64,11 @@ The question "are your attacks too weak?" misses the point:
 
 ### Acceptance Set Analysis
 
-**The "valid" test fixtures question**: Valid input testing requires properly signed receipts. Current test fixtures (`micro_valid.json`, `chain_valid.jsonl`) lack signatures - they fail with `RejectMissingSignature`, which is correct behavior (signatures ARE required).
+**The "valid" test fixtures question**: This has now been resolved for the bounded-valid verification surface. Legacy fixtures such as `micro_valid.json` and `chain_valid.jsonl` were unsigned and correctly failed with `RejectMissingSignature`, but signed/generated acceptance fixtures now exist.
 
-The verifier correctly rejects unsigned receipts - this is NOT a false reject. Proper acceptance testing would require generating signed receipts, which is outside the APE's adversarial scope.
+The verifier correctly rejects unsigned receipts - this is NOT a false reject. Acceptance testing is now grounded in generated signed fixtures such as [`ai_workflow_micro_valid.json`](coh-node/examples/ai_demo/ai_workflow_micro_valid.json), [`ai_workflow_chain_valid.jsonl`](coh-node/examples/ai_demo/ai_workflow_chain_valid.jsonl), and bounded-valid vectors under [`coh-node/vectors/valid/`](coh-node/vectors/valid).
 
-**False Reject Rate**: 0% for inputs that meet the signature requirement. The verifier accepts receipts that:
+**False Reject Rate**: [TESTED] 0% for the bounded-valid signed fixture set exercised by [`test_valid_chain.rs`](coh-node/crates/coh-core/tests/test_valid_chain.rs), [`test_cli.rs`](coh-node/crates/coh-cli/tests/test_cli.rs), and [`test_fixtures.rs`](coh-node/crates/coh-cli/tests/test_fixtures.rs). The verifier accepts receipts that:
 - Have valid signatures (not None, not empty)
 - Pass arithmetic constraints: v_post + spend <= v_pre + defect
 - Have valid chain linkage
@@ -76,17 +76,17 @@ The verifier correctly rejects unsigned receipts - this is NOT a false reject. P
 
 **What the 100% rejection actually means**:
 - 100% of adversarial proposals are caught
-- 0% of valid (signed, well-formed) inputs would be incorrectly rejected
+- [TESTED] 0% of current bounded-valid signed inputs were incorrectly rejected
 
 ### Acceptance Set Limitation
 
-**Why "valid" fixtures fail**: All test fixtures (`micro_valid.json`, etc.) lack signatures. The verifier requires signatures - this is NOT a false reject, it's correct security policy.
+**Why legacy "valid" fixtures fail**: Older fixtures (`micro_valid.json`, etc.) lack signatures. The verifier requires signatures - this is NOT a false reject, it's correct security policy.
 
 **APE candidates also lack signatures**: By design, APE generates adversarial candidates with `"signatures": null`. The signature requirement catches these.
 
-**False reject measurement requires**:
-1. External infrastructure to generate valid cryptographic signatures
-2. A signed receipt that passes the verifier's signature check
-3. Then verify such receipts are NOT rejected
+**False reject measurement now uses**:
+1. Generated signed fixtures from [`gen_ai_fixtures.rs`](coh-node/crates/coh-core/examples/gen_ai_fixtures.rs:1)
+2. Bounded-valid acceptance tests from [`test_valid_chain.rs`](coh-node/crates/coh-core/tests/test_valid_chain.rs)
+3. CLI oracle validation from [`test_fixtures.rs`](coh-node/crates/coh-cli/tests/test_fixtures.rs)
 
-This is outside APE's adversarial scope. The verifier correctly rejects all 20 attack strategies while enforcing proper signature requirements for production use.
+This remains partially outside APE's adversarial scope for fully external cryptographic provenance, but the repository now contains [TESTED] signed fixture pathways for bounded-valid acceptance. The verifier still correctly rejects all 20 attack strategies while enforcing signature requirements for production use.

@@ -24,31 +24,41 @@ pub fn run(input: &Input, rng: &mut SeededRng) -> Candidate {
 fn mutate_micro(wire: &MicroReceiptWire, rng: &mut SeededRng) -> Candidate {
     let mut m = wire.clone();
 
-    // Pick mutation type
-    match rng.next() % 5 {
+    // Pick mutation type - focus on integrity-breaking attacks
+    match rng.next() % 6 {
         0 => {
-            // Flip step_index
-            m.step_index = m.step_index.wrapping_add((rng.next() % 3) as u64);
-        }
-        1 => {
-            // Modify metrics slightly (but stay valid-ish)
+            // Tamper with payload but keep original digest (Integrity attack)
+            // Modify metrics to change what the receipt claims
             if let Ok(v) = wire.metrics.v_pre.parse::<u128>() {
                 let delta = (rng.next() as i64 - 0x40000000i64).abs() as u128 % 20;
                 m.metrics.v_pre = (v.saturating_sub(delta)).to_string();
             }
+            // DO NOT recompute chain_digest_next - this is the attack!
+        }
+        1 => {
+            // Tamper with digest but keep payload (Integrity attack)
+            // Change the chain digest to something arbitrary
+            m.chain_digest_next = format!("{:064x}", rng.next() as u64);
         }
         2 => {
-            // Swap state hashes
-            m.state_hash_next = m.state_hash_prev.clone();
+            // Break state continuity (Consistency attack)
+            // Make state_hash_next != state_hash_prev + 1
+            m.state_hash_next = format!("{:064x}", rng.next() as u64);
         }
         3 => {
-            // Change object ID slightly
+            // Change object ID (Integrity attack)
             let id = format!("{}_mut{}", wire.object_id, rng.next() % 10);
             m.object_id = id;
+            // Don't update digest - this breaks integrity
+        }
+        4 => {
+            // Remove signatures (cosmetic - may pass or fail depending on policy)
+            m.signatures = None;
         }
         _ => {
-            // Remove signatures (valid in some contexts)
-            m.signatures = None;
+            // Flip step_index to non-sequential (Consistency attack)
+            m.step_index = wire.step_index.wrapping_add((rng.next() % 5) as u64 + 1);
+            // Don't update digest
         }
     }
 

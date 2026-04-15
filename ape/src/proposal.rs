@@ -8,16 +8,31 @@ use serde::{Deserialize, Serialize};
 /// Strategy used to generate the proposal
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Strategy {
-    /// Slightly corrupt valid states
+    /// Slightly corrupt valid states (original)
     Mutation,
-    /// Merge multiple states incorrectly
+    /// Merge multiple states incorrectly (original)
     Recombination,
-    /// Break invariants  
+    /// Break invariants (original)
     Violation,
-    /// Stress numeric boundaries
+    /// Stress numeric boundaries (original)
     Overflow,
-    /// Break logical coherence
+    /// Break logical coherence (original)
     Contradiction,
+    /// Specification Gaming: satisfies formal rules, violates intent
+    /// Example: receipt passes math but encodes wrong outcome
+    SpecificationGaming,
+    /// Distribution Shift: pushes to rare edge distributions
+    /// Example: valid values in weird combinations
+    DistributionShift,
+    /// Temporal Drift: each step locally valid, global behavior drifts
+    /// Example: small consistent bias accumulates over steps
+    TemporalDrift,
+    /// Ambiguity Exploitation: exploits undefined/optional fields
+    /// Example: different interpretations of same receipt
+    AmbiguityExploitation,
+    /// Adversarial Alignment: appears aligned, passes checks, hides violation
+    /// Example: ideal-looking receipt with subtle inconsistency
+    AdversarialAlignment,
 }
 
 impl Strategy {
@@ -28,6 +43,11 @@ impl Strategy {
             Strategy::Violation => "violation",
             Strategy::Overflow => "overflow",
             Strategy::Contradiction => "contradiction",
+            Strategy::SpecificationGaming => "spec_gaming",
+            Strategy::DistributionShift => "dist_shift",
+            Strategy::TemporalDrift => "temporal_drift",
+            Strategy::AmbiguityExploitation => "ambiguity",
+            Strategy::AdversarialAlignment => "adv_alignment",
         }
     }
 
@@ -39,12 +59,18 @@ impl Strategy {
             Strategy::Violation => "broke invariant directly",
             Strategy::Overflow => "exceeded bounds or numeric domain assumptions",
             Strategy::Contradiction => "created mutually incompatible claims in one proposal",
+            Strategy::SpecificationGaming => "satisfies formal rules but violates intent",
+            Strategy::DistributionShift => "pushes to rare edge distributions",
+            Strategy::TemporalDrift => "each step valid, global behavior drifts",
+            Strategy::AmbiguityExploitation => "exploits undefined or optional fields",
+            Strategy::AdversarialAlignment => "appears aligned, hides deeper violation",
         }
     }
 
     /// Generate a candidate using this strategy
     /// Note: For now, returns raw Candidate. The metadata is added at the call site.
     pub fn generate(&self, input: &Input, rng: &mut crate::seed::SeededRng) -> Candidate {
+        use crate::strategies::ai_failure_modes;
         use crate::strategies::{contradiction, mutation, overflow, recombination, violation};
         match self {
             Strategy::Mutation => mutation::run(input, rng),
@@ -52,17 +78,27 @@ impl Strategy {
             Strategy::Violation => violation::run(input, rng),
             Strategy::Overflow => overflow::run(input, rng),
             Strategy::Contradiction => contradiction::run(input, rng),
+            Strategy::SpecificationGaming => ai_failure_modes::specification_gaming(input, rng),
+            Strategy::DistributionShift => ai_failure_modes::distribution_shift(input, rng),
+            Strategy::TemporalDrift => ai_failure_modes::temporal_drift(input, rng),
+            Strategy::AmbiguityExploitation => ai_failure_modes::ambiguity_exploitation(input, rng),
+            Strategy::AdversarialAlignment => ai_failure_modes::adversarial_alignment(input, rng),
         }
     }
 
     /// Get all strategy variants
-    pub fn all() -> [Strategy; 5] {
+    pub fn all() -> [Strategy; 10] {
         [
             Strategy::Mutation,
             Strategy::Recombination,
             Strategy::Violation,
             Strategy::Overflow,
             Strategy::Contradiction,
+            Strategy::SpecificationGaming,
+            Strategy::DistributionShift,
+            Strategy::TemporalDrift,
+            Strategy::AmbiguityExploitation,
+            Strategy::AdversarialAlignment,
         ]
     }
 }
@@ -168,6 +204,57 @@ pub enum Candidate {
     Slab(SlabReceiptWire),
 }
 
+/// Attack subtypes for mutation
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MutationSubtype {
+    /// Whitespace, formatting, non-semantic
+    Cosmetic,
+    /// Receipt fields, amounts, IDs, timestamps, hashes
+    Integrity,
+    /// Change one field without updating dependent fields
+    Consistency,
+    /// Alter issuer/origin/chain identity
+    Provenance,
+}
+
+impl MutationSubtype {
+    pub fn name(&self) -> &'static str {
+        match self {
+            MutationSubtype::Cosmetic => "cosmetic",
+            MutationSubtype::Integrity => "integrity",
+            MutationSubtype::Consistency => "consistency",
+            MutationSubtype::Provenance => "provenance",
+        }
+    }
+}
+
+/// Attack subtypes for recombination
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RecombinationSubtype {
+    /// Combines fragments preserving valid lineage
+    Benign,
+    /// Inserts valid fragment into wrong history
+    ChainSplice,
+    /// Mixes fragments from different chains/sessions
+    CrossOrigin,
+    /// Valid parts, invalid order
+    SequenceViolation,
+    /// Predecessor references don't match
+    HashLinkBreak,
+}
+
+impl RecombinationSubtype {
+    pub fn name(&self) -> &'static str {
+        match self {
+            RecombinationSubtype::Benign => "benign",
+            RecombinationSubtype::ChainSplice => "chain_splice",
+            RecombinationSubtype::CrossOrigin => "cross_origin",
+            RecombinationSubtype::SequenceViolation => "sequence_violation",
+            RecombinationSubtype::HashLinkBreak => "hash_link_break",
+        }
+    }
+}
+
 /// Metadata for candidate (for replayability and explainability)
 /// Note: Not serialized - used at runtime for demo output
 pub struct CandidateMetadata {
@@ -175,24 +262,32 @@ pub struct CandidateMetadata {
     pub strategy_name: &'static str,
     /// Specific attack type within the strategy
     pub attack_kind: &'static str,
+    /// Detailed subtype for mutation/recombination
+    pub attack_subtype: Option<&'static str>,
     /// Seed used for generation (for replay)
     pub seed: u64,
     /// Human-readable explanation of the corruption
     pub notes: String,
+    /// Whether this should fail (for triage)
+    pub should_fail: Option<bool>,
 }
 
 impl CandidateMetadata {
     pub fn new(
         strategy_name: &'static str,
         attack_kind: &'static str,
+        attack_subtype: Option<&'static str>,
         seed: u64,
         notes: String,
+        should_fail: Option<bool>,
     ) -> Self {
         Self {
             strategy_name,
             attack_kind,
+            attack_subtype,
             seed,
             notes,
+            should_fail,
         }
     }
 }

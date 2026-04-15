@@ -16,6 +16,19 @@ pub fn generate(strategy: Strategy, input: &Input, seed: u64) -> Proposal {
         Strategy::Violation => strategies::violation::run(input, &mut rng),
         Strategy::Overflow => strategies::overflow::run(input, &mut rng),
         Strategy::Contradiction => strategies::contradiction::run(input, &mut rng),
+        Strategy::SpecificationGaming => {
+            strategies::ai_failure_modes::specification_gaming(input, &mut rng)
+        }
+        Strategy::DistributionShift => {
+            strategies::ai_failure_modes::distribution_shift(input, &mut rng)
+        }
+        Strategy::TemporalDrift => strategies::ai_failure_modes::temporal_drift(input, &mut rng),
+        Strategy::AmbiguityExploitation => {
+            strategies::ai_failure_modes::ambiguity_exploitation(input, &mut rng)
+        }
+        Strategy::AdversarialAlignment => {
+            strategies::ai_failure_modes::adversarial_alignment(input, &mut rng)
+        }
     };
 
     Proposal::new(strategy, seed, candidate)

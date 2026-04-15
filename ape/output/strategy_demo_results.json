@@ -2,51 +2,187 @@
   {
     "strategy": "mutation",
     "note": "altered receipt field while preserving surface structure",
-    "generated": 50,
-    "rejected": 0,
-    "escaped": 50,
-    "first_escaped_seed": 0,
-    "avg_latency_us": 270.06,
-    "worst_latency_us": 532
+    "generated": 20,
+    "rejected": 16,
+    "escaped": 4,
+    "first_escaped_seed": 2,
+    "avg_latency_us": 168.75,
+    "worst_latency_us": 343,
+    "subtype_breakdown": [
+      {
+        "subtype": "missing_sig",
+        "generated": 20,
+        "rejected": 16,
+        "escaped": 4
+      }
+    ]
   },
   {
     "strategy": "recombination",
     "note": "spliced valid fragments into invalid chain topology",
-    "generated": 50,
-    "rejected": 0,
-    "escaped": 50,
-    "first_escaped_seed": 0,
-    "avg_latency_us": 272.52,
-    "worst_latency_us": 478
+    "generated": 20,
+    "rejected": 20,
+    "escaped": 0,
+    "first_escaped_seed": null,
+    "avg_latency_us": 178.45,
+    "worst_latency_us": 197,
+    "subtype_breakdown": [
+      {
+        "subtype": "missing_sig",
+        "generated": 20,
+        "rejected": 20,
+        "escaped": 0
+      }
+    ]
   },
   {
     "strategy": "violation",
     "note": "broke invariant directly",
-    "generated": 50,
-    "rejected": 50,
+    "generated": 20,
+    "rejected": 20,
     "escaped": 0,
     "first_escaped_seed": null,
-    "avg_latency_us": 35.88,
-    "worst_latency_us": 63
+    "avg_latency_us": 88.15,
+    "worst_latency_us": 179,
+    "subtype_breakdown": [
+      {
+        "subtype": "missing_sig",
+        "generated": 20,
+        "rejected": 20,
+        "escaped": 0
+      }
+    ]
   },
   {
     "strategy": "overflow",
     "note": "exceeded bounds or numeric domain assumptions",
-    "generated": 50,
-    "rejected": 50,
+    "generated": 20,
+    "rejected": 20,
     "escaped": 0,
     "first_escaped_seed": null,
-    "avg_latency_us": 156.54,
-    "worst_latency_us": 339
+    "avg_latency_us": 113.2,
+    "worst_latency_us": 202,
+    "subtype_breakdown": [
+      {
+        "subtype": "missing_sig",
+        "generated": 20,
+        "rejected": 20,
+        "escaped": 0
+      }
+    ]
   },
   {
     "strategy": "contradiction",
     "note": "created mutually incompatible claims in one proposal",
-    "generated": 50,
-    "rejected": 50,
+    "generated": 20,
+    "rejected": 20,
     "escaped": 0,
     "first_escaped_seed": null,
-    "avg_latency_us": 49.1,
-    "worst_latency_us": 129
+    "avg_latency_us": 123.9,
+    "worst_latency_us": 195,
+    "subtype_breakdown": [
+      {
+        "subtype": "missing_sig",
+        "generated": 20,
+        "rejected": 20,
+        "escaped": 0
+      }
+    ]
+  },
+  {
+    "strategy": "spec_gaming",
+    "note": "satisfies formal rules but violates intent",
+    "generated": 20,
+    "rejected": 20,
+    "escaped": 0,
+    "first_escaped_seed": null,
+    "avg_latency_us": 156.9,
+    "worst_latency_us": 317,
+    "subtype_breakdown": [
+      {
+        "subtype": "missing_sig",
+        "generated": 20,
+        "rejected": 20,
+        "escaped": 0
+      }
+    ]
+  },
+  {
+    "strategy": "dist_shift",
+    "note": "pushes to rare edge distributions",
+    "generated": 20,
+    "rejected": 20,
+    "escaped": 0,
+    "first_escaped_seed": null,
+    "avg_latency_us": 187.0,
+    "worst_latency_us": 247,
+    "subtype_breakdown": [
+      {
+        "subtype": "missing_sig",
+        "generated": 20,
+        "rejected": 20,
+        "escaped": 0
+      }
+    ]
+  },
+  {
+    "strategy": "temporal_drift",
+    "note": "each step valid, global behavior drifts",
+    "generated": 20,
+    "rejected": 20,
+    "escaped": 0,
+    "first_escaped_seed": null,
+    "avg_latency_us": 179.5,
+    "worst_latency_us": 189,
+    "subtype_breakdown": [
+      {
+        "subtype": "missing_sig",
+        "generated": 20,
+        "rejected": 20,
+        "escaped": 0
+      }
+    ]
+  },
+  {
+    "strategy": "ambiguity",
+    "note": "exploits undefined or optional fields",
+    "generated": 20,
+    "rejected": 15,
+    "escaped": 5,
+    "first_escaped_seed": 2,
+    "avg_latency_us": 78.6,
+    "worst_latency_us": 182,
+    "subtype_breakdown": [
+      {
+        "subtype": "missing_sig",
+        "generated": 20,
+        "rejected": 15,
+        "escaped": 5
+      }
+    ]
+  },
+  {
+    "strategy": "adv_alignment",
+    "note": "appears aligned, hides deeper violation",
+    "generated": 20,
+    "rejected": 20,
+    "escaped": 0,
+    "first_escaped_seed": null,
+    "avg_latency_us": 213.15,
+    "worst_latency_us": 295,
+    "subtype_breakdown": [
+      {
+        "subtype": "missing_sig",
+        "generated": 15,
+        "rejected": 15,
+        "escaped": 0
+      },
+      {
+        "subtype": "value_tamper",
+        "generated": 5,
+        "rejected": 5,
+        "escaped": 0
+      }
+    ]
   }
 ]

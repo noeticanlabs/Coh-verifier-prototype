@@ -7,19 +7,22 @@ use crate::proposal::Input;
 use crate::seed::SeededRng;
 use coh_core::types::MicroReceiptWire;
 
-/// Run recombination strategy
+/// Run recombination strategy - generates micro receipts with broken chain links
 pub fn run(input: &Input, rng: &mut SeededRng) -> Candidate {
-    if let Some(ref chain) = input.base_chain {
-        if chain.len() >= 2 {
-            recombine_chain(chain, rng)
-        } else {
-            generate_valid_micro(rng)
-        }
-    } else if let Some(ref micro) = input.base_micro {
-        // For single receipt, create 2-step invalid chain
-        make_broken_chain(micro, rng)
+    // Instead of generating chains (which the demo doesn't verify),
+    // generate micro receipts that have WRONG predecessor digests
+    // This simulates "I came from a chain I wasn't part of"
+    if let Some(ref micro) = input.base_micro {
+        // Mutate the chain_digest_prev to point to wrong predecessor
+        let mut broken = micro.clone();
+        broken.chain_digest_prev = format!("{:064x}", rng.next() as u64); // Wrong digest!
+                                                                          // Don't recompute chain_digest_next - this is the attack
+        Candidate::Micro(broken)
     } else {
-        generate_valid_micro(rng)
+        // Generate a micro with broken chain link
+        let mut sample = create_sample(rng, 0);
+        sample.chain_digest_prev = "cafebabecafebabe".repeat(4); // Wrong predecessor
+        Candidate::Micro(sample)
     }
 }
 

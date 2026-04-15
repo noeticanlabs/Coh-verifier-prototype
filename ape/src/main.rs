@@ -385,6 +385,17 @@ struct StrategyMetrics {
     first_escaped_seed: Option<u64>,
     avg_latency_us: f64,
     worst_latency_us: u64,
+    /// Breakdown by attack subtype (for mutation/recombination triage)
+    subtype_breakdown: Vec<SubtypeCount>,
+}
+
+/// Subtype count for triage
+#[derive(Debug, Serialize, Clone)]
+struct SubtypeCount {
+    subtype: String,
+    generated: usize,
+    rejected: usize,
+    escaped: usize,
 }
 
 fn run_strategy_demo(
@@ -412,7 +423,9 @@ fn run_strategy_demo(
     );
 
     let mut results = Vec::new();
-    let input = Input::empty();
+    // Generate a valid base receipt for mutation/recombination to mutate
+    let base_receipt = generate_runtime_ai_micro().or_else(|_| load_ai_demo_micro())?;
+    let input = Input::from_micro(base_receipt);
 
     for strategy in Strategy::all() {
         let mut rng = SeededRng::new(42);
@@ -420,7 +433,10 @@ fn run_strategy_demo(
         let mut escaped = 0;
         let mut first_escaped_seed = None;
         let mut latencies = Vec::with_capacity(iterations);
-        let mut attack_kind = "unknown";
+
+        // Track subtypes for mutation/recombination triage
+        let mut subtype_counts: std::collections::HashMap<String, SubtypeCount> =
+            std::collections::HashMap::new();
 
         for seed in 0..iterations as u64 {
             // Use seeded RNG with different seed per iteration
@@ -429,19 +445,36 @@ fn run_strategy_demo(
             let start = Instant::now();
             let candidate = strategy.generate(&input, &mut iter_rng);
 
-            // Determine attack kind from candidate
-            if let Candidate::Micro(m) = &candidate {
-                // Track what kind of corruption was done
-                attack_kind = if m.signatures.is_none() {
+            // Determine attack subtype from candidate
+            let subtype = if let Candidate::Micro(m) = &candidate {
+                // Determine subtype
+                if m.signatures.is_none() {
                     "missing_sig"
                 } else if m.state_hash_next == m.state_hash_prev {
                     "state_loop"
                 } else if m.step_index == 0 {
                     "zero_step"
+                } else if m.object_id.contains("mut") {
+                    "object_id_tamper"
+                } else if m.metrics.v_pre != m.metrics.v_post {
+                    "value_tamper"
                 } else {
                     "field_corruption"
-                };
-            }
+                }
+            } else {
+                "unknown"
+            };
+
+            // Update subtype count
+            let entry = subtype_counts
+                .entry(subtype.to_string())
+                .or_insert_with(|| SubtypeCount {
+                    subtype: subtype.to_string(),
+                    generated: 0,
+                    rejected: 0,
+                    escaped: 0,
+                });
+            entry.generated += 1;
 
             // Verify the candidate
             if let Some(micro) = candidate.as_micro() {
@@ -452,16 +485,19 @@ fn run_strategy_demo(
                 match result.decision {
                     Decision::Accept => {
                         escaped += 1;
+                        entry.escaped += 1;
                         if first_escaped_seed.is_none() {
                             first_escaped_seed = Some(seed);
                         }
                     }
                     Decision::Reject => {
                         rejected += 1;
+                        entry.rejected += 1;
                     }
                     Decision::SlabBuilt => {
                         // Shouldn't happen for micro receipts, treat as escaped
                         escaped += 1;
+                        entry.escaped += 1;
                     }
                 }
             }
@@ -474,6 +510,10 @@ fn run_strategy_demo(
         };
         let worst_latency = latencies.iter().max().copied().unwrap_or(0);
 
+        // Convert subtype counts to vector
+        let mut subtype_breakdown: Vec<SubtypeCount> = subtype_counts.into_values().collect();
+        subtype_breakdown.sort_by(|a, b| a.subtype.cmp(&b.subtype));
+
         let metrics = StrategyMetrics {
             strategy: strategy.name().to_string(),
             note: strategy.note().to_string(),
@@ -483,6 +523,7 @@ fn run_strategy_demo(
             first_escaped_seed,
             avg_latency_us: avg_latency,
             worst_latency_us: worst_latency,
+            subtype_breakdown: subtype_breakdown.clone(),
         };
         results.push(metrics.clone());
 
@@ -497,7 +538,35 @@ fn run_strategy_demo(
         );
     }
 
-    println!("\n=== Summary ===");
+    println!("\n=== Subtype Triage (Mutation/Recombination) ===");
+    println!("Showing benign vs security-relevant escapes\n");
+
+    // Print subtype breakdown for mutation and recombination
+    for result in &results {
+        if result.strategy == "mutation" || result.strategy == "recombination" {
+            println!("--- {} ---", result.strategy);
+            println!(
+                "| {:20} | {:>9} | {:>8} | {:>7} |",
+                "Subtype", "Gen", "Rej", "Esc"
+            );
+            println!(
+                "|{}|{}|{}|{}|",
+                "-".repeat(21),
+                "-".repeat(10),
+                "-".repeat(9),
+                "-".repeat(8)
+            );
+            for sub in &result.subtype_breakdown {
+                println!(
+                    "| {:20} | {:>9} | {:>8} | {:>7} |",
+                    sub.subtype, sub.generated, sub.rejected, sub.escaped
+                );
+            }
+            println!();
+        }
+    }
+
+    println!("=== Summary ===");
     let total_rejected: usize = results.iter().map(|r| r.rejected).sum();
     let total_generated: usize = results.iter().map(|r| r.generated).sum();
     let total_escaped: usize = results.iter().map(|r| r.escaped).sum();

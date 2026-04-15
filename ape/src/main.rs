@@ -4,6 +4,7 @@ use ape::realdata::{
     generate_runtime_ai_chain, generate_runtime_ai_micro, load_ai_demo_chain, load_ai_demo_micro,
     write_output_json,
 };
+use ape::seed::SeededRng;
 use clap::{Parser, Subcommand};
 use coh_core::types::{Decision, MicroReceiptWire};
 use coh_core::{build_slab, verify_chain, verify_micro};
@@ -51,6 +52,15 @@ enum Commands {
     },
     Bench {
         #[arg(long, default_value_t = 1000)]
+        iterations: usize,
+        #[arg(long, default_value = "http://127.0.0.1:3000")]
+        sidecar_url: String,
+        #[arg(long, default_value_t = false)]
+        with_sidecar: bool,
+    },
+    /// Per-strategy demo showing rejection rates by attack class
+    StrategyDemo {
+        #[arg(long, default_value_t = 100)]
         iterations: usize,
         #[arg(long, default_value = "http://127.0.0.1:3000")]
         sidecar_url: String,
@@ -151,6 +161,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             sidecar_url,
             with_sidecar,
         } => run_bench(iterations, &sidecar_url, with_sidecar)?,
+        Commands::StrategyDemo {
+            iterations,
+            sidecar_url,
+            with_sidecar,
+        } => run_strategy_demo(iterations, &sidecar_url, with_sidecar)?,
     }
 
     Ok(())
@@ -357,4 +372,153 @@ fn candidate_to_micro(
         Candidate::Micro(w) => Ok(w.clone()),
         _ => Err("Only Micro receipts supported".into()),
     }
+}
+
+/// Strategy metrics for demo output
+#[derive(Debug, Serialize, Clone)]
+struct StrategyMetrics {
+    strategy: String,
+    note: String,
+    generated: usize,
+    rejected: usize,
+    escaped: usize,
+    first_escaped_seed: Option<u64>,
+    avg_latency_us: f64,
+    worst_latency_us: u64,
+}
+
+fn run_strategy_demo(
+    iterations: usize,
+    sidecar_url: &str,
+    _with_sidecar: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use ape::proposal::CandidateMetadata;
+    use ape::seed::SeededRng;
+
+    println!("\n=== APE Strategy Demo ===");
+    println!("Testing each strategy with {} iterations\n", iterations);
+    println!(
+        "| {:14} | {:>9} | {:>8} | {:>7} | {:>12} | {:>15} |",
+        "Strategy", "Generated", "Rejected", "Escaped", "Avg Latency", "Notes"
+    );
+    println!(
+        "|{}|{}|{}|{}|{}|{}|",
+        "-".repeat(15),
+        "-".repeat(10),
+        "-".repeat(9),
+        "-".repeat(8),
+        "-".repeat(13),
+        "-".repeat(16)
+    );
+
+    let mut results = Vec::new();
+    let input = Input::empty();
+
+    for strategy in Strategy::all() {
+        let mut rng = SeededRng::new(42);
+        let mut rejected = 0;
+        let mut escaped = 0;
+        let mut first_escaped_seed = None;
+        let mut latencies = Vec::with_capacity(iterations);
+        let mut attack_kind = "unknown";
+
+        for seed in 0..iterations as u64 {
+            // Use seeded RNG with different seed per iteration
+            let mut iter_rng = SeededRng::new(seed.wrapping_add(rng.next() as u64));
+
+            let start = Instant::now();
+            let candidate = strategy.generate(&input, &mut iter_rng);
+
+            // Determine attack kind from candidate
+            if let Candidate::Micro(m) = &candidate {
+                // Track what kind of corruption was done
+                attack_kind = if m.signatures.is_none() {
+                    "missing_sig"
+                } else if m.state_hash_next == m.state_hash_prev {
+                    "state_loop"
+                } else if m.step_index == 0 {
+                    "zero_step"
+                } else {
+                    "field_corruption"
+                };
+            }
+
+            // Verify the candidate
+            if let Some(micro) = candidate.as_micro() {
+                let result = verify_micro(micro.clone());
+                let elapsed = start.elapsed().as_micros() as u64;
+                latencies.push(elapsed);
+
+                match result.decision {
+                    Decision::Accept => {
+                        escaped += 1;
+                        if first_escaped_seed.is_none() {
+                            first_escaped_seed = Some(seed);
+                        }
+                    }
+                    Decision::Reject => {
+                        rejected += 1;
+                    }
+                    Decision::SlabBuilt => {
+                        // Shouldn't happen for micro receipts, treat as escaped
+                        escaped += 1;
+                    }
+                }
+            }
+        }
+
+        let avg_latency = if !latencies.is_empty() {
+            latencies.iter().sum::<u64>() as f64 / latencies.len() as f64
+        } else {
+            0.0
+        };
+        let worst_latency = latencies.iter().max().copied().unwrap_or(0);
+
+        let metrics = StrategyMetrics {
+            strategy: strategy.name().to_string(),
+            note: strategy.note().to_string(),
+            generated: iterations,
+            rejected,
+            escaped,
+            first_escaped_seed,
+            avg_latency_us: avg_latency,
+            worst_latency_us: worst_latency,
+        };
+        results.push(metrics.clone());
+
+        println!(
+            "| {:14} | {:>9} | {:>8} | {:>7} | {:>11.0}us | {:>15} |",
+            metrics.strategy,
+            metrics.generated,
+            metrics.rejected,
+            metrics.escaped,
+            metrics.avg_latency_us,
+            metrics.note
+        );
+    }
+
+    println!("\n=== Summary ===");
+    let total_rejected: usize = results.iter().map(|r| r.rejected).sum();
+    let total_generated: usize = results.iter().map(|r| r.generated).sum();
+    let total_escaped: usize = results.iter().map(|r| r.escaped).sum();
+    println!(
+        "Total: {} generated, {} rejected, {} escaped",
+        total_generated, total_rejected, total_escaped
+    );
+    if total_escaped == 0 {
+        println!("VERIFIER: 100% rejection across all attack classes!");
+    } else {
+        println!(
+            "VERIFIER: {}/{} = {:.1}% rejection rate",
+            total_rejected,
+            total_generated,
+            100.0 * total_rejected as f64 / total_generated as f64
+        );
+    }
+
+    // Write results
+    let path = write_output_json("strategy_demo_results.json", &results)?;
+    println!("\nSaved strategy demo results to {}", path.display());
+
+    Ok(())
 }

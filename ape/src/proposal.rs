@@ -30,6 +30,41 @@ impl Strategy {
             Strategy::Contradiction => "contradiction",
         }
     }
+
+    /// Human-readable explanation of what this strategy does
+    pub fn note(&self) -> &'static str {
+        match self {
+            Strategy::Mutation => "altered receipt field while preserving surface structure",
+            Strategy::Recombination => "spliced valid fragments into invalid chain topology",
+            Strategy::Violation => "broke invariant directly",
+            Strategy::Overflow => "exceeded bounds or numeric domain assumptions",
+            Strategy::Contradiction => "created mutually incompatible claims in one proposal",
+        }
+    }
+
+    /// Generate a candidate using this strategy
+    /// Note: For now, returns raw Candidate. The metadata is added at the call site.
+    pub fn generate(&self, input: &Input, rng: &mut crate::seed::SeededRng) -> Candidate {
+        use crate::strategies::{contradiction, mutation, overflow, recombination, violation};
+        match self {
+            Strategy::Mutation => mutation::run(input, rng),
+            Strategy::Recombination => recombination::run(input, rng),
+            Strategy::Violation => violation::run(input, rng),
+            Strategy::Overflow => overflow::run(input, rng),
+            Strategy::Contradiction => contradiction::run(input, rng),
+        }
+    }
+
+    /// Get all strategy variants
+    pub fn all() -> [Strategy; 5] {
+        [
+            Strategy::Mutation,
+            Strategy::Recombination,
+            Strategy::Violation,
+            Strategy::Overflow,
+            Strategy::Contradiction,
+        ]
+    }
 }
 
 /// Input to the proposal engine
@@ -131,6 +166,35 @@ pub enum Candidate {
     Chain(Vec<MicroReceiptWire>),
     /// Slab receipt
     Slab(SlabReceiptWire),
+}
+
+/// Metadata for candidate (for replayability and explainability)
+/// Note: Not serialized - used at runtime for demo output
+pub struct CandidateMetadata {
+    /// Strategy that generated this candidate
+    pub strategy_name: &'static str,
+    /// Specific attack type within the strategy
+    pub attack_kind: &'static str,
+    /// Seed used for generation (for replay)
+    pub seed: u64,
+    /// Human-readable explanation of the corruption
+    pub notes: String,
+}
+
+impl CandidateMetadata {
+    pub fn new(
+        strategy_name: &'static str,
+        attack_kind: &'static str,
+        seed: u64,
+        notes: String,
+    ) -> Self {
+        Self {
+            strategy_name,
+            attack_kind,
+            seed,
+            notes,
+        }
+    }
 }
 
 impl Candidate {

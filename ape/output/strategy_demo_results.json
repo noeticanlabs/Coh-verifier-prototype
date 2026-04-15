@@ -1,0 +1,52 @@
+[
+  {
+    "strategy": "mutation",
+    "note": "altered receipt field while preserving surface structure",
+    "generated": 50,
+    "rejected": 0,
+    "escaped": 50,
+    "first_escaped_seed": 0,
+    "avg_latency_us": 270.06,
+    "worst_latency_us": 532
+  },
+  {
+    "strategy": "recombination",
+    "note": "spliced valid fragments into invalid chain topology",
+    "generated": 50,
+    "rejected": 0,
+    "escaped": 50,
+    "first_escaped_seed": 0,
+    "avg_latency_us": 272.52,
+    "worst_latency_us": 478
+  },
+  {
+    "strategy": "violation",
+    "note": "broke invariant directly",
+    "generated": 50,
+    "rejected": 50,
+    "escaped": 0,
+    "first_escaped_seed": null,
+    "avg_latency_us": 35.88,
+    "worst_latency_us": 63
+  },
+  {
+    "strategy": "overflow",
+    "note": "exceeded bounds or numeric domain assumptions",
+    "generated": 50,
+    "rejected": 50,
+    "escaped": 0,
+    "first_escaped_seed": null,
+    "avg_latency_us": 156.54,
+    "worst_latency_us": 339
+  },
+  {
+    "strategy": "contradiction",
+    "note": "created mutually incompatible claims in one proposal",
+    "generated": 50,
+    "rejected": 50,
+    "escaped": 0,
+    "first_escaped_seed": null,
+    "avg_latency_us": 49.1,
+    "worst_latency_us": 129
+  }
+]

@@ -41,18 +41,42 @@ fn test_fixture_oracle_sweep() {
     let dir = examples_dir();
 
     let fixtures = vec![
-        ("verify-micro", "micro_valid.json", 0, "ACCEPT"),
+        (
+            "verify-micro",
+            "ai_demo/ai_workflow_micro_valid.json",
+            0,
+            "ACCEPT",
+        ),
         ("verify-micro", "micro_invalid_policy.json", 1, "REJECT"),
         ("verify-micro", "micro_malformed_json.json", 2, "REJECT"),
-        ("verify-chain", "chain_valid.jsonl", 0, "ACCEPT"),
-        ("verify-chain", "chain_documented.jsonl", 0, "ACCEPT"),
-        ("verify-chain", "chain_invalid_digest.jsonl", 1, "REJECT"),
+        (
+            "verify-chain",
+            "ai_demo/ai_workflow_chain_valid.jsonl",
+            0,
+            "ACCEPT",
+        ),
+        (
+            "verify-chain",
+            "ai_demo/ai_workflow_chain_invalid_state_link.jsonl",
+            1,
+            "REJECT",
+        ),
         ("verify-chain", "chain_invalid_index.jsonl", 1, "REJECT"),
         ("verify-chain", "chain_invalid_state.jsonl", 1, "REJECT"),
         ("verify-slab", "slab_valid.json", 0, "ACCEPT"),
         ("verify-slab", "slab_invalid_policy.json", 1, "REJECT"),
-        ("build-slab", "chain_valid.jsonl", 0, "SLAB_BUILT"),
-        ("build-slab", "chain_invalid_digest.jsonl", 4, "REJECT"),
+        (
+            "build-slab",
+            "ai_demo/ai_workflow_chain_valid.jsonl",
+            0,
+            "SLAB_BUILT",
+        ),
+        (
+            "build-slab",
+            "ai_demo/ai_workflow_chain_invalid_state_link.jsonl",
+            4,
+            "REJECT",
+        ),
     ];
 
     for (cmd, file, expected_code, expected_text) in fixtures {

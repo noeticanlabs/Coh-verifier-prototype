@@ -6,6 +6,22 @@ use std::convert::TryFrom;
 
 const VALID_PROFILE: &str = "4fb5a33116a4e393ad7900f0744e8ec5d1b7a2d67d71003666d628d7a1cded09";
 
+fn signature(index: u64) -> SignatureWire {
+    SignatureWire {
+        signature: format!("sig-build-slab-{}", index),
+        signer: "tester".to_string(),
+        timestamp: 1_700_000_000 + index,
+    }
+}
+
+fn defect_for_step(index: u64) -> &'static str {
+    match index % 3 {
+        0 => "2",
+        1 => "1",
+        _ => "0",
+    }
+}
+
 fn create_valid_wire(index: u64, prev_digest: String, prev_state: String) -> MicroReceiptWire {
     let mut wire = MicroReceiptWire {
         schema_id: "coh.receipt.micro.v1".to_string(),
@@ -14,17 +30,17 @@ fn create_valid_wire(index: u64, prev_digest: String, prev_state: String) -> Mic
         canon_profile_hash: VALID_PROFILE.to_string(),
         policy_hash: "0".repeat(64),
         step_index: index,
-        step_type: None,
-        signatures: None,
+        step_type: Some("compute".to_string()),
+        signatures: Some(vec![signature(index)]),
         state_hash_prev: prev_state.clone(),
-        state_hash_next: prev_state,
+        state_hash_next: format!("{:064x}", index + 1),
         chain_digest_prev: prev_digest,
         chain_digest_next: "0".repeat(64), // Must be 32 bytes hex
         metrics: MetricsWire {
             v_pre: "100".to_string(),
-            v_post: "100".to_string(),
-            spend: "0".to_string(),
-            defect: "0".to_string(),
+            v_post: "99".to_string(),
+            spend: "1".to_string(),
+            defect: defect_for_step(index).to_string(),
         },
     };
     seal_wire(&mut wire);
@@ -69,9 +85,10 @@ fn test_build_slab_overflow_rejected() {
     w1.metrics.v_pre = w1.metrics.spend.clone();
     seal_wire(&mut w1);
 
-    let mut w2 = w1.clone();
-    w2.step_index = 1;
-    w2.chain_digest_prev = w1.chain_digest_next.clone();
+    let mut w2 = create_valid_wire(1, w1.chain_digest_next.clone(), w1.state_hash_next.clone());
+    w2.metrics.spend = (u128::MAX / 2 + 10).to_string();
+    w2.metrics.v_post = "0".to_string();
+    w2.metrics.v_pre = w2.metrics.spend.clone();
     seal_wire(&mut w2);
 
     let res = build_slab(vec![w1, w2]);

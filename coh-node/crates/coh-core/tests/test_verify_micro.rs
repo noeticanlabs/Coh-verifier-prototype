@@ -6,6 +6,14 @@ use std::convert::TryFrom;
 
 const VALID_PROFILE: &str = "4fb5a33116a4e393ad7900f0744e8ec5d1b7a2d67d71003666d628d7a1cded09";
 
+fn signature() -> SignatureWire {
+    SignatureWire {
+        signature: "sig-test-verify-micro".to_string(),
+        signer: "tester".to_string(),
+        timestamp: 1_700_000_000,
+    }
+}
+
 fn create_valid_wire() -> MicroReceiptWire {
     MicroReceiptWire {
         schema_id: "coh.receipt.micro.v1".to_string(),
@@ -15,7 +23,7 @@ fn create_valid_wire() -> MicroReceiptWire {
         policy_hash: "0".repeat(64),
         step_index: 0,
         step_type: None,
-        signatures: None,
+        signatures: Some(vec![signature()]),
         state_hash_prev: "0".repeat(64),
         state_hash_next: "0".repeat(64),
         chain_digest_prev: "0".repeat(64),
@@ -77,7 +85,7 @@ fn test_micro_reject_empty_object() {
     wire.object_id = "".to_string();
     let res = verify_micro(wire);
     assert_eq!(res.decision, Decision::Reject);
-    // Note: Empty object_id returns RejectSchema per current verify_micro logic (as specified)
+    assert_eq!(res.code, Some(RejectCode::RejectMissingObjectId));
 }
 
 #[test]

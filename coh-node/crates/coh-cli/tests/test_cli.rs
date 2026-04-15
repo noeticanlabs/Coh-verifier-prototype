@@ -29,7 +29,8 @@ fn examples_dir() -> PathBuf {
 #[test]
 fn test_cli_verify_micro_success() {
     let mut path = examples_dir();
-    path.push("micro_valid.json");
+    path.push("ai_demo");
+    path.push("ai_workflow_micro_valid.json");
 
     let output = Command::new(bin_path())
         .arg("verify-micro")
@@ -82,7 +83,8 @@ fn test_cli_verify_micro_malformed() {
 #[test]
 fn test_cli_verify_chain_success() {
     let mut path = examples_dir();
-    path.push("chain_valid.jsonl");
+    path.push("ai_demo");
+    path.push("ai_workflow_chain_valid.jsonl");
 
     let output = Command::new(bin_path())
         .arg("verify-chain")
@@ -96,7 +98,8 @@ fn test_cli_verify_chain_success() {
 #[test]
 fn test_cli_build_slab_success() {
     let mut in_path = examples_dir();
-    in_path.push("chain_valid.jsonl");
+    in_path.push("ai_demo");
+    in_path.push("ai_workflow_chain_valid.jsonl");
 
     let mut out_path = examples_dir();
     out_path.push("slab_integration_temp.json");
@@ -124,7 +127,8 @@ fn test_cli_build_slab_success() {
 #[test]
 fn test_cli_build_slab_source_failure() {
     let mut in_path = examples_dir();
-    in_path.push("chain_invalid_digest.jsonl");
+    in_path.push("ai_demo");
+    in_path.push("ai_workflow_chain_invalid_state_link.jsonl");
 
     let output = Command::new(bin_path())
         .arg("build-slab")

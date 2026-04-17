@@ -27,14 +27,12 @@ They are used by the Chain Telescoping Theorem to state cumulative bounds.
 -/
 
 /-- Total spend accumulated across all steps in a trace. -/
-def totalSpend : Trace → Nat
-  | [] => 0
-  | r :: rs => r.metrics.spend + totalSpend rs
+def totalSpend (t : Trace) : Nat :=
+  t.foldl (fun acc r => acc + r.metrics.spend) 0
 
 /-- Total defect bound accumulated across all steps in a trace. -/
-def totalDefect : Trace → Nat
-  | [] => 0
-  | r :: rs => r.metrics.defect + totalDefect rs
+def totalDefect (t : Trace) : Nat :=
+  t.foldl (fun acc r => acc + r.metrics.defect) 0
 
 /-!
 ## Metric Continuity (needed for telescoping)
@@ -60,11 +58,27 @@ instance (r1 r2 : MicroReceipt) (rs : Trace) : Decidable (MetricsContinuous (r1 
 
 /-! Helper lemmas for totals and step-level properties -/
 
+@[simp] lemma totalSpend_nil : totalSpend [] = 0 := rfl
+@[simp] lemma totalDefect_nil : totalDefect [] = 0 := rfl
+
 lemma totalSpend_cons (r : MicroReceipt) (rs : Trace) :
-  totalSpend (r :: rs) = r.metrics.spend + totalSpend rs := rfl
+  totalSpend (r :: rs) = r.metrics.spend + totalSpend rs :=
+  by simp [totalSpend, List.foldl_cons, Nat.add_comm]
 
 lemma totalDefect_cons (r : MicroReceipt) (rs : Trace) :
-  totalDefect (r :: rs) = r.metrics.defect + totalDefect rs := rfl
+  totalDefect (r :: rs) = r.metrics.defect + totalDefect rs :=
+  by simp [totalDefect, List.foldl_cons, Nat.add_comm]
+
+/-- Continuity Ergonomics: The head's vPre of a continuous cons is stable. -/
+lemma head_pre_of_continuous_cons (r : MicroReceipt) (rs : Trace) (h : MetricsContinuous (r :: rs)) :
+  ( (r :: rs).head? >>= fun h => some h.metrics.vPre ).getD 0 = r.metrics.vPre :=
+  by simp [List.head?]
+
+/-- Continuity Ergonomics: The last post of a cons list is the last post of the tail, or the head's if tail is empty. -/
+lemma last_post_of_cons (r : MicroReceipt) (rs : Trace) :
+  ( (r :: rs).getLast? >>= fun h => some h.metrics.vPost ).getD 0 =
+    ( rs.getLast? >>= fun h => some h.metrics.vPost ).getD r.metrics.vPost :=
+  by cases rs <;> simp [List.getLast?]
 
 /-- If a step is accepted, it obeys the per-step policy law (vPost + spend ≤ vPre + defect). -/
 theorem accepted_step_policyLawful
@@ -222,51 +236,29 @@ theorem chain_telescoping_theorem
   induction h with
   | nil _ _ _ =>
     simp [totalSpend, totalDefect]
-  | cons _ _ _ _ _ r _ hTail ih =>
-    -- Inductive case: have trace r :: rs with hTail on rs and continuity on r::rs
-    obtain ⟨hIdx, hStep, hRest⟩ := acceptedTrace_head_tail h
-    -- Step-level policy law from contract correctness
+  | @cons startIndex startState midState endState startDigest r rs hIdx hStep hTail ih =>
+    -- Use ergonomics lemmas
+    rw [totalSpend_cons, totalDefect_cons, last_post_of_cons]
+    rw [head_pre_of_continuous_cons r rs hCont]
+    -- Step policy: r.vPost + r.spend <= r.vPre + r.defect
     have hStepPolicy := accepted_step_policyLawful r hStep
-    -- Continuity gives r.metrics.vPost = next.pre for telescoping cancellation
-    have hContHead : MetricsContinuous (r :: _root_.tail t) := by
-      cases t with | nil => contradiction | cons => exact hCont
-    -- Use continuity to relate r's post to the next step's pre
-    have hNextPre : (t.tail.head? >>= fun s => some s.metrics.vPre).getD 0 = r.metrics.vPost := by
-      -- For a continuous two-element prefix, head's post equals tail's pre
-      cases t with
-      | nil => contradiction
-      | cons r1 rs =>
-        cases rs with
-        | nil =>
-          -- Last element case: getLast? returns r, vPost = (getLast? >>=).getD
-          simp [getLast?, head?]
-        | cons r2 _ =>
-          have : MetricsContinuous (r1 :: r2 :: _) := hCont
-          unfold MetricsContinuous at this
-          rcases this with ⟨hEq, _⟩
-          -- Now getLast? returns r2 and head? returns r1
-          -- We need to rewrite getLast? on r1::r2::rs using vPost continuity
-          have : (getLast? (r1 :: r2 :: rs) >>= fun s => some s.metrics.vPost).getD 0
-               = r2.metrics.vPost := by
-            -- r2 is the last element of cons list
-            cases rs with | nil => simp | cons => simp
-          -- Actually we need the simpler case: in the inductive chain,
-          -- r.metrics.vPost is the "last" of r for telescoping with the tail's pre
-          simp [getLast?, head?] at *
-          -- For Telescoping: we rewrite getLast to use continuity to r's post
-          have : (getLast? (r :: rs) >>= fun s => some s.metrics.vPost).getD 0 = r.metrics.vPost := by
-            cases rs with | nil => simp | cons => simp
-          rw [this]
-          -- Now we have: r.vPost + totalSpend(r::rs) ≤ r.vPre + totalDefect(r::rs)
-          -- Add the inductive hypothesis for rs
-          have ihRs := ih hContHead
-          -- IH state: getLast? rs. vPost + totalSpend rs ≤ head? rs vPre + totalDefect rs
-          -- Telescoping: r.vPost + totalSpend(r::rs) = r.vPost + (r.spend + totalSpend rs)
-          -- = (r.vPost + r.spend) + totalSpend rs ≤ (r.vPre + r.defect) + totalSpend rs
-          -- by step policy ≤
-          -- ≤ r.vPre + r.defect + totalSpend rs = (r.vPre + totalSpend rs) + r.defect
-          -- = (r.vPre + totalDefect rs) + r.defect (by IH on rs)?? No, need continuity to finish
-          -- Actually continuity is used in the IH rewriter, skip the detailed proof here
-          exact hStepPolicy
-    -- For now, use the step policy directly; the telescoping proof can be refined
-    exact hStepPolicy
+    -- Handle continuity: if rs is nonempty, r.vPost = rs.head.vPre
+    cases rs with
+    | nil =>
+      simp [totalSpend, totalDefect] at *
+      exact hStepPolicy
+    | cons r2 rs' =>
+      -- Continuity: r.vPost = r2.vPre
+      have hCont' : MetricsContinuous (r :: r2 :: rs') := hCont
+      unfold MetricsContinuous at hCont'
+      obtain ⟨hEq, hContTail⟩ := hCont'
+      -- Apply IH to the tail
+      have ih' := ih hContTail
+      -- Synchronize head of tail with r.vPost
+      simp [List.head?] at ih'
+      rw [hEq] at hStepPolicy
+      -- Now combines ih' and hStepPolicy using Nat.add_le_add
+      have hCombined := Nat.add_le_add hStepPolicy ih'
+      -- Rearrange for the goal
+      simp [Nat.add_assoc] at *
+      linarith

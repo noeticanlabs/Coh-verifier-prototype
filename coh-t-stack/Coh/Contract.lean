@@ -5,6 +5,8 @@ import Coh.Contract.Micro
 import Coh.Contract.Canon
 import Coh.Contract.Slab
 import Coh.Contract.TestVectors
+import Coh.Contract.Boundary
+import Coh.Contract.MicroV2
 
 /-!
 Public contract theorem surface.

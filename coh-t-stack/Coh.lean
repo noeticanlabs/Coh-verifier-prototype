@@ -7,6 +7,7 @@ import Coh.Slack
 import Coh.Trace
 import Coh.Spectral
 import Coh.Selection
+import Coh.Bridges.ContractSoundness
 
 /-!
 Top-level Coh library surface.
@@ -41,6 +42,9 @@ Stable public theorem sheet:
 - `t3_accepted_trace_implies_slab_verified` (T3: slab grounding)
 - `receipt_defect_implies_visibility` (T4: defect grounding)
 - `T5_Dirac_inevitability` (T5: Clifford dimension)
+
+### Bridge Layer
+- `MicroBridgeHyp.govObj` (construct governed object from contract verifier)
 
 ### Crypto Refinement
 - `digestUpdate_refines_sha256_spec`

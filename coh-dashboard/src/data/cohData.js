@@ -644,11 +644,11 @@ function validateTrajectory(tau, verificationContext = {}) {
 
     for (let i = 0; i < receipts.length; i++) {
         const receipt = receipts[i];
-        const previous = receipts[i-1] || null;
-        
+        const previous = receipts[i - 1] || null;
+
         // --- Step Constraints (C1-C6) ---
         const policy = derivePolicyCheck(receipt.metrics);
-        
+
         // C1: Schema & Version Validity (Hard)
         const c1 = Boolean(receipt.schema_id && receipt.version);
         // C2: Signatures (Hard, but allow demo fixtures without them)
@@ -660,7 +660,7 @@ function validateTrajectory(tau, verificationContext = {}) {
         const c3 = (receipt.metrics.isAdmissible ?? receipt.metrics.is_admissible) !== false;
         // C4: Local Accounting Law (Hard)
         const c4 = policy.isValid && policy.domainValid;
-        
+
         // C5: Path Continuity (Warn-allowed / Hard-fail)
         const indexValid = !previous || receipt.step_index === previous.step_index + 1;
         const stateValid = !previous || receipt.state_hash_prev === previous.state_hash_next;
@@ -695,7 +695,7 @@ function validateTrajectory(tau, verificationContext = {}) {
 
         // Check for Hard Failures (C1-C4 always, C5/C6 if configured)
         const hardFail = !c1 || !c2 || !c3 || !c4 || (stepWitness.c5.status === 'fail') || (stepWitness.c6.status === 'fail');
-        
+
         // Check Cumulative Feasibility
         const cumulativeFail = cumulativeAdmissibility < 0n;
 
@@ -773,7 +773,7 @@ export function generateCandidatesImpl(initialReceipt, { maxDepth = 3, beamWidth
             for (const action of actions) {
                 const nextReceipt = predictNextState(current, action);
                 const transition = { ...nextReceipt, action };
-                
+
                 const newTau = {
                     id: `${tau.id}-${action.id}`,
                     label: action.variant,
@@ -800,7 +800,7 @@ export function generateCandidatesImpl(initialReceipt, { maxDepth = 3, beamWidth
 
         scored.sort((a, b) => b.score - a.score);
         beam = scored.slice(0, beamWidth).map(s => s.tau);
-        
+
         if (beam.every(t => t.terminated)) break;
     }
 
@@ -927,7 +927,7 @@ const DEFAULT_SCORING_WEIGHTS = {
  * Rank candidates: apply hard constraints, then score and sort.
  * Returns ranked list with deterministic tie-breaking.
  */
-function rankCandidatesImpl(candidates, verification) {
+function rankCandidatesImpl(candidates /* _verification */) {
     // Step 1: Filter by hard constraints C1-C6 (lawful only)
     const lawful = candidates.filter(tau => {
         const receipt = tau.receipts?.[tau.receipts.length - 1] || tau.receipts?.[0];
@@ -1010,7 +1010,7 @@ function selectBestTrajectoryImpl(candidates, verification) {
  * Legacy scoreChoice - wraps new scoring for backward compatibility.
  * Higher = better (more admissible).
  */
-function scoreChoice(receipt, action, verification) {
+function scoreChoice(receipt, action /* _verification */) {
     if (!receipt) return 0;
 
     const result = scoreTrajectory({ receipts: [receipt], action: action || {} });
@@ -1104,8 +1104,10 @@ export function deriveTrajectoryGraph({ receipts = [], chainSteps = [], verifica
         // (In a full impl, we'd actually evaluate the candidate action against constraints)
         for (let i = 0; i < steps; i++) {
             const step = chainSteps[i];
+            /* eslint-disable no-unused-vars */
             const hasPolicy = step?.metrics?.isAdmissible !== false;
             const hasContinuity = step?.continuity?.stateValid && step?.continuity?.digestValid;
+            /* eslint-enable no-unused-vars */
 
             // Simulate: some candidates pass, some fail
             // Use candidate index to vary the outcome

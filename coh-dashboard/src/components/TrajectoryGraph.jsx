@@ -40,13 +40,15 @@ const TrajectoryGraph = ({ candidates, selectedId, onSelect }) => {
         points.push({ x, y });
       }
 
-      // Add intermediate points for smooth line
+      // Add intermediate points for smooth line (deterministic jitter using trajectory ID)
       const densePoints = [];
+      const jitterSeed = tau.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
       for (let i = 0; i < points.length - 1; i++) {
         densePoints.push(points[i]);
-        // Interpolate midpoint
+        // Interpolate midpoint with deterministic jitter based on position
         const midX = (points[i].x + points[i + 1].x) / 2;
-        const midY = (points[i].y + points[i + 1].y) / 2 + (Math.random() - 0.5) * 8;
+        const deterministicJitter = ((jitterSeed + i * 17) % 20) - 10;
+        const midY = (points[i].y + points[i + 1].y) / 2 + deterministicJitter * 0.4;
         densePoints.push({ x: midX, y: midY });
       }
       if (points.length > 0) densePoints.push(points[points.length - 1]);

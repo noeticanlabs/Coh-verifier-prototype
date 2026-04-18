@@ -7,15 +7,15 @@ export const DecisionBanner = ({ scenarioLabel, isTrusted, reason }) => {
       <div className={`verdict-badge ${isTrusted ? 'allowed' : 'blocked'}`}>
         {isTrusted ? 'TRUSTED' : 'BLOCKED'}
       </div>
-      
+
       <div style={{ flex: 1 }}>
         <div className="metric-label" style={{ marginBottom: '0.5rem' }}>Workflow Action Result</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>{scenarioLabel}</h3>
           <ChevronRight size={18} className="text-muted" />
           <span style={{ color: 'var(--text-secondary)' }}>
-            {isTrusted 
-              ? 'Verification complete. No policy violations detected.' 
+            {isTrusted
+              ? 'Verification complete. No policy violations detected.'
               : `Security halt. System prevented execution: ${reason || 'Inadmissible state transition.'}`
             }
           </span>
@@ -32,29 +32,49 @@ export const DecisionBanner = ({ scenarioLabel, isTrusted, reason }) => {
   );
 };
 
+// ChecklistItem component - defined outside the component for stability
+const ChecklistItem = ({ label, isPass, description }) => (
+  <div style={{
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '1rem',
+    padding: '0.375rem 0'
+  }}>
+    {isPass
+      ? <ShieldCheck size={14} style={{ color: 'var(--color-success)', flexShrink: 0, marginTop: '0.125rem' }} />
+      : <ShieldAlert size={14} style={{ color: 'var(--color-error)', flexShrink: 0, marginTop: '0.125rem' }} />
+    }
+    <div>
+      <div style={{ fontWeight: 600, fontSize: '0.8125rem' }}>{label}</div>
+      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{description}</div>
+    </div>
+  </div>
+);
+
+// Evidence checklist item (boxed style) - also defined outside render
+const EvidenceChecklistItem = ({ label, isPass, description }) => (
+  <div style={{
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '1rem',
+    padding: '1rem',
+    background: 'var(--bg-surface-elevated)',
+    borderRadius: 'var(--radius-sm)',
+    border: `1px solid ${isPass ? 'var(--border-muted)' : 'hsla(350, 70%, 50%, 0.2)'}`,
+    marginBottom: '0.75rem'
+  }}>
+    <div className={`status-pill ${isPass ? 'success' : 'error'}`} style={{ padding: '2px', borderRadius: '50%' }}>
+      {isPass ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />}
+    </div>
+    <div>
+      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: isPass ? 'var(--text-primary)' : 'var(--brand-blocked)' }}>{label}</div>
+      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>{description}</div>
+    </div>
+  </div>
+);
+
 export const EvidencePanel = ({ stepMetrics, isTrajTrusted }) => {
   const m = stepMetrics || {};
-  
-  const ChecklistItem = ({ label, isPass, description }) => (
-    <div style={{ 
-      display: 'flex', 
-      alignItems: 'flex-start', 
-      gap: '1rem', 
-      padding: '1rem', 
-      background: 'var(--bg-surface-elevated)', 
-      borderRadius: 'var(--radius-sm)',
-      border: `1px solid ${isPass ? 'var(--border-muted)' : 'hsla(350, 70%, 50%, 0.2)'}`,
-      marginBottom: '0.75rem'
-    }}>
-      <div className={`status-pill ${isPass ? 'success' : 'error'}`} style={{ padding: '2px', borderRadius: '50%' }}>
-        {isPass ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />}
-      </div>
-      <div>
-        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: isPass ? 'var(--text-primary)' : 'var(--brand-blocked)' }}>{label}</div>
-        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>{description}</div>
-      </div>
-    </div>
-  );
 
   return (
     <div className="card" style={{ height: '100%', borderLeft: '1px solid var(--border-bright)' }}>
@@ -65,31 +85,31 @@ export const EvidencePanel = ({ stepMetrics, isTrajTrusted }) => {
         <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-base)', borderRadius: 'var(--radius-sm)' }}>
           <div className="metric-label">Consensus Verdict</div>
           <div className={`monospace ${isTrajTrusted === false ? 'text-ruby' : 'text-emerald'}`} style={{ fontSize: '1.1rem', fontWeight: 800 }}>
-             {isTrajTrusted === false ? 'PATH_REJECTED' : 'PATH_VALIDATED'}
+            {isTrajTrusted === false ? 'PATH_REJECTED' : 'PATH_VALIDATED'}
           </div>
         </div>
 
-        <ChecklistItem 
-          label="Cryptographic Identity" 
-          isPass={true} 
-          description="All signatures verified against known authority set." 
+        <EvidenceChecklistItem
+          label="Cryptographic Identity"
+          isPass={true}
+          description="All signatures verified against known authority set."
         />
-        <ChecklistItem 
-          label="Chain Continuity" 
-          isPass={true} 
-          description="Receipt digests form a valid back-linked chain." 
+        <EvidenceChecklistItem
+          label="Chain Continuity"
+          isPass={true}
+          description="Receipt digests form a valid back-linked chain."
         />
-        <ChecklistItem 
-          label="State Invariant" 
-          isPass={m.isAdmissible !== false} 
-          description="v_post <= v_pre + authority + defect remains true." 
+        <EvidenceChecklistItem
+          label="State Invariant"
+          isPass={m.isAdmissible !== false}
+          description="v_post <= v_pre + authority + defect remains true."
         />
-        <ChecklistItem 
-          label="Policy Alignment" 
-          isPass={m.isAdmissible !== false} 
-          description="Action aligns with defined workflow-specific boundaries." 
+        <EvidenceChecklistItem
+          label="Policy Alignment"
+          isPass={m.isAdmissible !== false}
+          description="Action aligns with defined workflow-specific boundaries."
         />
-        
+
         <div style={{ marginTop: '2rem' }}>
           <span className="metric-label">Step Detail (Audit Sample)</span>
           <div className="monospace" style={{ fontSize: '0.7rem', padding: '1rem', background: 'var(--bg-base)', border: '1px solid var(--border-muted)', marginTop: '0.5rem' }}>

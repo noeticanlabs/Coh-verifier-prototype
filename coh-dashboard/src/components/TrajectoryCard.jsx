@@ -1,6 +1,33 @@
 import React from 'react';
 import TrajectoryGraph from './TrajectoryGraph';
-import { Search, Compass, List, FileCode, Landmark } from 'lucide-react';
+import { List, Compass, FileCode, Landmark, Search } from 'lucide-react';
+
+// TabButton component - defined outside for stability
+const TabButton = ({ icon, label, isActive, onClick }) => {
+  const Icon = icon;
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.375rem',
+        padding: '0.5rem 0.875rem',
+        background: isActive ? 'var(--bg-surface-elevated)' : 'transparent',
+        border: 'none',
+        borderBottom: isActive ? '2px solid var(--brand-primary)' : '2px solid transparent',
+        color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+        fontSize: '0.8125rem',
+        fontWeight: 500,
+        cursor: 'pointer',
+        transition: 'all 0.15s ease'
+      }}
+    >
+      <Icon size={14} />
+      <span>{label}</span>
+    </button>
+  );
+};
 
 export const TrajectoryCard = ({ candidates, selectedId, onSelect }) => {
   return (
@@ -61,36 +88,13 @@ export const TechnicalTabs = ({ chainSteps, selectedStepIndex, candidates, selec
   // Find selected trajectory for evidence panel
   const selectedTrajectory = candidates?.find(t => t.id === selectedId);
 
-  const TabButton = ({ id, icon: Icon, label }) => (
-    <button
-      onClick={() => setActiveTab(id)}
-      style={{
-        padding: '0.5rem 1rem',
-        background: 'transparent',
-        border: 'none',
-        borderBottom: activeTab === id ? '2px solid var(--brand-primary)' : '2px solid transparent',
-        color: activeTab === id ? 'var(--text-primary)' : 'var(--text-muted)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.5rem',
-        cursor: 'pointer',
-        fontSize: '0.75rem',
-        fontWeight: activeTab === id ? 700 : 400,
-        transition: 'var(--transition)'
-      }}
-    >
-      <Icon size={14} />
-      {label}
-    </button>
-  );
-
   return (
     <div className="card" style={{ marginTop: '1.5rem', minHeight: '300px' }}>
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border-muted)', background: 'var(--bg-surface-elevated)' }}>
-        <TabButton id="trace" icon={List} label="Audit Trace" />
-        <TabButton id="evidence" icon={Compass} label="Evidence" />
-        <TabButton id="payload" icon={FileCode} label="Raw Payload" />
-        <TabButton id="formal" icon={Landmark} label="Formal Warrant" />
+        <TabButton id="trace" icon={List} label="Audit Trace" isActive={activeTab === 'trace'} onClick={() => setActiveTab('trace')} />
+        <TabButton id="evidence" icon={Compass} label="Evidence" isActive={activeTab === 'evidence'} onClick={() => setActiveTab('evidence')} />
+        <TabButton id="payload" icon={FileCode} label="Raw Payload" isActive={activeTab === 'payload'} onClick={() => setActiveTab('payload')} />
+        <TabButton id="formal" icon={Landmark} label="Formal Warrant" isActive={activeTab === 'formal'} onClick={() => setActiveTab('formal')} />
       </div>
 
       <div className="card-body">

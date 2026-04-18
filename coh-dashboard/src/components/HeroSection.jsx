@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, CheckCircle, ShieldAlert, Cpu } from 'lucide-react';
 
-const HeroSection = ({ scenarioLabel, description }) => {
+const HeroSection = () => {
   return (
     <div style={{ marginBottom: '2rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -10,8 +10,8 @@ const HeroSection = ({ scenarioLabel, description }) => {
             Deterministic Execution Verification
           </h1>
           <p style={{ color: 'var(--text-secondary)', maxWidth: '600px', fontSize: '0.95rem', lineHeight: 1.6 }}>
-            The Coh Safety Wedge enforces lawfulness across AI-driven and automated workflows. 
-            By verifying each step against cryptographic invariants, we prevent inadmissible 
+            The Coh Safety Wedge enforces lawfulness across AI-driven and automated workflows.
+            By verifying each step against cryptographic invariants, we prevent inadmissible
             actions from reaching operational systems.
           </p>
         </div>

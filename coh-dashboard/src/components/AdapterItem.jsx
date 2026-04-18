@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { Bot } from 'lucide-react';
 
 export default function AdapterItem({
@@ -14,8 +13,7 @@ export default function AdapterItem({
   note,
 }) {
   return (
-    <motion.div
-      layout
+    <div
       className={`adapter-card ${isActive ? 'is-active' : 'is-inactive'}`}
     >
       <div className="adapter-topline">
@@ -46,6 +44,6 @@ export default function AdapterItem({
       </div>
 
       <div className="adapter-footer-note">{note}</div>
-    </motion.div>
+    </div>
   );
 }

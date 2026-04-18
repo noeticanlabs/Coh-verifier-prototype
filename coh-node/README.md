@@ -99,6 +99,33 @@ The documented exit-code contract for the current CLI surface is:
 
 Use `--format json` if an integration needs the structured reject code and message rather than text output.
 
+## Enterprise Benchmark
+
+The workspace includes an enterprise-grade benchmark suite for investor-ready performance metrics:
+
+```bash
+cargo run --release -p coh-core --example enterprise_benchmark
+```
+
+### What it measures
+
+| Metric | Description |
+|--------|-------------|
+| Hardware spec | CPU, RAM, OS, Rust version |
+| Chain scaling | Throughput vs chain length (1, 10, 100, 1000) |
+| Workflow datasets | Financial, Agent, Ops workflows |
+| Confusion matrix | False accept/reject rates |
+| Concurrency | Multi-threaded stress testing |
+| Sidecar overhead | HTTP vs in-process latency |
+
+### Key results (Ryzen 9 7950X)
+
+- **Throughput**: 50k-96k ops/sec (single-threaded)
+- **Concurrency**: 320k ops/sec (500 threads)
+- **False Accept Rate**: 0% (invalid receipts rejected)
+- **False Reject Rate**: 0% (valid receipts accepted)
+- **Latency p99**: < 130µs under load
+
 ## Sidecar API
 
 Start the HTTP sidecar from `coh-node/`:

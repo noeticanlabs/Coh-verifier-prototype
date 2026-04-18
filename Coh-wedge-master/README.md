@@ -109,6 +109,20 @@ npm run dev
 
 The dashboard works in fixture mode by default and can optionally call the live sidecar at `http://127.0.0.1:3030`.
 
+### 6. Run enterprise benchmarks
+
+```bash
+cargo run --manifest-path coh-node/Cargo.toml -p coh-core --release --example enterprise_benchmark
+```
+
+This produces investor-ready metrics including:
+- Hardware specification capture
+- Chain length scaling curves (1, 10, 100, 1000 steps)
+- Workflow dataset performance (Financial, Agent, Ops)
+- Confusion matrix (false accept/reject rates)
+- Concurrency stress testing (10, 50, 100, 500 threads)
+- Sidecar HTTP overhead estimates
+
 ## Operational Flow
 
 ```text

@@ -32,6 +32,14 @@ path = "examples/benchmark.rs"
 name = "stress_test"
 path = "examples/stress_test.rs"
 
+[[example]]
+name = "enterprise_benchmark"
+path = "examples/enterprise_benchmark.rs"
+
+[[example]]
+name = "golden_fixture"
+path = "examples/golden_fixture.rs"
+
 [[bench]]
 name = "execution_benchmarks"
 harness = false

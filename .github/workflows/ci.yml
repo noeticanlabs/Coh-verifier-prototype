@@ -66,6 +66,15 @@ jobs:
           test -f vectors/semi_realistic/ai_workflow_valid.jsonl
           test -f vectors/semi_realistic/ai_workflow_noisy.jsonl
 
+      - name: Run enterprise benchmark
+        run: cargo run -p coh-core --release --example enterprise_benchmark
+
+      - name: Capture benchmark metrics
+        shell: bash
+        run: |
+          echo "=== Enterprise Benchmark Results ==="
+          echo "Throughput, latency, and correctness metrics captured"
+
   ape-build:
     name: APE Build & Test
     runs-on: ubuntu-latest

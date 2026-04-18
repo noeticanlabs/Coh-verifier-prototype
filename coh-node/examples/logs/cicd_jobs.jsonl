@@ -1,0 +1,4 @@
+{"job":"build","duration_s":120,"retries":0,"status":"success"}
+{"job":"test","duration_s":300,"retries":1,"status":"failed"}
+{"job":"deploy","duration_s":45,"retries":0,"status":"success"}
+

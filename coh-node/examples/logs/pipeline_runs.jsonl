@@ -1,0 +1,4 @@
+{"stage":"extract","cpu_ms":120,"bytes":1048576,"success":true}
+{"stage":"transform","cpu_ms":450,"bytes":8388608,"success":true}
+{"stage":"load","cpu_ms":200,"bytes":2097152,"success":false}
+

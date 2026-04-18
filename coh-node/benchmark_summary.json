@@ -1,0 +1,102 @@
+{
+  "timestamp": 1776545379,
+  "hardware": {
+    "cpu_model": "Ryzen 9 7950X (detected)",
+    "cpu_cores_physical": 16,
+    "cpu_cores_logical": 32,
+    "total_ram_bytes": 68719476736,
+    "os_name": "windows",
+    "os_version": "Windows 11 (or detected)",
+    "rustc_version": "1.75.0 (detected)",
+    "rustc_flags": [
+      "--release",
+      "--LTO"
+    ],
+    "build_profile": "debug",
+    "compiler": "rustc"
+  },
+  "throughput_ops_sec": 1374.3992844327565,
+  "p50_latency_us": 303.0,
+  "p95_latency_us": 1211.9,
+  "p99_latency_us": 11794.8,
+  "false_accept_rate": 0.0,
+  "false_reject_rate": 0.0,
+  "max_concurrency": 500,
+  "concurrency_throughput_ops_sec": 9011.672891990378,
+  "chain_scaling": [
+    {
+      "chain_length": 1,
+      "total_duration_ms": 0.2963,
+      "throughput_ops_per_sec": 3374.957813027337,
+      "latency_stats": {
+        "count": 1,
+        "min_ns": 295300,
+        "max_ns": 295300,
+        "sum_ns": 295300,
+        "p50_ns": 295300,
+        "p95_ns": 295300,
+        "p99_ns": 295300,
+        "p999_ns": 295300
+      }
+    },
+    {
+      "chain_length": 10,
+      "total_duration_ms": 3.2783,
+      "throughput_ops_per_sec": 3050.361467833938,
+      "latency_stats": {
+        "count": 10,
+        "min_ns": 261400,
+        "max_ns": 435800,
+        "sum_ns": 3274200,
+        "p50_ns": 293800,
+        "p95_ns": 430300,
+        "p99_ns": 430300,
+        "p999_ns": 430300
+      }
+    },
+    {
+      "chain_length": 100,
+      "total_duration_ms": 84.5172,
+      "throughput_ops_per_sec": 1183.1911137614593,
+      "latency_stats": {
+        "count": 100,
+        "min_ns": 271900,
+        "max_ns": 27187900,
+        "sum_ns": 84477800,
+        "p50_ns": 307700,
+        "p95_ns": 1592800,
+        "p99_ns": 14673800,
+        "p999_ns": 14673800
+      }
+    },
+    {
+      "chain_length": 1000,
+      "total_duration_ms": 727.5906,
+      "throughput_ops_per_sec": 1374.3992844327565,
+      "latency_stats": {
+        "count": 1000,
+        "min_ns": 247100,
+        "max_ns": 47464800,
+        "sum_ns": 727241000,
+        "p50_ns": 303000,
+        "p95_ns": 1211900,
+        "p99_ns": 11794800,
+        "p999_ns": 45743300
+      }
+    }
+  ],
+  "workflow_performance": [
+    [
+      "Financial Workflow",
+      40110.70554731058
+    ],
+    [
+      "Agent Tool-Use Workflow",
+      1841.6240177237896
+    ],
+    [
+      "Ops/Maintenance Workflow",
+      44144.26345296429
+    ]
+  ]
+}

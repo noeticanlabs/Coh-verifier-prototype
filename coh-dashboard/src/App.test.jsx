@@ -80,7 +80,15 @@ describe('App Behavioral Tests', () => {
     // Wait for loading to finish
     await waitFor(() => expect(screen.queryByText(/Loading AI demo data/i)).not.toBeInTheDocument());
 
-    expect(screen.getByText(/Integrity Operations Dashboard/i)).toBeInTheDocument();
+    // New Branding Assertions
+    expect(screen.getByText(/Deterministic Execution Verification/i)).toBeInTheDocument();
+    expect(screen.getByText(/Live Execution Path Analysis/i)).toBeInTheDocument();
+    expect(screen.getByText(/INTEGRITY_OPS/i)).toBeInTheDocument();
+    
+    // Benchmark Strip Assertions
+    expect(screen.getByText(/SNAPSHOT:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Source:/i)).toBeInTheDocument();
+
     expect(screen.getByText(/Attention Required/i)).toBeInTheDocument();
     // "Policy Violation" appears in multiple places (dropdown and inspector); check at least one exists
     expect(screen.queryAllByText(/Policy Violation/i).length).toBeGreaterThan(0);
@@ -132,6 +140,6 @@ describe('App Behavioral Tests', () => {
       preferLiveVerification: true
     }));
 
-    expect(await screen.findByText(/Live verify enabled/i)).toBeInTheDocument();
+    expect(await screen.findByText(/LIVE_VERIFY: ON/i)).toBeInTheDocument();
   });
 });

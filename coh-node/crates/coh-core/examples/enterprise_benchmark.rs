@@ -9,10 +9,16 @@
 //! - Concurrency stress testing
 //! - Sidecar/HTTP mode benchmarks
 
+use coh_core::external::{
+    ingest_api_jsonl, ingest_cicd_jsonl, ingest_pipeline_jsonl, run_external_validation_micro,
+    run_logs_validation, AgentAdapter, FailureMode, FinancialAdapter, OpsAdapter,
+};
 use coh_core::types::{Decision, MetricsWire, MicroReceipt, MicroReceiptWire};
 use coh_core::{canon::*, hash::compute_chain_digest, verify_chain, verify_micro};
 use serde::Serialize;
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::Write;
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::Instant;
@@ -227,7 +233,27 @@ pub struct SidecarModeResult {
 }
 
 // ============================================================================
-// SECTION 7: WORKFLOW DATASET GENERATORS
+// SECTION 7: SUMMARY REPORT FOR EXPORT
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SummaryReport {
+    pub timestamp: u64,
+    pub hardware: HardwareSpec,
+    pub throughput_ops_sec: f64,
+    pub p50_latency_us: f64,
+    pub p95_latency_us: f64,
+    pub p99_latency_us: f64,
+    pub false_accept_rate: f64,
+    pub false_reject_rate: f64,
+    pub max_concurrency: usize,
+    pub concurrency_throughput_ops_sec: f64,
+    pub chain_scaling: Vec<ChainScalingResult>,
+    pub workflow_performance: Vec<(String, f64)>,
+}
+
+// ============================================================================
+// SECTION 8: WORKFLOW DATASET GENERATORS
 // ============================================================================
 
 /// Generate a financial workflow dataset
@@ -623,6 +649,9 @@ fn main() {
     println!("Compiler Flags:   {:?}", hw.rustc_flags);
     println!();
 
+    let mut chain_scaling_results = Vec::new();
+    let mut workflow_performance = Vec::new();
+
     // === SECTION 2: CHAIN LENGTH SCALING ===
     println!("═══════════════════════════════════════════════════════════════════════════");
     println!("SECTION 2: Chain Length Scaling Characterization");
@@ -672,6 +701,13 @@ fn main() {
             stats.p95_ns as f64 / 1000.0,
             stats.p99_ns as f64 / 1000.0
         );
+
+        chain_scaling_results.push(ChainScalingResult {
+            chain_length: *chain_len,
+            total_duration_ms: total_duration.as_secs_f64() * 1000.0,
+            throughput_ops_per_sec: ops_per_sec,
+            latency_stats: stats,
+        });
     }
 
     println!("└────────────┴─────────────────┴────────────────┴─────────────────────────────┘\n");
@@ -703,6 +739,8 @@ fn main() {
             ops_per_sec,
             duration.as_secs_f64() * 1000.0 / receipts.len() as f64
         );
+
+        workflow_performance.push((name.to_string(), ops_per_sec));
     }
 
     println!("└────────────────────────┴─────────────────┴──────────────────────────────┘\n");
@@ -810,6 +848,143 @@ fn main() {
     }
     println!();
 
+    // === SECTION 4B: EXTERNAL VALIDATION (Domain Adapters) ===
+    println!("═══════════════════════════════════════════════════════════════════════════");
+    println!("SECTION 4B: External Validation – Domain-Aware Adapters (Option A)");
+    println!("═══════════════════════════════════════════════════════════════════════════\n");
+
+    let financial_report = run_external_validation_micro(
+        FinancialAdapter::new(),
+        500,
+        150,
+        &[
+            FailureMode::OverBudget,
+            FailureMode::MissingApproval,
+            FailureMode::StateCorruption,
+        ],
+    );
+    let agent_report = run_external_validation_micro(
+        AgentAdapter::new(),
+        500,
+        150,
+        &[
+            FailureMode::TokenHallucination,
+            FailureMode::HiddenToolFailure,
+            FailureMode::StateCorruption,
+        ],
+    );
+    let ops_report = run_external_validation_micro(
+        OpsAdapter::new(),
+        500,
+        150,
+        &[
+            FailureMode::Overtime,
+            FailureMode::MissingInspection,
+            FailureMode::InventoryCorruption,
+        ],
+    );
+
+    println!("┌──────────────────────┬───────────────┬───────────────┬───────────┬───────────┐");
+    println!("│ Workflow             │ Valid (A/R)   │ Invalid (A/R) │  FR%      │  FA%      │");
+    println!("├──────────────────────┼───────────────┼───────────────┼───────────┼───────────┤");
+    println!(
+        "│ {:<20} │ {:>5}/{:<5} │ {:>5}/{:<5} │ {:>7.3} │ {:>7.3} │",
+        "Financial",
+        financial_report.accepted_valid,
+        financial_report.rejected_valid,
+        financial_report.accepted_invalid,
+        financial_report.rejected_invalid,
+        financial_report.false_reject_rate() * 100.0,
+        financial_report.false_accept_rate() * 100.0,
+    );
+    println!(
+        "│ {:<20} │ {:>5}/{:<5} │ {:>5}/{:<5} │ {:>7.3} │ {:>7.3} │",
+        "Agent",
+        agent_report.accepted_valid,
+        agent_report.rejected_valid,
+        agent_report.accepted_invalid,
+        agent_report.rejected_invalid,
+        agent_report.false_reject_rate() * 100.0,
+        agent_report.false_accept_rate() * 100.0,
+    );
+    println!(
+        "│ {:<20} │ {:>5}/{:<5} │ {:>5}/{:<5} │ {:>7.3} │ {:>7.3} │",
+        "Ops",
+        ops_report.accepted_valid,
+        ops_report.rejected_valid,
+        ops_report.accepted_invalid,
+        ops_report.rejected_invalid,
+        ops_report.false_reject_rate() * 100.0,
+        ops_report.false_accept_rate() * 100.0,
+    );
+    println!("└──────────────────────┴───────────────┴───────────────┴───────────┴───────────┘\n");
+
+    // === SECTION 4C: STRUCTURED LOG INGESTION (Option B) ===
+    println!("═══════════════════════════════════════════════════════════════════════════");
+    println!("SECTION 4C: Structured Logs → Receipts (API, Pipeline, CI/CD)");
+    println!("═══════════════════════════════════════════════════════════════════════════\n");
+
+    // Attempt to ingest optional demo logs from examples/logs/*.jsonl
+    fn resolve_log_path(path: &str) -> String {
+        if std::path::Path::new(path).exists() {
+            path.to_string()
+        } else {
+            format!("../../{}", path)
+        }
+    }
+
+    let api_receipts = ingest_api_jsonl(&resolve_log_path("examples/logs/api_calls.jsonl")).unwrap_or_else(|e| {
+        eprintln!("[WARN] API logs ingest failed: {:?}", e);
+        Vec::new()
+    });
+    let pipe_receipts =
+        ingest_pipeline_jsonl(&resolve_log_path("examples/logs/pipeline_runs.jsonl")).unwrap_or_else(|e| {
+            eprintln!("[WARN] Pipeline logs ingest failed: {:?}", e);
+            Vec::new()
+        });
+    let cicd_receipts = ingest_cicd_jsonl(&resolve_log_path("examples/logs/cicd_jobs.jsonl")).unwrap_or_else(|e| {
+        eprintln!("[WARN] CI/CD logs ingest failed: {:?}", e);
+        Vec::new()
+    });
+
+    let api_report = run_logs_validation(api_receipts);
+    let pipe_report = run_logs_validation(pipe_receipts);
+    let cicd_report = run_logs_validation(cicd_receipts);
+
+    println!("┌──────────────────────┬──────────────┬──────────────┬──────────────┐");
+    println!("│ Log Source           │ Accepted     │ Rejected     │ Accept Rate   │");
+    println!("├──────────────────────┼──────────────┼──────────────┼──────────────┤");
+    let ar = |r: &coh_core::external::ExtValidationReport| -> f64 {
+        let t = (r.accepted_valid + r.rejected_valid) as f64;
+        if t == 0.0 {
+            0.0
+        } else {
+            (r.accepted_valid as f64) * 100.0 / t
+        }
+    };
+    println!(
+        "│ {:<20} │ {:>12} │ {:>12} │ {:>10.2}% │",
+        "API",
+        api_report.accepted_valid,
+        api_report.rejected_valid,
+        ar(&api_report)
+    );
+    println!(
+        "│ {:<20} │ {:>12} │ {:>12} │ {:>10.2}% │",
+        "Pipeline",
+        pipe_report.accepted_valid,
+        pipe_report.rejected_valid,
+        ar(&pipe_report)
+    );
+    println!(
+        "│ {:<20} │ {:>12} │ {:>12} │ {:>10.2}% │",
+        "CI/CD",
+        cicd_report.accepted_valid,
+        cicd_report.rejected_valid,
+        ar(&cicd_report)
+    );
+    println!("└──────────────────────┴──────────────┴──────────────┴──────────────┘\n");
+
     // === SECTION 5: CONCURRENCY TESTING ===
     println!("═══════════════════════════════════════════════════════════════════════════");
     println!("SECTION 5: Concurrency Stress Testing");
@@ -821,6 +996,9 @@ fn main() {
 
     let thread_counts = vec![10, 50, 100, 500];
     let ops_per_thread = 100;
+
+    let mut concurrency_final_ops = 0.0;
+    let mut concurrency_final_stats = None;
 
     for thread_count in &thread_counts {
         let total_ops = thread_count * ops_per_thread;
@@ -877,6 +1055,11 @@ fn main() {
             stats.p95_ns as f64 / 1000.0,
             stats.p99_ns as f64 / 1000.0
         );
+
+        if *thread_count == 500 {
+            concurrency_final_ops = ops_per_sec;
+            concurrency_final_stats = Some(stats);
+        }
     }
 
     println!("└──────────┴─────────────────┴────────────────┴─────────────────────────────┘\n");
@@ -971,4 +1154,35 @@ fn main() {
     println!("═══════════════════════════════════════════════════════════════════════════");
     println!("BENCHMARK COMPLETE");
     println!("═══════════════════════════════════════════════════════════════════════════");
+
+    // === SECTION 11: JSON EXPORT ===
+    let base_scaling = chain_scaling_results
+        .iter()
+        .find(|r| r.chain_length == 1000)
+        .unwrap();
+    let conc_stats = concurrency_final_stats.unwrap();
+
+    let report = SummaryReport {
+        timestamp: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs(),
+        hardware: hw,
+        throughput_ops_sec: base_scaling.throughput_ops_per_sec,
+        p50_latency_us: base_scaling.latency_stats.p50_ns as f64 / 1000.0,
+        p95_latency_us: base_scaling.latency_stats.p95_ns as f64 / 1000.0,
+        p99_latency_us: base_scaling.latency_stats.p99_ns as f64 / 1000.0,
+        false_accept_rate: confusion.false_accept_rate,
+        false_reject_rate: confusion.false_reject_rate,
+        max_concurrency: 500,
+        concurrency_throughput_ops_sec: concurrency_final_ops,
+        chain_scaling: chain_scaling_results,
+        workflow_performance,
+    };
+
+    let json = serde_json::to_string_pretty(&report).unwrap();
+    let mut file = File::create("benchmark_summary.json").unwrap();
+    file.write_all(json.as_bytes()).unwrap();
+
+    println!("\n[DATA] Benchmark summary exported to benchmark_summary.json");
 }

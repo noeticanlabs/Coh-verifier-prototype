@@ -1,0 +1,25 @@
+{
+  "timestamp": 0,
+  "hardware": {
+    "cpu_model": "CI_ENVIRONMENT_PENDING",
+    "cpu_cores_physical": 0,
+    "cpu_cores_logical": 0,
+    "total_ram_bytes": 0,
+    "os_name": "unknown",
+    "os_version": "unknown",
+    "rustc_version": "unknown",
+    "rustc_flags": [],
+    "build_profile": "release",
+    "compiler": "rustc"
+  },
+  "throughput_ops_sec": 0.0,
+  "p50_latency_us": 0.0,
+  "p95_latency_us": 0.0,
+  "p99_latency_us": 0.0,
+  "false_accept_rate": 0.0,
+  "false_reject_rate": 0.0,
+  "max_concurrency": 0,
+  "concurrency_throughput_ops_sec": 0.0,
+  "chain_scaling": [],
+  "workflow_performance": []
+}

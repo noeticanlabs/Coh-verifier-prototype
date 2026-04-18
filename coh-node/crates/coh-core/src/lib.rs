@@ -1,6 +1,7 @@
 pub mod build_slab;
 pub mod canon;
 pub mod execute;
+pub mod external;
 pub mod hash;
 pub mod math;
 pub mod measurement;
@@ -8,7 +9,6 @@ pub mod merkle;
 pub mod reject;
 pub mod types;
 pub mod vectors;
-#[cfg(test)]
 mod vectors_measurement;
 pub mod verify_chain;
 pub mod verify_micro;

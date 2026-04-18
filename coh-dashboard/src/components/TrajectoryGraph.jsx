@@ -1,109 +1,209 @@
 import React, { useMemo } from 'react';
 
 const WITNESS_LABELS = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6'];
+const CONSTRAINT_LABELS = {
+  C1: 'Schema',
+  C2: 'Sigs',
+  C3: 'Profile',
+  C4: 'State',
+  C5: 'Digest',
+  C6: 'Policy'
+};
 
 const TrajectoryGraph = ({ candidates, selectedId, onSelect }) => {
-  // SVG Layout Constants
+  // Dense line probe layout - like an ECG/signal trace
   const width = 800;
-  const height = 450;
-  const padding = 60;
-  const nodeRadius = 5;
-  
-  const maxDepth = Math.max(...candidates.map(c => c.depth), 1);
-  const stepX = (width - padding * 2) / maxDepth;
+  const height = 280;
+  const padding = 40;
 
+  const maxDepth = Math.max(...candidates.map(c => c.depth), 1);
+  const stepX = (width - padding * 2) / Math.max(maxDepth, 1);
+
+  // Dense probe rendering
   const trajectories = useMemo(() => {
     return candidates.map(tau => {
       const isSelected = tau.id === selectedId;
-      const points = tau.receipts.map((r, i) => {
+
+      // Generate dense line points - continuous signal trace
+      const points = [];
+      const numPoints = tau.receipts?.length || 1;
+
+      for (let i = 0; i < numPoints; i++) {
         const x = padding + i * stepX;
-        // Deterministic spread
-        const depthNodes = candidates.filter(c => c.depth === tau.depth);
-        const siblingIndex = depthNodes.indexOf(tau);
-        const totalSiblings = depthNodes.length;
-        const spread = 80;
-        const y = height / 2 + (siblingIndex - (totalSiblings - 1) / 2) * spread;
-        return { x, y };
-      });
+        // Generate y based on trajectory characteristics
+        // Higher score = higher (more promising), lower = lower (blocked)
+        const baseY = height * 0.5;
+        const scoreOffset = (tau.score || 0) * 0.3;
+        const jitter = (tau.id.charCodeAt(tau.id.length - 1) % 20) - 10;
+        const y = baseY - scoreOffset + jitter;
+
+        points.push({ x, y });
+      }
+
+      // Add intermediate points for smooth line
+      const densePoints = [];
+      for (let i = 0; i < points.length - 1; i++) {
+        densePoints.push(points[i]);
+        // Interpolate midpoint
+        const midX = (points[i].x + points[i + 1].x) / 2;
+        const midY = (points[i].y + points[i + 1].y) / 2 + (Math.random() - 0.5) * 8;
+        densePoints.push({ x: midX, y: midY });
+      }
+      if (points.length > 0) densePoints.push(points[points.length - 1]);
 
       return {
         ...tau,
-        points,
+        points: densePoints,
+        originalPoints: points,
         isSelected
       };
     });
   }, [candidates, selectedId, stepX]);
 
   return (
-    <div className="trajectory-viewport">
+    <div className="trajectory-viewport" style={{ background: 'var(--bg-base)', borderRadius: 'var(--radius-sm)' }}>
       <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="xMidYMid meet">
         <defs>
-          <filter id="glow-brand">
-            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+          <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="var(--brand-primary)" stopOpacity="0.3" />
+            <stop offset="50%" stopColor="var(--brand-primary)" stopOpacity="0.8" />
+            <stop offset="100%" stopColor="var(--brand-primary)" stopOpacity="0.3" />
+          </linearGradient>
+          <filter id="probe-glow">
+            <feGaussianBlur stdDeviation="2" result="coloredBlur" />
             <feMerge>
-              <feMergeNode in="coloredBlur"/>
-              <feMergeNode in="SourceGraphic"/>
+              <feMergeNode in="coloredBlur" />
+              <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
         </defs>
 
+        {/* Grid lines for depth markers */}
+        {Array.from({ length: maxDepth + 1 }).map((_, i) => (
+          <line
+            key={`grid-${i}`}
+            x1={padding + i * stepX}
+            y1={height * 0.1}
+            x2={padding + i * stepX}
+            y2={height * 0.9}
+            stroke="var(--border-muted)"
+            strokeWidth="0.5"
+            strokeDasharray="2,4"
+            opacity="0.3"
+          />
+        ))}
+
+        {/* Time axis label */}
+        <text x={width / 2} y={height - 8} textAnchor="middle" fontSize="9" fill="var(--text-muted)">
+          Execution Timeline (depth →
+        </text>
+
         {trajectories.map(tau => {
-          const { points, isSelectable, isSelected, firstFailureIndex } = tau;
-          const truncateAt = !isSelectable && firstFailureIndex !== null ? firstFailureIndex + 1 : points.length;
+          const { points, originalPoints, isSelectable, isSelected, firstFailureIndex, score } = tau;
+
+          // Determine truncation point
+          const truncateAt = !isSelectable && firstFailureIndex !== null
+            ? Math.min(firstFailureIndex + 1, points.length)
+            : points.length;
+
           const visiblePoints = points.slice(0, truncateAt);
+          const hasFailure = !isSelectable && firstFailureIndex !== null;
+
+          // Line color based on validity
+          const lineColor = isSelected
+            ? 'var(--brand-primary)'
+            : hasFailure
+              ? 'var(--brand-blocked)'
+              : 'var(--text-muted)';
 
           return (
             <g key={tau.id} onClick={() => onSelect(tau.id)} style={{ cursor: 'pointer' }}>
-              {/* Path Line */}
+              {/* Dense line probe - continuous signal */}
               <polyline
                 points={visiblePoints.map(p => `${p.x},${p.y}`).join(' ')}
                 fill="none"
-                stroke={isSelected ? 'var(--brand-primary)' : isSelectable ? 'var(--text-muted)' : 'var(--brand-blocked)'}
-                strokeWidth={isSelected ? 3 : 1.5}
-                strokeDasharray={tau.warnCount > 0 ? '4,4' : '0'}
-                filter={isSelected ? 'url(#glow-brand)' : 'none'}
-                opacity={isSelected ? 1 : 0.3}
-                style={{ transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)' }}
+                stroke={lineColor}
+                strokeWidth={isSelected ? 2.5 : 1}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                opacity={isSelected ? 1 : 0.4}
+                filter={isSelected ? 'url(#probe-glow)' : 'none'}
+                style={{ transition: 'all 0.3s ease' }}
               />
 
-              {/* Path Status Indicator (Truncation) */}
-              {!isSelectable && firstFailureIndex !== null && (
-                <g transform={`translate(${points[firstFailureIndex].x}, ${points[firstFailureIndex].y})`}>
-                  <circle r="10" fill="hsla(350, 70%, 50%, 0.1)" stroke="var(--brand-blocked)" strokeWidth="1" strokeDasharray="2,2" />
-                  <line x1="-4" y1="-4" x2="4" y2="4" stroke="var(--brand-blocked)" strokeWidth="1.5" />
-                  <line x1="4" y1="-4" x2="-4" y2="4" stroke="var(--brand-blocked)" strokeWidth="1.5" />
+              {/* Failure indicator - spike down */}
+              {hasFailure && firstFailureIndex < originalPoints.length && (
+                <g transform={`translate(${originalPoints[firstFailureIndex].x}, ${originalPoints[firstFailureIndex].y})`}>
+                  <line x1="0" y1="0" x2="0" y2={height * 0.3} stroke="var(--brand-blocked)" strokeWidth="2" strokeDasharray="4,2" />
+                  <circle r="4" fill="var(--brand-blocked)" opacity="0.8" />
                 </g>
               )}
 
-              {/* Nodes */}
-              {visiblePoints.map((p, i) => (
-                <g key={`n-${i}`} transform={`translate(${p.x}, ${p.y})`}>
-                  <circle 
-                    r={isSelected ? nodeRadius + 1 : nodeRadius} 
-                    fill={isSelected ? 'var(--brand-primary)' : 'var(--bg-surface-elevated)'} 
-                    stroke={tau.witnesses?.[i]?.c4?.status === 'pass' ? 'var(--brand-primary)' : 'var(--brand-blocked)'}
-                    strokeWidth="1.5"
-                    style={{ transition: 'transform 0.2s' }}
-                  />
-                  
-                  {/* Step ID Label on hover/select */}
-                  {isSelected && (
-                    <text 
-                      y="-12" 
-                      textAnchor="middle" 
-                      fontSize="8" 
-                      fill="var(--text-secondary)" 
-                      className="monospace" 
-                      style={{ pointerEvents: 'none' }}
-                    >
-                      STEP_{i}
-                    </text>
-                  )}
-                </g>
-              ))}
+              {/* Selected trajectory - show constraint badges at each probe point */}
+              {isSelected && originalPoints.map((p, i) => {
+                const nodeWitnesses = tau.witnesses?.[i] || {};
+                const failedConstraint = WITNESS_LABELS.find(c => nodeWitnesses[c]?.status === 'fail');
+
+                return (
+                  <g key={`probe-${i}`} transform={`translate(${p.x}, ${p.y})`}>
+                    {/* Probe point marker */}
+                    <circle
+                      r={3}
+                      fill={failedConstraint ? 'var(--brand-blocked)' : 'var(--brand-primary)'}
+                      stroke="var(--bg-base)"
+                      strokeWidth="1"
+                    />
+
+                    {/* Constraint status bar below probe */}
+                    <g transform="translate(0, 12)">
+                      {WITNESS_LABELS.map((c, ci) => {
+                        const status = nodeWitnesses[c]?.status || 'unknown';
+                        const isFail = status === 'fail';
+                        const isPass = status === 'pass';
+                        return (
+                          <rect
+                            key={c}
+                            x={(ci - 2.5) * 8}
+                            y="0"
+                            width="6"
+                            height="3"
+                            rx="1"
+                            fill={isFail ? 'var(--brand-blocked)' : isPass ? 'var(--brand-primary)' : 'var(--text-muted)'}
+                            opacity={isFail ? 1 : isPass ? 0.7 : 0.3}
+                          />
+                        );
+                      })}
+                    </g>
+                  </g>
+                );
+              })}
+
+              {/* Score label for selected */}
+              {isSelected && (
+                <text
+                  x={padding - 5}
+                  y={originalPoints[0]?.y || height / 2}
+                  textAnchor="end"
+                  fontSize="8"
+                  fill="var(--brand-primary)"
+                  fontWeight="bold"
+                >
+                  {score?.toFixed(2) || 'N/A'}
+                </text>
+              )}
             </g>
           );
         })}
+
+        {/* Legend overlay */}
+        <g transform={`translate(${width - 120}, 20)`}>
+          <rect x="0" y="0" width="110" height="50" rx="4" fill="var(--bg-glass)" stroke="var(--border-muted)" />
+          <text x="8" y="14" fontSize="7" fontWeight="bold" fill="var(--text-secondary)">LINE PROBE</text>
+          <line x1="8" y1="24" x2="30" y2="24" stroke="var(--brand-primary)" strokeWidth="2" />
+          <text x="34" y="27" fontSize="7" fill="var(--text-muted)">Selected</text>
+          <line x1="8" y1="36" x2="30" y2="36" stroke="var(--brand-blocked)" strokeWidth="1.5" strokeDasharray="3,2" />
+          <text x="34" y="39" fontSize="7" fill="var(--text-muted)">Blocked</text>
+        </g>
       </svg>
     </div>
   );

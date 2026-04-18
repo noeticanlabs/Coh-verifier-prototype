@@ -27,10 +27,10 @@ const App = () => {
         const rootReceipt = steps.length > 0 ? steps[steps.length - 1].raw : null;
 
         if (rootReceipt) {
-          const proposed = generateCandidatesImpl(rootReceipt, { 
-            maxDepth: 4, 
-            beamWidth: 3, 
-            verification: dashboardData.verification 
+          const proposed = generateCandidatesImpl(rootReceipt, {
+            maxDepth: 4,
+            beamWidth: 3,
+            verification: dashboardData.verification
           });
           setCandidates(proposed);
 
@@ -55,9 +55,9 @@ const App = () => {
     [candidates, selectedTrajectoryId]
   );
 
-  const scenarioInfo = useMemo(() => 
+  const scenarioInfo = useMemo(() =>
     SCENARIO_OPTIONS.find(s => s.key === selectedScenario),
-  [selectedScenario]);
+    [selectedScenario]);
 
   if (isLoading) return (
     <div style={{ background: 'var(--bg-base)', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -69,7 +69,7 @@ const App = () => {
 
   return (
     <div className="app-container">
-      <TopNav 
+      <TopNav
         selectedScenario={selectedScenario}
         onScenarioChange={setSelectedScenario}
         scenarios={SCENARIO_OPTIONS}
@@ -79,30 +79,32 @@ const App = () => {
 
       <main className="main-content" style={{ overflowY: 'auto' }}>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <HeroSection 
+          <HeroSection
             scenarioLabel={scenarioInfo?.label}
             description={scenarioInfo?.description}
           />
 
-          <DecisionBanner 
+          <DecisionBanner
             scenarioLabel={scenarioInfo?.label}
             isTrusted={data?.isTrusted}
             reason={data?.isTrusted ? null : currentStep?.metrics?.reason}
           />
 
-          <TrajectoryCard 
+          <TrajectoryCard
             candidates={candidates}
             selectedId={selectedTrajectoryId}
             onSelect={setSelectedTrajectoryId}
           />
 
-          <TechnicalTabs 
+          <TechnicalTabs
             chainSteps={data?.chainSteps || []}
             selectedStepIndex={selectedStepIndex}
+            candidates={data?.candidates || []}
+            selectedId={selectedTrajectoryId}
           />
         </div>
 
-        <EvidencePanel 
+        <EvidencePanel
           stepMetrics={currentStep?.metrics}
           isTrajTrusted={selectedTrajectory?.isSelectable}
         />
@@ -112,7 +114,7 @@ const App = () => {
 
       {/* Hidden markers for legacy CI tests */}
       <div style={{ display: 'none' }}>
-        <button id="scenario-select" onClick={() => {}} aria-label="Scenario" />
+        <button id="scenario-select" onClick={() => { }} aria-label="Scenario" />
         <button aria-label={preferLiveVerification ? 'Live verify enabled' : 'Enable live verify'} />
         {(data?.chainSteps ?? []).map((s, i) => (
           <button key={i} aria-label={`#${i}`} onClick={() => setSelectedStepIndex(i)} />

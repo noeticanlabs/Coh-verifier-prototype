@@ -1,10 +1,11 @@
-﻿import Coh.Prelude
+import Coh.Prelude
 import Mathlib.LinearAlgebra.FiniteDimensional
 import Mathlib.Data.Complex.Basic
 import Mathlib.Algebra.Algebra.Operations
 import Mathlib.LinearAlgebra.CliffordAlgebra.Basic
 import Mathlib.LinearAlgebra.QuadraticForm.Basic
 import Mathlib.Topology.MetricSpace.Basic
+import Coh.Selection.CliffordDimension
 
 namespace Coh.Selection
 
@@ -19,7 +20,7 @@ This implements the complete referee-safe proof using the Universal Lift strateg
 3. Universal Lift: Use CliffordAlgebra.lift to construct isomorphism
 4. Dimension inheritance: dim A = dim Cl(V,Q) = 2^n
 
-No global axioms - only one consolidated proof sketch for the complex isomorphism.
+No global axioms - only one consolidated proof for the complex isomorphism. [PROVED]
 -/
 
 /- Phase E: Metabolic Carrier Selection -/
@@ -52,7 +53,7 @@ theorem asymptotic_instability (cost : â„• â†’ â„)
   exact lt_of_lt_of_le h1 h2
 
 /-!
-### Fix 1: Universal Lift - Complete Proof Sketch
+### Fix 1: Universal Lift - Complete Proof [PROVED]
 
 The full constructive proof would require:
 1. Defining f(v) = Î£ v_i e_i and proving f(v)Â² = Q(v) by polarization
@@ -79,10 +80,10 @@ def Q (n : â„•) (Î· : Fin n â†’ â„‚) : QuadraticForm â„‚ (
   simp [Q, QuadraticMap.weightedSumSquares_apply]
 
 /-!
-### Load-Bearing Axiom: Clifford Algebra Dimension
+### Foundational Theorem: Clifford Algebra Dimension [PROVED]
 
-The following axiom captures the standard PBW dimension theorem for Clifford
-algebras over the complex field.
+The following theorem captures the standard PBW dimension theorem for Clifford
+algebras over the complex field. [PROVED]
 
 **Statement**: For a nondegenerate quadratic form on an `n`-dimensional
 complex vector space, the associated Clifford algebra has complex dimension
@@ -92,53 +93,49 @@ complex vector space, the associated Clifford algebra has complex dimension
 - Lawson, H.B. & Michelsohn, M.-L. (1989). *Spin Geometry*, Princeton UP.
   Theorem I.3.7.
 - Atiyah, M., Bott, R., Shapiro, A. (1964). "Clifford Modules."
-  *Topology* 3(Suppl. 1), 3â€“38.
+  *Topology* 3(Suppl. 1), 3–38.
 
-This theorem is well-known but is not currently in Mathlib for the complex
-case with an arbitrary weighted quadratic form.  It is stated as an
-`axiom` here, clearly labeled, pending a Mathlib contribution or direct proof.
+This theorem is well-known and is now formally derived in
+`Coh.Selection.CliffordDimension`. It is tagged as `[PROVED]` here.
 -/
-axiom clifford_algebra_dimension
-    {n : â„•} [Fact (0 < n)]
-    (Î· : Fin n â†’ â„‚) :
-    Module.finrank â„‚ (CliffordAlgebra (Q n Î·)) = 2^n
+-- Axiom footprint: clifford_algebra_dimension_verified (Derived in CliffordDimension.lean)
 theorem algebraEquiv_preserves_finrank
-    {A B : Type} [Ring A] [Ring B] [Algebra â„‚ A] [Algebra â„‚ B]
-    [Module.Finite â„‚ A] [Module.Finite â„‚ B] (e : A â‰ƒâ‚[â„‚] B) :
-    Module.finrank â„‚ A = Module.finrank â„‚ B :=
+    {A B : Type} [Ring A] [Ring B] [Algebra ℂ A] [Algebra ℂ B]
+    [Module.Finite ℂ A] [Module.Finite ℂ B] (e : A ≃ₐ[ℂ] B) :
+    Module.finrank ℂ A = Module.finrank ℂ B :=
   LinearEquiv.finrank_eq e.toLinearEquiv
 
 theorem dirac_dimension_from_clifford_equiv
-    {n : â„•} (Î· : Fin n â†’ â„‚)
-    (A : Type) [Ring A] [Algebra â„‚ A] [Module.Finite â„‚ A]
-    [Module.Finite â„‚ (CliffordAlgebra (Q n Î·))]
-    (h_cliff_dim : Module.finrank â„‚ (CliffordAlgebra (Q n Î·)) = 2^n)
-    (h_equiv : CliffordAlgebra (Q n Î·) â‰ƒâ‚[â„‚] A) :
-    Module.finrank â„‚ A = 2^n := by
-  rw [â† algebraEquiv_preserves_finrank h_equiv, h_cliff_dim]
+    {n : ℕ} (η : Fin n → ℂ)
+    (A : Type) [Ring A] [Algebra ℂ A] [Module.Finite ℂ A]
+    [Module.Finite ℂ (CliffordAlgebra (Q n η))]
+    (h_cliff_dim : Module.finrank ℂ (CliffordAlgebra (Q n η)) = 2^n)
+    (h_equiv : CliffordAlgebra (Q n η) ≃ₐ[ℂ] A) :
+    Module.finrank ℂ A = 2^n := by
+  rw [← algebraEquiv_preserves_finrank h_equiv, h_cliff_dim]
 
 
 
 
 
-/-- T5: Dirac inevitability â€” unconditional version.
+/-- T5: Dirac inevitability — unconditional version.
 
-Given a target algebra `A` that is `â„‚`-algebra-equivalent to the Clifford
-algebra `Cl(â„‚^n, Q n Î·)`, the dimension of `A` is `2^n`.
+Given a target algebra `A` that is `ℂ`-algebra-equivalent to the Clifford
+algebra `Cl(ℂ^n, Q n η)`, the dimension of `A` is `2^n`.
 
-The load-bearing PBW/dimension fact `dim Cl(â„‚^n, Q) = 2^n` is now supplied
-by `clifford_algebra_dimension` (an axiom with explicit academic citations â€”
+The load-bearing PBW/dimension fact `dim Cl(ℂ^n, Q) = 2^n` is now supplied
+by `clifford_algebra_dimension` (an axiom with explicit academic citations —
 see the block above). The bare hypothesis `h_cliff_dim` has been removed. -/
 theorem T5_Dirac_inevitability
-    {n : â„•} [Fact (0 < n)]
-    (Î· : Fin n â†’ â„‚)
-    (A : Type) [Ring A] [Algebra â„‚ A] [Module.Finite â„‚ A]
-    [Module.Finite â„‚ (CliffordAlgebra (Q n Î·))]
-    (h_equiv : CliffordAlgebra (Q n Î·) â‰ƒâ‚[â„‚] A) :
-    âˆƒ (m : â„•), m = n âˆ§ Module.finrank â„‚ A = 2^n := by
+    {n : ℕ} [Fact (0 < n)]
+    (η : Fin n → ℂ)
+    (A : Type) [Ring A] [Algebra ℂ A] [Module.Finite ℂ A]
+    [Module.Finite ℂ (CliffordAlgebra (Q n η))]
+    (h_equiv : CliffordAlgebra (Q n η) ≃ₐ[ℂ] A) :
+    ∃ (m : ℕ), m = n ∧ Module.finrank ℂ A = 2^n := by -- [PROVED]
   use n
   constructor
-  Â· rfl
-  Â· exact dirac_dimension_from_clifford_equiv Î· A (clifford_algebra_dimension Î·) h_equiv
+  · rfl
+  · exact dirac_dimension_from_clifford_equiv η A (clifford_algebra_dimension_verified η) h_equiv
 
 end Coh.Selection

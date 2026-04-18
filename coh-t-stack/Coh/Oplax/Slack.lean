@@ -6,19 +6,19 @@ open Coh.Core
 
 /-- Oplax morphisms preserve lawfulness up to an additive slack budget. -/
 structure OplaxMorphism where
-  map : Receipt â†’ Receipt
-  slack : â„
+  map : Receipt → Receipt
+  slack : ℝ
   preserves :
-    âˆ€ {Î” : â„} {r : Receipt}, LawfulUpTo Î” r â†’ LawfulUpTo (Î” + slack) (map r)
+    ∀ {Δ : ℝ} {r : Receipt}, LawfulUpTo Δ r → LawfulUpTo (Δ + slack) (map r)
 
 /-- Composition of oplax morphisms adds slack. -/
 def comp (G F : OplaxMorphism) : OplaxMorphism where
   map r := G.map (F.map r)
   slack := F.slack + G.slack
   preserves := by
-    intro Î” r hLawful
-    have hF : LawfulUpTo (Î” + F.slack) (F.map r) := F.preserves hLawful
-    have hG : LawfulUpTo ((Î” + F.slack) + G.slack) (G.map (F.map r)) := G.preserves hF
+    intro Δ r hLawful
+    have hF : LawfulUpTo (Δ + F.slack) (F.map r) := F.preserves hLawful
+    have hG : LawfulUpTo ((Δ + F.slack) + G.slack) (G.map (F.map r)) := G.preserves hF
     simpa [add_assoc, add_left_comm, add_comm] using hG
 
 theorem oplax_compose_slack_add (G F : OplaxMorphism) :
@@ -46,25 +46,25 @@ theorem OplaxMorphism.ext
 theorem oplax_comp_assoc (H G F : OplaxMorphism) :
     comp H (comp G F) = comp (comp H G) F := by
   apply OplaxMorphism.ext
-  Â· rfl
-  Â· simp [comp, add_assoc]
+  · rfl
+  · simp [comp, add_assoc]
 
 /-- Oplax identity morphism: zero slack, identity map. -/
 def id_oplax : OplaxMorphism where
   map r := r
   slack := 0
-  preserves := by intro Î” r h; simpa using h
+  preserves := by intro Δ r h; simpa using h
 
 theorem oplax_comp_id (F : OplaxMorphism) :
     comp F id_oplax = F := by
   apply OplaxMorphism.ext
-  Â· rfl
-  Â· simp [comp, id_oplax]
+  · rfl
+  · simp [comp, id_oplax]
 
 theorem oplax_id_comp (F : OplaxMorphism) :
     comp id_oplax F = F := by
   apply OplaxMorphism.ext
-  Â· rfl
-  Â· simp [comp, id_oplax]
+  · rfl
+  · simp [comp, id_oplax]
 
 end Coh.Oplax

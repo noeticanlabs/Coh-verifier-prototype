@@ -1,4 +1,6 @@
 import Coh.Kernel.T1_Category
+import Mathlib.Data.Real.NNReal
+import Coh.Category.CohDyn
 
 /-!
 # Coh.Category: Base category of governed systems (objects with V and RV)
@@ -6,7 +8,7 @@ import Coh.Kernel.T1_Category
 Objects carry:
 - a state type X
 - a receipt type R
-- a potential V : X → Nat (nonnegative discrete potential for ledger alignment)
+- a potential V : X → NNReal (nonnegative real-valued potential for enrichment)
 - a verifier RV : X → R → X → Bool (discrete acceptance predicate)
 
 Morphisms f : A ⟶ B are pairs (fX, fR) that preserve acceptance:
@@ -25,7 +27,7 @@ universe u v
 structure CohObj where
   X  : Type u
   R  : Type v
-  V  : X → Nat
+  V  : X → NNReal
   RV : X → R → X → Bool
 
 /- Verification-preserving morphisms between base objects -/
@@ -66,5 +68,40 @@ def CohCat : SmallCategory CohObj :=
       intro A B f; cases f; rfl
   , assoc := by
       intro A B C D f g h; cases f; cases g; cases h; rfl }
+
+/-!
+## Functorial Dynamics
+
+The functor `Dyn : CohCat → Cat` maps each governed system `A` to its dynamics
+category `CohDyn(A)`, and each homomorphism `f : CohHom A B` to the induced functor
+on dynamics via `DynFunctor.toSmallFunctor`.
+-/
+
+namespace Dyn
+
+/- Lift a CohHom to a functor between dynamics categories -/
+def lift {A B : CohObj} (f : CohHom A B) : SmallFunctor (CohDyn A) (CohDyn B) :=
+  DynFunctor.toSmallFunctor f
+
+/- Functoriality: identity maps to identity -/
+theorem lift_id (A : CohObj) : lift (CohHom.id A) = {
+    obj := id
+    map := fun x y h => h
+    map_id := by intro x; rfl
+    map_comp := by intro x y z g h; rfl
+  } := by
+  apply SmallFunctor.ext <;> rfl
+
+/- Functoriality: composition preserves -/
+theorem lift_comp {A B C : CohObj} (f : CohHom A B) (g : CohHom B C) :
+  lift (CohHom.comp f g) = {
+    obj := (lift g).obj ∘ (lift f).obj
+    map := fun x y h => (lift g).map ((lift f).map h)
+    map_id := by intro x; simp [lift, DynFunctor.toSmallFunctor]
+    map_comp := by intro x y z g' h'; simp [lift, DynFunctor.toSmallFunctor]
+  } := by
+  apply SmallFunctor.ext <;> rfl
+
+end Dyn
 
 end Coh.Category

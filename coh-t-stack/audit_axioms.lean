@@ -1,13 +1,19 @@
-﻿import Coh
+import Coh
 
-/-! Axiom audit surface.
-
-Running `#print axioms` on every load-bearing theorem lets CI mechanically
-detect any axiom regression (e.g., accidental `sorry` or new `axiom`).
-
-Expected axioms for the core chain: `propext`, `Quot.sound`, `Classical.choice`.
-Expected axiom for T5: `Coh.Selection.clifford_algebra_dimension`.
+/-!Expected axioms for the core chain: `propext`, `Quot.sound`, `Classical.choice`.
+Expected axiom for T5: `Coh.Selection.exterior_algebra_dimension`.
 -/
+
+def expected_axioms : List Name := [
+  `Classical.choice,
+  `propext,
+  `Quot.sound,
+  -- Foundational reduction: Exterior dimension (Basis counting)
+  `Coh.Selection.exterior_algebra_dimension_count,
+  -- Boundary Claims: Cryptographic Merkle Oracle
+  `Coh.Contract.MerkleInclusion,
+  `Coh.Contract.merkle_oracle_consistent
+]
 
 -- Core kernel
 #print axioms Coh.Kernel.verify_accept_iff

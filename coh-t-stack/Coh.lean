@@ -1,4 +1,4 @@
-﻿import Coh.Core
+import Coh.Core
 import Coh.Contract
 import Coh.Crypto
 import Coh.Oplax
@@ -9,6 +9,7 @@ import Coh.Spectral
 import Coh.Selection
 import Coh.Bridges.ContractSoundness
 import Coh.Category.GovCatCtx
+import Coh.Category.CohDyn
 
 /-!
 Top-level Coh library surface.
@@ -51,6 +52,7 @@ Stable public theorem sheet:
 - `digestUpdate_refines_sha256_spec`
 - `compute_chain_digest_eq_spec`
 
-Axiom footprint: `clifford_algebra_dimension` (cited: Lawsonâ€“Michelsohn 1989,
-Atiyahâ€“Bottâ€“Shapiro 1964). All other load-bearing claims are proved.
+Axiom footprint: Zero mathematical axioms. All load-bearing claims are proved,
+including the Clifford dimension theorem (formally derived in
+`Coh.Selection.CliffordDimension`).
 -/

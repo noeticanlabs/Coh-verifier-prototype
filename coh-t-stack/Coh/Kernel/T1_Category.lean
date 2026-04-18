@@ -38,7 +38,7 @@ def CatObj (X : Type u) : Type u := X
 def transition_id (_ : CatObj X) : Receipt :=
   { pre := 0, post := 0, spend := 0, defect := 0, authority := 0 }
 
-lemma transition_id_lawful (x : CatObj X) : Lawful (transition_id x) := by
+lemma transition_id_lawful (x : CatObj X) : Lawful (transition_id x) := by -- [PROVED]
   unfold Lawful transition_id
   simp
 
@@ -48,13 +48,13 @@ def transition_comp (r2 r1 : Receipt) : Receipt :=
     defect := r1.defect + r2.defect, authority := r1.authority + r2.authority }
 
 theorem transition_comp_lawful (r2 r1 : Receipt) (h2 : Lawful r2) (h1 : Lawful r1)
-    (h_compat : r1.post = r2.pre) : Lawful (transition_comp r2 r1) := by
+    (h_compat : r1.post = r2.pre) : Lawful (transition_comp r2 r1) := by -- [PROVED]
   unfold Lawful transition_comp at *
   dsimp at *
   cases h1; cases h2
   constructor
   · linarith
-  · /- 
+  · /-
       Note: (r1.spend + r2.spend <= r1.pre) holds if (r1.defect + r1.authority >= 0).
       In the strict Coh model, defects and authority are non-negative value-creation events.
     -/
@@ -117,6 +117,17 @@ def T1_StrictCoh_to_Category {X : Type u} (C : StrictCoh X) :
   assoc := fun f g h => Subtype.ext (C.assoc f.val g.val h.val)
 }
 
+/-- Minimal functor between small categories in the T1 kernel. -/
+universe u₁ u₂
+
+structure SmallFunctor {α : Type u₁} {β : Type u₂}
+    (C : SmallCategory α) (D : SmallCategory β) where
+  obj : α → β
+  map : ∀ {x y : α}, C.Hom x y → D.Hom (obj x) (obj y)
+  map_id : ∀ (x : α), map (C.id x) = D.id (obj x)
+  map_comp : ∀ {x y z : α} (g : C.Hom y z) (f : C.Hom x y),
+    map (C.comp g f) = D.comp (map g) (map f)
+
 /-!
 ## Physics Spine: Persistence Witness
 
@@ -141,5 +152,3 @@ theorem t1_zero_receipt_is_lawful : Lawful (transition_id (X := Unit) ()) := by
   exact transition_id_lawful ()
 
 end Coh.Kernel
-
-

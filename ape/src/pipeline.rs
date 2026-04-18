@@ -89,7 +89,7 @@ pub fn verify_only(proposal: &Proposal) -> PipelineResult {
 mod tests {
     use super::*;
     use crate::proposal::Input;
-    use coh_core::types::MetricsWire;
+    use coh_core::types::{MetricsWire, MicroReceiptWire};
 
     fn sample_micro() -> MicroReceiptWire {
         MicroReceiptWire {

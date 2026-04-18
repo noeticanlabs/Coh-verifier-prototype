@@ -33,7 +33,7 @@ pub enum Decision {
     AbortBudget,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MetricsWire {
     pub v_pre: String,
@@ -96,6 +96,7 @@ pub struct SlabReceiptWire {
     pub summary: SlabSummaryWire,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Metrics {
     pub v_pre: u128,
     pub v_post: u128,

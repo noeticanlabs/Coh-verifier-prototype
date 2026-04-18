@@ -1,11 +1,17 @@
 {
-  "schema_id": "coh.receipt.micro.v1",
-  "version": "1.0.0",
-  "object_id": "agent.workflow.demo",
   "canon_profile_hash": "4fb5a33116a4e393ad7900f0744e8ec5d1b7a2d67d71003666d628d7a1cded09",
+  "chain_digest_next": "d6439d130820e2e0cf58f082db4b5d39ebed5dba4b30164f3a1955ca635357ba",
+  "chain_digest_prev": "0000000000000000000000000000000000000000000000000000000000000000",
+  "metrics": {
+    "authority": "0",
+    "defect": "0",
+    "spend": "12",
+    "v_post": "88",
+    "v_pre": "100"
+  },
+  "object_id": "agent.workflow.demo",
   "policy_hash": "0000000000000000000000000000000000000000000000000000000000000000",
-  "step_index": 0,
-  "step_type": "workflow",
+  "schema_id": "coh.receipt.micro.v1",
   "signatures": [
     {
       "signature": "sig-0000000000000000",
@@ -13,14 +19,9 @@
       "timestamp": 1700000000
     }
   ],
-  "state_hash_prev": "1111111111111111111111111111111111111111111111111111111111111111",
   "state_hash_next": "2222222222222222222222222222222222222222222222222222222222222222",
-  "chain_digest_prev": "0000000000000000000000000000000000000000000000000000000000000000",
-  "chain_digest_next": "431bf30f44950ef6f3d60e75bc2fd891a2f259fe218c8cf19655acf149dc85ba",
-  "metrics": {
-    "v_pre": "100",
-    "v_post": "88",
-    "spend": "12",
-    "defect": "0"
-  }
+  "state_hash_prev": "1111111111111111111111111111111111111111111111111111111111111111",
+  "step_index": 0,
+  "step_type": "workflow",
+  "version": "1.0.0"
 }

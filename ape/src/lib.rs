@@ -14,10 +14,11 @@
 //! ## Usage
 //!
 //! ```rust
-//! use ape::{engine::generate, Strategy, seed::SeededRng};
+//! use ape::{engine::generate, Strategy, load_micro, proposal::Input};
 //!
-//! let rng = SeededRng::new(42);
-//! let proposal = generate(Strategy::Mutation, &input, rng);
+//! let wire = load_micro("valid_micro.json").unwrap();
+//! let input = Input::from_micro(wire);
+//! let proposal = generate(Strategy::Mutation, &input, 42);
 //! ```
 
 pub mod adapter;

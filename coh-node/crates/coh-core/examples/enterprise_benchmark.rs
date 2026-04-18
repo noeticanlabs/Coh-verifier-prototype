@@ -933,19 +933,22 @@ fn main() {
         }
     }
 
-    let api_receipts = ingest_api_jsonl(&resolve_log_path("examples/logs/api_calls.jsonl")).unwrap_or_else(|e| {
-        eprintln!("[WARN] API logs ingest failed: {:?}", e);
-        Vec::new()
-    });
-    let pipe_receipts =
-        ingest_pipeline_jsonl(&resolve_log_path("examples/logs/pipeline_runs.jsonl")).unwrap_or_else(|e| {
-            eprintln!("[WARN] Pipeline logs ingest failed: {:?}", e);
+    let api_receipts = ingest_api_jsonl(&resolve_log_path("examples/logs/api_calls.jsonl"))
+        .unwrap_or_else(|e| {
+            eprintln!("[WARN] API logs ingest failed: {:?}", e);
             Vec::new()
         });
-    let cicd_receipts = ingest_cicd_jsonl(&resolve_log_path("examples/logs/cicd_jobs.jsonl")).unwrap_or_else(|e| {
-        eprintln!("[WARN] CI/CD logs ingest failed: {:?}", e);
-        Vec::new()
-    });
+    let pipe_receipts =
+        ingest_pipeline_jsonl(&resolve_log_path("examples/logs/pipeline_runs.jsonl"))
+            .unwrap_or_else(|e| {
+                eprintln!("[WARN] Pipeline logs ingest failed: {:?}", e);
+                Vec::new()
+            });
+    let cicd_receipts = ingest_cicd_jsonl(&resolve_log_path("examples/logs/cicd_jobs.jsonl"))
+        .unwrap_or_else(|e| {
+            eprintln!("[WARN] CI/CD logs ingest failed: {:?}", e);
+            Vec::new()
+        });
 
     let api_report = run_logs_validation(api_receipts);
     let pipe_report = run_logs_validation(pipe_receipts);

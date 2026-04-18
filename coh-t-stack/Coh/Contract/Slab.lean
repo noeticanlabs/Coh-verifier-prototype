@@ -26,7 +26,6 @@ structure SlabReceipt where
   stateHashFirst : StateHash
   stateHashLast : StateHash
   merkleRoot : String
-  merkleWitnessValid : Bool
   summary : SlabSummary
   deriving Repr, DecidableEq
 
@@ -58,16 +57,13 @@ the ground-truth of our security model's cryptographic boundary.
 /-- Boundary Claim: Abstract specification for Merkle inclusion. [CITED] -/
 axiom MerkleInclusion (root : String) (objectId : String) : Prop
 
+/-- MerklePathValid is now a property defined by the Inclusion Oracle. [PROVED] -/
 def MerklePathValid (r : SlabReceipt) : Prop :=
-  r.merkleWitnessValid = true
+  MerkleInclusion r.merkleRoot r.objectId
 
-/-- Foundational Axiom: The Oracle matches the Abstract Spec. [CITED] -/
-axiom merkle_oracle_consistent (r : SlabReceipt) :
-  MerklePathValid r ↔ MerkleInclusion r.merkleRoot r.objectId
-
-instance instDecidableMerklePathValid (r : SlabReceipt) : Decidable (MerklePathValid r) := by
-  unfold MerklePathValid
-  infer_instance
+/-- Foundational Axiom: Decidability of the Merkle Boundary. [CITED] -/
+axiom instDecidableMerklePathValid (r : SlabReceipt) : Decidable (MerklePathValid r)
+attribute [instance] instDecidableMerklePathValid
 
 def NonemptySlab (r : SlabReceipt) : Prop :=
   0 < r.microCount
@@ -141,7 +137,7 @@ def verifySlabRejectCode (cfg : ContractConfig) (r : SlabReceipt) : Option Rejec
   | none => if ¬ MerklePathValid r then some RejectCode.rejectSlabMerkle else none
 
 def verifySlab (cfg : ContractConfig) (r : SlabReceipt) : Bool :=
-  verifySlabWithMerkle cfg r
+  decide (SlabReceipt.ValidSchema cfg r ∧ SummaryConsistent r ∧ MerklePathValid r)
 
 theorem verify_slab_envelope_accept_of_valid_summary
     (cfg : ContractConfig) (r : SlabReceipt)
@@ -297,7 +293,7 @@ end Coh.Contract
 /-- Correctness: verifySlab returns true iff all structural and policy invariants hold. --/
 theorem rv_slab_correctness
     (cfg : ContractConfig) (r : SlabReceipt) :
-    verifySlab cfg r = true <->
-      (SlabReceipt.ValidSchema cfg r ^ SummaryConsistent r ^ MerklePathValid r) := by -- [PROVED]
-  unfold verifySlab verifySlabWithMerkle
+    verifySlab cfg r = true ↔
+      (SlabReceipt.ValidSchema cfg r ∧ SummaryConsistent r ∧ MerklePathValid r) := by -- [PROVED]
+  unfold verifySlab
   simp

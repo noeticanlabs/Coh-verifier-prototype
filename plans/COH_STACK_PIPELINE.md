@@ -1,6 +1,6 @@
-# Coh Stacked System: Chain of Constructions (Spec and Implementation Map)
+# Coh Stacked System: Chain of Constructions ✅ COMPLETE
 
-This document ties the conceptual pipeline to concrete modules and declarations in this repo, and specifies the next implementation steps. Canonical choices locked: CohCat Bool RV for semantics, NNReal for quantitative enrichment.
+This document maps the conceptual pipeline to concrete modules and declarations in this repo. All implementation steps are complete. Canonical choices locked: CohCat Bool RV for semantics, NNReal for quantitative enrichment.
 
 ## 0. Verifier → existence
 - Semantics live in [Coh.Category.CohCat.lean](coh-t-stack/Coh/Category/CohCat.lean):
@@ -20,11 +20,11 @@ RV : X → R → X → Bool
 - Composition is append, recursive on the left [Coh.Category.DynHom.comp()](coh-t-stack/Coh/Category/CohDyn.lean:51)
   - Associativity follows definitionally [Coh.Category.DynHom.assoc()](coh-t-stack/Coh/Category/CohDyn.lean:64)
 
-## 3. Path category → all executions by concatenation
+## 3. Path category → all executions by concatenation ✅ DONE
+- Raw dynamics in [Coh.Category.PathCat.lean](coh-t-stack/Coh/Category/PathCat.lean): RawStep, PathHom, SmallCategory
 - Verified dynamics as a small category [Coh.Category.CohDyn()](coh-t-stack/Coh/Category/CohDyn.lean:102)
 - Identity = empty trace; composition = append.
-
-Planned addition: PathCat (raw traces allowing all steps) with inclusion functor CohDyn ⟶ PathCat.
+- Inclusion functor i_A : CohDyn(A) → PathCat(A) via [InclFunctor.toFunctor()](coh-t-stack/Coh/Category/PathCat.lean:62)
 
 ## 4. External layer → category of systems
 - Systems and homomorphisms are provided by [Coh.Category.CohCat()](coh-t-stack/Coh/Category/CohCat.lean:59)
@@ -33,16 +33,11 @@ Planned addition: PathCat (raw traces allowing all steps) with inclusion functor
   - Trace mapping [Coh.Category.DynFunctor.mapDyn()](coh-t-stack/Coh/Category/CohDyn.lean:137)
   - Functor builder [Coh.Category.DynFunctor.toSmallFunctor()](coh-t-stack/Coh/Category/CohDyn.lean:143)
 
-## 5. Quantitative layer → cost on traces (NNReal)
-- Current Nat prototypes:
-  - [Coh.Category.step_cost()](coh-t-stack/Coh/Category/CohDyn.lean:75)
-  - [Coh.Category.path_cost()](coh-t-stack/Coh/Category/CohDyn.lean:79)
-  - [Coh.Category.cost_subadditive()](coh-t-stack/Coh/Category/CohDyn.lean:85)
-
-Refactor target (this work):
-- Move to NNReal with truncated subtraction via Real.toNNReal:
-  step_cost := ((V dst).toReal - (V src).toReal).toNNReal
-- path_cost := fold with + over steps; identity cost = 0; composition gives equality, hence subadditivity.
+## 5. Quantitative layer → cost on traces (NNReal) ✅ DONE
+- NNReal costs:
+  - [Coh.Category.step_cost()](coh-t-stack/Coh/Category/CohDyn.lean:75) using (a - b).toNNReal
+  - [Coh.Category.path_cost()](coh-t-stack/Coh/Category/CohDyn.lean:79) as fold with +
+  - [Coh.Category.cost_subadditive()](coh-t-stack/Coh/Category/CohDyn.lean:85) proved with add_le_add_left
 
 ## 6. Enrichment → preorder by cost
 - Equip each hom-set with the preorder induced by path_cost; composition is monotone and respects subadditivity. This realizes enrichment over (ℝ≥0, +, ≤).

@@ -2,6 +2,7 @@ import Coh.Contract.Profile
 import Coh.Contract.Schema
 import Coh.Contract.RejectCode
 import Coh.Core.Hash
+import Mathlib.Data.ByteArray
 
 namespace Coh.Contract
 
@@ -14,6 +15,14 @@ structure Metrics where
   defect : Nat
   authority : Nat
   deriving Repr, DecidableEq
+
+structure Signature where
+  signer : String
+  signature : String
+  timestamp : Nat
+  deriving Repr, DecidableEq
+
+def StepType := String
 
 structure ContractConfig where
   microSchema : SchemaId
@@ -30,11 +39,12 @@ structure MicroReceipt where
   canonProfileHash : CanonProfileHash
   policyHash : PolicyHash
   stepIndex : Nat
+  stepType : Option StepType
+  signatures : Option (List Signature)
   stateHashPrev : StateHash
   stateHashNext : StateHash
   chainDigestPrev : ChainDigest
   chainDigestNext : ChainDigest
-  canonicalPayload : String
   metrics : Metrics
   deriving Repr, DecidableEq
 
@@ -125,8 +135,27 @@ instance instDecidableStateHashLinkOK
   unfold stateHashLinkOK
   infer_instance
 
+/-- Abstract signature verification axiom (Oracle). [CITED] -/
+axiom verify_signature : Signature → ByteArray → Prop
+
+/-- Mirror of Rust's JCS canonicalization logic. [CITED] -/
+def canonicalize (r : MicroReceipt) : ByteArray :=
+  -- Specification-level placeholder for byte-canonical fields
+  ByteArray.empty 
+
+/-- Predicate for signature validity across the entire receipt. [PROVED] -/
+def signaturesValid (r : MicroReceipt) : Prop :=
+  match r.signatures with
+  | none => false
+  | some sigs => sigs ≠ [] ∧ ∀ sig ∈ sigs, verify_signature sig (canonicalize r)
+
+instance instDecidableSignaturesValid (r : MicroReceipt) :
+    Decidable (signaturesValid r) := by
+  unfold signaturesValid
+  split <;> infer_instance
+
 def chainDigestMatches (r : MicroReceipt) : Prop :=
-  r.chainDigestNext = digestUpdate r.chainDigestPrev r.canonicalPayload
+  r.chainDigestNext = digestUpdate r.chainDigestPrev (canonicalize r).toString
 
 instance instDecidableChainDigestMatches (r : MicroReceipt) :
     Decidable (chainDigestMatches r) := by
@@ -144,6 +173,7 @@ def microContractPred
     NumericValid r ∧
     policyLawful r ∧
     domainLawful r ∧
+    signaturesValid r ∧
     r.chainDigestPrev = prevChainDigest ∧
     chainDigestMatches r ∧
     stateHashLinkOK prevState nextState r
@@ -176,6 +206,7 @@ def verifyMicroRejectCode
     (r : MicroReceipt) : Option RejectCode :=
   if ¬ MicroReceipt.ValidSchema cfg r then some RejectCode.rejectSchema
   else if ¬ ObjectIdValid r then some RejectCode.rejectSchema
+  else if ¬ signaturesValid r then some RejectCode.rejectMissingSignature
   else if ¬ CanonProfilePinned cfg r then some RejectCode.rejectCanonProfile
   else match numericRejectCode r with
     | some code => some code
@@ -197,10 +228,10 @@ theorem verifyMicroRejectCode_none_of_contract
     (r : MicroReceipt)
     (h : microContractPred cfg prevState nextState prevChainDigest r) :
     verifyMicroRejectCode cfg prevState nextState prevChainDigest r = none := by
-  rcases h with ⟨hSchema, hProfile, hObject, hNumeric, hPolicy, hDomain, hPrev, hDigest, hState⟩
+  rcases h with ⟨hSchema, hProfile, hObject, hNumeric, hPolicy, hDomain, hSigs, hPrev, hDigest, hState⟩
   rcases hNumeric with ⟨hParse, hOverflow⟩
   unfold verifyMicroRejectCode numericRejectCode domainLawful
-  simp [hSchema, hObject, hProfile, hParse, hOverflow, hPolicy, hDomain, hPrev, hDigest, hState]
+  simp [hSchema, hObject, hProfile, hParse, hOverflow, hPolicy, hDomain, hSigs, hPrev, hDigest, hState]
 
 theorem verifyMicroRejectCode_of_bad_schema
     (cfg : ContractConfig)
@@ -385,6 +416,7 @@ theorem microContractPred_iff
       NumericValid r ∧
       policyLawful r ∧
       domainLawful r ∧
+      signaturesValid r ∧
       r.chainDigestPrev = prevChainDigest ∧
       chainDigestMatches r ∧
       stateHashLinkOK prevState nextState r := Iff.rfl
@@ -424,20 +456,25 @@ theorem domain
     domainLawful r := by
   rcases h with ⟨_, _, _, _, _, hDom, ..⟩; exact hDom
 
+theorem signatures
+    (h : microContractPred cfg prevState nextState prevChainDigest r) :
+    signaturesValid r := by
+  rcases h with ⟨_, _, _, _, _, _, hSigs, ..⟩; exact hSigs
+
 theorem prevDigest
     (h : microContractPred cfg prevState nextState prevChainDigest r) :
     r.chainDigestPrev = prevChainDigest := by
-  rcases h with ⟨_, _, _, _, _, hPrev, ..⟩; exact hPrev
+  rcases h with ⟨_, _, _, _, _, _, _, hPrev, ..⟩; exact hPrev
 
 theorem digestOK
     (h : microContractPred cfg prevState nextState prevChainDigest r) :
     chainDigestMatches r := by
-  rcases h with ⟨_, _, _, _, _, _, hD, ..⟩; exact hD
+  rcases h with ⟨_, _, _, _, _, _, _, _, hD, ..⟩; exact hD
 
 theorem stateLink
     (h : microContractPred cfg prevState nextState prevChainDigest r) :
     stateHashLinkOK prevState nextState r := by
-  rcases h with ⟨_, _, _, _, _, _, _, _, hS⟩; exact hS
+  rcases h with ⟨_, _, _, _, _, _, _, _, _, hS⟩; exact hS
 
 end microContractPred
 

@@ -5,7 +5,7 @@ mod trajectory_tests {
         OpsState, OpsStatus,
     };
     use crate::trajectory::engine::{search, SearchContext};
-    use crate::trajectory::scoring::{evaluate_path, ScoringWeights};
+    use crate::trajectory::scoring::evaluate_path;
     use crate::trajectory::types::{
         AcceptWitness, Action, AdmissibleTrajectory, DomainState, VerifiedStep,
     };
@@ -89,15 +89,12 @@ mod trajectory_tests {
                 stall_risk: 0,
                 resource_readiness: 100,
             }),
-            target_state: DomainState::Ops(OpsState {
-                status: OpsStatus::Closed,
-                materials_logged: true,
-                stall_risk: 0,
-                resource_readiness: 100,
-            }),
             max_depth: 2,
             beam_width: 5,
-            weights: ScoringWeights::default(),
+            weight_goal: 1_000_000_000_000_000,
+            weight_risk: 1_000_000_000_000_000,
+            weight_cost: 100_000_000_000_000,
+            weight_uncertainty: 0,
         };
 
         let result = search(&ctx);

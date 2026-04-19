@@ -35,22 +35,6 @@ impl Ord for PathEvaluation {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ScoringWeights {
-    pub goal: u128,
-    pub risk: u128,
-    pub cost: u128,
-}
-
-impl Default for ScoringWeights {
-    fn default() -> Self {
-        Self {
-            goal: COH_PRECISION,
-            risk: COH_PRECISION,
-            cost: COH_PRECISION / 10, // 0.1
-        }
-    }
-}
 
 /// Compute evaluation metrics for a trajectory using u128 fixed-point
 pub fn evaluate_path(traj: &AdmissibleTrajectory, max_depth: usize) -> PathEvaluation {
@@ -83,10 +67,16 @@ pub fn evaluate_path(traj: &AdmissibleTrajectory, max_depth: usize) -> PathEvalu
 }
 
 /// Scalar weighted sum for UI display (Selection uses evaluate_path().cmp())
-pub fn calculate_weighted_score(eval: &PathEvaluation, weights: &ScoringWeights) -> u128 {
-    let p_part = (eval.progress * weights.goal) / COH_PRECISION;
-    let s_part = (eval.safety_bottleneck * weights.risk) / COH_PRECISION;
-    let c_part = (eval.normalized_cost * weights.cost) / COH_PRECISION;
+pub fn calculate_weighted_score(
+    eval: &PathEvaluation,
+    goal: u128,
+    risk: u128,
+    cost: u128,
+    _uncertainty: u128,
+) -> u128 {
+    let p_part = (eval.progress * goal) / COH_PRECISION;
+    let s_part = (eval.safety_bottleneck * risk) / COH_PRECISION;
+    let c_part = (eval.normalized_cost * cost) / COH_PRECISION;
 
     p_part + s_part - c_part
 }

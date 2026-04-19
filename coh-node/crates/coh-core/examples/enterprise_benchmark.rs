@@ -15,7 +15,7 @@ use coh_core::external::{
 };
 use coh_core::trajectory::{
     AgentState, AgentStatus, DomainState, FinancialState, FinancialStatus, OpsState, OpsStatus,
-    ScoringWeights, SearchContext,
+    SearchContext,
 };
 use coh_core::types::{Decision, MetricsWire, MicroReceipt, MicroReceiptWire};
 use coh_core::{canon::*, hash::compute_chain_digest, verify_chain, verify_micro};
@@ -1042,15 +1042,12 @@ fn main() {
         #[allow(unused_variables, unused_mut)]
         let ctx = SearchContext {
             initial_state: start_state,
-            target_state: DomainState::Financial(FinancialState {
-                balance: 0,
-                initial_balance: 10000,
-                status: FinancialStatus::Paid,
-                current_invoice_amount: 0,
-            }), // Dummy target
             max_depth: 3,
             beam_width: 5,
-            weights: ScoringWeights::default(),
+            weight_goal: 1_000_000_000_000_000,
+            weight_risk: 1_000_000_000_000_000,
+            weight_cost: 100_000_000_000_000,
+            weight_uncertainty: 0,
         };
 
         let start = Instant::now();

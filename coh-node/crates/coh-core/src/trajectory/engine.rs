@@ -1,5 +1,5 @@
 use crate::trajectory::domain::{admissible_actions, derive_state, is_transition_valid_semantic};
-use crate::trajectory::scoring::{calculate_weighted_score, evaluate_path, ScoringWeights};
+use crate::trajectory::scoring::{calculate_weighted_score, evaluate_path};
 use crate::trajectory::search_result::SearchResult;
 use crate::trajectory::types::{
     witness_vector, AcceptWitness, Action, AdmissibleTrajectory, CandidateEdge, DomainState,
@@ -12,11 +12,14 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchContext {
     pub initial_state: DomainState,
-    pub target_state: DomainState,
     pub max_depth: usize,
     pub beam_width: usize,
-    pub weights: ScoringWeights,
+    pub weight_goal: u128,
+    pub weight_risk: u128,
+    pub weight_cost: u128,
+    pub weight_uncertainty: u128,
 }
+
 
 /// The core Trajectory Engine implementing the 6-step pipeline
 pub fn search(ctx: &SearchContext) -> SearchResult {
@@ -105,7 +108,14 @@ pub fn search(ctx: &SearchContext) -> SearchResult {
                     // Step 6: Score Admissible Only (Lexicographic + UI Scalar)
                     let eval = evaluate_path(&next_traj, ctx.max_depth);
                     next_traj.evaluation = Some(eval);
-                    next_traj.cumulative_score = calculate_weighted_score(&eval, &ctx.weights);
+                    next_traj.cumulative_score = calculate_weighted_score(
+                        &eval,
+                        ctx.weight_goal,
+                        ctx.weight_risk,
+                        ctx.weight_cost,
+                        ctx.weight_uncertainty,
+                    );
+
 
                     next_frontier.push(next_traj);
                     result.frontier_stats.admissible_found += 1;

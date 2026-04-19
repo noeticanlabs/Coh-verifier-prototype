@@ -1,12 +1,13 @@
-use serde::{Serialize, Deserialize};
-use crate::types::{Decision, MicroReceiptWire, Hash32};
-use crate::verify_micro;
-use crate::trajectory::types::{
-    AdmissibleTrajectory, CandidateEdge, DomainState, Action, VerifiedStep, AcceptWitness, witness_vector
-};
 use crate::trajectory::domain::{admissible_actions, derive_state, is_transition_valid_semantic};
-use crate::trajectory::scoring::{evaluate_path, calculate_weighted_score, ScoringWeights};
+use crate::trajectory::scoring::{calculate_weighted_score, evaluate_path, ScoringWeights};
 use crate::trajectory::search_result::SearchResult;
+use crate::trajectory::types::{
+    witness_vector, AcceptWitness, Action, AdmissibleTrajectory, CandidateEdge, DomainState,
+    VerifiedStep,
+};
+use crate::types::{Decision, Hash32, MicroReceiptWire};
+use crate::verify_micro;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchContext {
@@ -21,37 +22,50 @@ pub struct SearchContext {
 pub fn search(ctx: &SearchContext) -> SearchResult {
     let mut result = SearchResult::new();
     let mut frontier = vec![AdmissibleTrajectory::new()];
-    
+
     for depth in 0..ctx.max_depth {
         let mut next_frontier = Vec::new();
         result.frontier_stats.max_depth_reached = depth + 1;
 
         for traj in frontier {
-            let current_semantic_state = traj.steps.last()
+            let current_semantic_state = traj
+                .steps
+                .last()
                 .map(|s| &s.state_next)
                 .unwrap_or(&ctx.initial_state);
 
-            let prev_digest = traj.steps.last()
+            let prev_digest = traj
+                .steps
+                .last()
                 .map(|s| s.receipt_digest)
                 .unwrap_or_default();
 
             // Step 1: Expand
             let actions = admissible_actions(current_semantic_state);
-            
+
             for action in actions {
                 result.frontier_stats.total_expanded += 1;
 
                 // Step 2: Construct (and Derive state)
                 let next_semantic_state = derive_state(current_semantic_state, &action);
-                
+
                 // Phase 2 Rigor: Explicit Semantic Guard
-                let is_legally_valid = is_transition_valid_semantic(current_semantic_state, &action, &next_semantic_state);
-                
-                let wire = grounded_receipt_wire(current_semantic_state, &action, &next_semantic_state, prev_digest);
+                let is_legally_valid = is_transition_valid_semantic(
+                    current_semantic_state,
+                    &action,
+                    &next_semantic_state,
+                );
+
+                let wire = grounded_receipt_wire(
+                    current_semantic_state,
+                    &action,
+                    &next_semantic_state,
+                    prev_digest,
+                );
 
                 // Step 3: Verify
                 let mut verification = verify_micro(wire.clone());
-                
+
                 // If semantic guard failed, force Reject in search logic even if kernel accepted (defense in depth)
                 if !is_legally_valid {
                     verification.decision = Decision::Reject;
@@ -68,19 +82,23 @@ pub fn search(ctx: &SearchContext) -> SearchResult {
                         current_semantic_state.clone(),
                         action.clone(),
                         next_semantic_state.clone(),
-                        verification.chain_digest_next.clone().and_then(|h| Hash32::from_hex(&h).ok()).unwrap_or_default(),
+                        verification
+                            .chain_digest_next
+                            .clone()
+                            .and_then(|h| Hash32::from_hex(&h).ok())
+                            .unwrap_or_default(),
                         Hash32::from_hex(&wire.chain_digest_prev).unwrap_or_default(),
                         AcceptWitness, // Type-enforced admissibility
                     );
-                    
+
                     let mut next_traj = traj.clone();
                     next_traj.push(step);
-                    
+
                     // Step 6: Score Admissible Only (Lexicographic + UI Scalar)
                     let eval = evaluate_path(&next_traj, ctx.max_depth);
                     next_traj.evaluation = Some(eval);
                     next_traj.cumulative_score = calculate_weighted_score(&eval, &ctx.weights);
-                    
+
                     next_frontier.push(next_traj);
                     result.frontier_stats.admissible_found += 1;
                 } else {
@@ -112,7 +130,7 @@ pub fn search(ctx: &SearchContext) -> SearchResult {
             eval_b.cmp(eval_a) // Sort descending
         });
         frontier = next_frontier.into_iter().take(ctx.beam_width).collect();
-        
+
         if frontier.is_empty() {
             break;
         }
@@ -123,7 +141,12 @@ pub fn search(ctx: &SearchContext) -> SearchResult {
 }
 
 /// Helper to create a grounded wire receipt using actual domain evidence
-fn grounded_receipt_wire(prev: &DomainState, action: &Action, next: &DomainState, prev_digest: Hash32) -> MicroReceiptWire {
+fn grounded_receipt_wire(
+    prev: &DomainState,
+    action: &Action,
+    next: &DomainState,
+    prev_digest: Hash32,
+) -> MicroReceiptWire {
     // Derive grounded metrics
     let (v_pre, v_post_or_meta) = prev.to_metrics_tuple();
     let (_, v_post) = next.to_metrics_tuple();
@@ -136,7 +159,8 @@ fn grounded_receipt_wire(prev: &DomainState, action: &Action, next: &DomainState
         schema_id: "coh.receipt.micro.v1".to_string(),
         version: "1.0.0".to_string(),
         object_id: "traj.edge".to_string(),
-        canon_profile_hash: "4fb5a33116a4e393ad7900f0744e8ec5d1b7a2d67d71003666d628d7a1cded09".to_string(),
+        canon_profile_hash: "4fb5a33116a4e393ad7900f0744e8ec5d1b7a2d67d71003666d628d7a1cded09"
+            .to_string(),
         policy_hash: "0".repeat(64),
         step_index: 0,
         step_type: Some(format!("{:?}", action)),
@@ -153,8 +177,18 @@ fn grounded_receipt_wire(prev: &DomainState, action: &Action, next: &DomainState
             v_pre: v_pre.to_string(),
             v_post: v_post.to_string(),
             spend: (v_pre.saturating_sub(v_post)).to_string(), // Simplified balance-metric logic
-            defect: (if matches!(prev, DomainState::Ops(_)) { v_post_or_meta } else { 0 }).to_string(),
-            authority: (if matches!(prev, DomainState::Agent(_)) { v_post_or_meta } else { 0 }).to_string(),
+            defect: (if matches!(prev, DomainState::Ops(_)) {
+                v_post_or_meta
+            } else {
+                0
+            })
+            .to_string(),
+            authority: (if matches!(prev, DomainState::Agent(_)) {
+                v_post_or_meta
+            } else {
+                0
+            })
+            .to_string(),
         },
     };
 
@@ -162,7 +196,8 @@ fn grounded_receipt_wire(prev: &DomainState, action: &Action, next: &DomainState
     if let Ok(r) = crate::types::MicroReceipt::try_from(wire.clone()) {
         let prehash = crate::canon::to_prehash_view(&r);
         if let Ok(bytes) = crate::canon::to_canonical_json_bytes(&prehash) {
-            wire.chain_digest_next = crate::hash::compute_chain_digest(r.chain_digest_prev, &bytes).to_hex();
+            wire.chain_digest_next =
+                crate::hash::compute_chain_digest(r.chain_digest_prev, &bytes).to_hex();
         }
     }
 

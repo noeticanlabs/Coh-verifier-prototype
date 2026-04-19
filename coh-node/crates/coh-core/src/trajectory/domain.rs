@@ -24,7 +24,9 @@ pub const COH_PRECISION: u128 = 1_000_000_000;
 
 impl FinancialState {
     pub fn safety_margin(&self) -> u128 {
-        if self.initial_balance == 0 { return COH_PRECISION; }
+        if self.initial_balance == 0 {
+            return COH_PRECISION;
+        }
         (self.balance as u128 * COH_PRECISION) / self.initial_balance as u128
     }
 
@@ -71,7 +73,9 @@ pub struct AgentState {
 
 impl AgentState {
     pub fn safety_margin(&self) -> u128 {
-        if self.complexity_budget == 0 { return COH_PRECISION; }
+        if self.complexity_budget == 0 {
+            return COH_PRECISION;
+        }
         let index = self.complexity_index as u128 * COH_PRECISION;
         let budget = self.complexity_budget as u128;
         COH_PRECISION.saturating_sub(index / budget)
@@ -117,7 +121,7 @@ pub enum OpsStatus {
 pub struct OpsState {
     pub status: OpsStatus,
     pub materials_logged: bool,
-    pub stall_risk: u64, // Graded safety margin [0, 100]
+    pub stall_risk: u64,         // Graded safety margin [0, 100]
     pub resource_readiness: u64, // Graded readiness [0, 100]
 }
 
@@ -125,7 +129,9 @@ impl OpsState {
     pub fn safety_margin(&self) -> u128 {
         let stall_risk_fp = (self.stall_risk as u128 * COH_PRECISION) / 100;
         let readiness_fp = (self.resource_readiness as u128 * COH_PRECISION) / 100;
-        COH_PRECISION.saturating_sub(stall_risk_fp).min(readiness_fp)
+        COH_PRECISION
+            .saturating_sub(stall_risk_fp)
+            .min(readiness_fp)
     }
 
     pub fn alignment_index(&self) -> u128 {
@@ -138,7 +144,10 @@ impl OpsState {
     }
 
     pub fn to_metrics_tuple(&self) -> (u128, u128) {
-        (if self.materials_logged { 1 } else { 0 }, self.status as u32 as u128)
+        (
+            if self.materials_logged { 1 } else { 0 },
+            self.status as u32 as u128,
+        )
     }
 }
 
@@ -150,46 +159,46 @@ pub enum OpsAction {
     CloseTicket,
 }
 
-use crate::trajectory::types::{DomainState, Action};
-use crate::types::{Decision, MicroReceiptWire, Hash32};
+use crate::trajectory::types::{Action, DomainState};
+use crate::types::{Decision, Hash32, MicroReceiptWire};
 
 /// Get admissible actions based on current semantic state
 pub fn admissible_actions(state: &DomainState) -> Vec<Action> {
     match state {
-        DomainState::Financial(fs) => {
-            match fs.status {
-                FinancialStatus::Idle => vec![Action::Financial(FinancialAction::CreateInvoice { amount: 1000 })],
-                FinancialStatus::Invoiced => vec![Action::Financial(FinancialAction::VerifyVendor)],
-                FinancialStatus::ReadyToPay => {
-                    if fs.balance >= fs.current_invoice_amount {
-                        vec![Action::Financial(FinancialAction::IssuePayment { amount: fs.current_invoice_amount })]
-                    } else {
-                        vec![] 
-                    }
+        DomainState::Financial(fs) => match fs.status {
+            FinancialStatus::Idle => vec![Action::Financial(FinancialAction::CreateInvoice {
+                amount: 1000,
+            })],
+            FinancialStatus::Invoiced => vec![Action::Financial(FinancialAction::VerifyVendor)],
+            FinancialStatus::ReadyToPay => {
+                if fs.balance >= fs.current_invoice_amount {
+                    vec![Action::Financial(FinancialAction::IssuePayment {
+                        amount: fs.current_invoice_amount,
+                    })]
+                } else {
+                    vec![]
                 }
-                FinancialStatus::Paid => vec![],
             }
-        }
-        DomainState::Agent(as_state) => {
-            match as_state.status {
-                AgentStatus::Observing => vec![Action::Agent(AgentAction::RetrieveData)],
-                AgentStatus::Acting => vec![
-                    Action::Agent(AgentAction::CallTool { tool_id: "search".to_string() }),
-                    Action::Agent(AgentAction::UpdatePolicy),
-                    Action::Agent(AgentAction::Finalize),
-                ],
-                AgentStatus::PolicyReview => vec![Action::Agent(AgentAction::RetrieveData)],
-                AgentStatus::Completed => vec![], 
-            }
-        }
-        DomainState::Ops(os) => {
-            match os.status {
-                OpsStatus::Open => vec![Action::Ops(OpsAction::StartWork)],
-                OpsStatus::InProgress => vec![Action::Ops(OpsAction::LogMaterials)],
-                OpsStatus::MaterialsLogged => vec![Action::Ops(OpsAction::CloseTicket)],
-                OpsStatus::Closed => vec![], 
-            }
-        }
+            FinancialStatus::Paid => vec![],
+        },
+        DomainState::Agent(as_state) => match as_state.status {
+            AgentStatus::Observing => vec![Action::Agent(AgentAction::RetrieveData)],
+            AgentStatus::Acting => vec![
+                Action::Agent(AgentAction::CallTool {
+                    tool_id: "search".to_string(),
+                }),
+                Action::Agent(AgentAction::UpdatePolicy),
+                Action::Agent(AgentAction::Finalize),
+            ],
+            AgentStatus::PolicyReview => vec![Action::Agent(AgentAction::RetrieveData)],
+            AgentStatus::Completed => vec![],
+        },
+        DomainState::Ops(os) => match os.status {
+            OpsStatus::Open => vec![Action::Ops(OpsAction::StartWork)],
+            OpsStatus::InProgress => vec![Action::Ops(OpsAction::LogMaterials)],
+            OpsStatus::MaterialsLogged => vec![Action::Ops(OpsAction::CloseTicket)],
+            OpsStatus::Closed => vec![],
+        },
     }
 }
 
@@ -256,22 +265,34 @@ pub fn derive_state(state: &DomainState, action: &Action) -> DomainState {
             }
             DomainState::Ops(next)
         }
-        _ => state.clone(), 
+        _ => state.clone(),
     }
 }
 
 /// Explicit semantic legality check (Phase 2 of constructor rigor)
-pub fn is_transition_valid_semantic(prev: &DomainState, action: &Action, next: &DomainState) -> bool {
+pub fn is_transition_valid_semantic(
+    prev: &DomainState,
+    action: &Action,
+    next: &DomainState,
+) -> bool {
     match (prev, action, next) {
         (DomainState::Ops(_), Action::Ops(OpsAction::CloseTicket), DomainState::Ops(os_next)) => {
             // Rule: Must have logged materials before closing
             os_next.materials_logged
         }
-        (DomainState::Agent(_), Action::Agent(AgentAction::Finalize), DomainState::Agent(as_next)) => {
+        (
+            DomainState::Agent(_),
+            Action::Agent(AgentAction::Finalize),
+            DomainState::Agent(as_next),
+        ) => {
             // Rule: Must be acting or at a finalized phase (avoid finalizing from observing)
             as_next.status == AgentStatus::Completed
         }
-        (DomainState::Financial(fs_prev), Action::Financial(FinancialAction::IssuePayment { amount }), _) => {
+        (
+            DomainState::Financial(fs_prev),
+            Action::Financial(FinancialAction::IssuePayment { amount }),
+            _,
+        ) => {
             // Rule: Balance must cover payment
             fs_prev.balance >= *amount
         }

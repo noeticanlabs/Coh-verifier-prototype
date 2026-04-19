@@ -1,6 +1,6 @@
-use crate::types::{Hash32, VerifyMicroResult, RejectCode, MicroReceiptWire};
 #[allow(unused_imports)]
 use crate::trajectory::scoring::PathEvaluation;
+use crate::types::{Hash32, MicroReceiptWire, RejectCode, VerifyMicroResult};
 use serde::{Deserialize, Serialize};
 
 /// Canonical State Identifier (Verifier Linkage)
@@ -112,10 +112,16 @@ impl AdmissibleTrajectory {
     pub fn push(&mut self, step: VerifiedStep) {
         if let Some(last) = self.steps.last() {
             // Invariant: State Continuity
-            assert_eq!(last.state_next, step.state_prev, "State continuity violation");
-            
+            assert_eq!(
+                last.state_next, step.state_prev,
+                "State continuity violation"
+            );
+
             // Invariant: Chain Continuity
-            assert_eq!(last.receipt_digest, step.receipt_prev_digest, "Chain continuity violation");
+            assert_eq!(
+                last.receipt_digest, step.receipt_prev_digest,
+                "Chain continuity violation"
+            );
         }
         self.steps.push(step);
     }
@@ -124,22 +130,44 @@ impl AdmissibleTrajectory {
 /// Canonical witness mapping function
 pub fn witness_vector(result: &VerifyMicroResult) -> Vec<(ConstraintWitness, WitnessStatus)> {
     let mut witnesses = Vec::new();
-    
+
     // Mapping RejectCodes to C1-C6
     let status = |code: RejectCode| {
         if let Some(r_code) = result.code {
-            if r_code == code { WitnessStatus::Fail } else { WitnessStatus::Pass }
+            if r_code == code {
+                WitnessStatus::Fail
+            } else {
+                WitnessStatus::Pass
+            }
         } else {
             WitnessStatus::Pass
         }
     };
 
-    witnesses.push((ConstraintWitness::C1Schema, status(RejectCode::RejectSchema)));
-    witnesses.push((ConstraintWitness::C2Identity, status(RejectCode::RejectMissingSignature)));
-    witnesses.push((ConstraintWitness::C3Profile, status(RejectCode::RejectCanonProfile)));
-    witnesses.push((ConstraintWitness::C4StateHashLink, status(RejectCode::RejectStateHashLink)));
-    witnesses.push((ConstraintWitness::C5ChainConsistency, status(RejectCode::RejectChainDigest)));
-    witnesses.push((ConstraintWitness::C6Policy, status(RejectCode::RejectPolicyViolation)));
+    witnesses.push((
+        ConstraintWitness::C1Schema,
+        status(RejectCode::RejectSchema),
+    ));
+    witnesses.push((
+        ConstraintWitness::C2Identity,
+        status(RejectCode::RejectMissingSignature),
+    ));
+    witnesses.push((
+        ConstraintWitness::C3Profile,
+        status(RejectCode::RejectCanonProfile),
+    ));
+    witnesses.push((
+        ConstraintWitness::C4StateHashLink,
+        status(RejectCode::RejectStateHashLink),
+    ));
+    witnesses.push((
+        ConstraintWitness::C5ChainConsistency,
+        status(RejectCode::RejectChainDigest),
+    ));
+    witnesses.push((
+        ConstraintWitness::C6Policy,
+        status(RejectCode::RejectPolicyViolation),
+    ));
 
     witnesses
 }

@@ -1,5 +1,5 @@
-use crate::trajectory::types::{AdmissibleTrajectory, DomainState};
 use crate::trajectory::domain::COH_PRECISION;
+use crate::trajectory::types::{AdmissibleTrajectory, DomainState};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Eq)]
@@ -46,29 +46,32 @@ impl Default for ScoringWeights {
     fn default() -> Self {
         Self {
             goal: COH_PRECISION,
-            risk: COH_PRECISION, 
+            risk: COH_PRECISION,
             cost: (COH_PRECISION * 1) / 10, // 0.1
         }
     }
 }
 
 /// Compute evaluation metrics for a trajectory using u128 fixed-point
-pub fn evaluate_path(
-    traj: &AdmissibleTrajectory,
-    max_depth: usize,
-) -> PathEvaluation {
+pub fn evaluate_path(traj: &AdmissibleTrajectory, max_depth: usize) -> PathEvaluation {
     // 1. Minimum Safety Margin (Bottleneck)
-    let safety_bottleneck = traj.steps.iter()
+    let safety_bottleneck = traj
+        .steps
+        .iter()
         .map(|s| s.state_next.safety_margin())
         .fold(COH_PRECISION, |acc: u128, m: u128| acc.min(m));
 
     // 2. Alignment Index of last state (Target advanced score)
-    let alignment = traj.steps.last()
+    let alignment = traj
+        .steps
+        .last()
         .map(|s| s.state_next.alignment_index())
         .unwrap_or(0);
 
     // 3. Normalized Cost (|\tau| / K_max)
-    let normalized_cost = if max_depth == 0 { 0 } else {
+    let normalized_cost = if max_depth == 0 {
+        0
+    } else {
         (traj.steps.len() as u128 * COH_PRECISION) / max_depth as u128
     };
 
@@ -80,13 +83,10 @@ pub fn evaluate_path(
 }
 
 /// Scalar weighted sum for UI display (Selection uses evaluate_path().cmp())
-pub fn calculate_weighted_score(
-    eval: &PathEvaluation,
-    weights: &ScoringWeights,
-) -> u128 {
+pub fn calculate_weighted_score(eval: &PathEvaluation, weights: &ScoringWeights) -> u128 {
     let p_part = (eval.progress * weights.goal) / COH_PRECISION;
     let s_part = (eval.safety_bottleneck * weights.risk) / COH_PRECISION;
     let c_part = (eval.normalized_cost * weights.cost) / COH_PRECISION;
-    
+
     p_part + s_part - c_part
 }

@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::trajectory::types::{AdmissibleTrajectory, CandidateEdge};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FrontierStats {

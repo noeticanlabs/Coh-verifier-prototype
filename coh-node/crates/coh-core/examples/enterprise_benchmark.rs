@@ -13,10 +13,11 @@ use coh_core::external::{
     ingest_api_jsonl, ingest_cicd_jsonl, ingest_pipeline_jsonl, run_external_validation_micro,
     run_logs_validation, AgentAdapter, FailureMode, FinancialAdapter, OpsAdapter,
 };
-use coh_core::types::{Decision, MetricsWire, MicroReceipt, MicroReceiptWire};
 use coh_core::trajectory::{
-    search, DomainState, FinancialState, FinancialStatus, AgentState, AgentStatus, OpsState, OpsStatus, SearchContext, ScoringWeights
+    search, AgentState, AgentStatus, DomainState, FinancialState, FinancialStatus, OpsState,
+    OpsStatus, ScoringWeights, SearchContext,
 };
+use coh_core::types::{Decision, MetricsWire, MicroReceipt, MicroReceiptWire};
 use coh_core::{canon::*, hash::compute_chain_digest, verify_chain, verify_micro};
 use serde::Serialize;
 use std::collections::HashMap;
@@ -997,9 +998,33 @@ fn main() {
     println!("═══════════════════════════════════════════════════════════════════════════\n");
 
     let domains = vec![
-        ("Financial", DomainState::Financial(FinancialState { balance: 10000, initial_balance: 10000, status: FinancialStatus::Idle, current_invoice_amount: 0 })),
-        ("Agent", DomainState::Agent(AgentState { complexity_index: 0, complexity_budget: 100, authority_level: 0, status: AgentStatus::Observing })),
-        ("Ops", DomainState::Ops(OpsState { status: OpsStatus::Open, materials_logged: false, stall_risk: 0, resource_readiness: coh_core::trajectory::domain::COH_PRECISION as u64 })),
+        (
+            "Financial",
+            DomainState::Financial(FinancialState {
+                balance: 10000,
+                initial_balance: 10000,
+                status: FinancialStatus::Idle,
+                current_invoice_amount: 0,
+            }),
+        ),
+        (
+            "Agent",
+            DomainState::Agent(AgentState {
+                complexity_index: 0,
+                complexity_budget: 100,
+                authority_level: 0,
+                status: AgentStatus::Observing,
+            }),
+        ),
+        (
+            "Ops",
+            DomainState::Ops(OpsState {
+                status: OpsStatus::Open,
+                materials_logged: false,
+                stall_risk: 0,
+                resource_readiness: coh_core::trajectory::domain::COH_PRECISION as u64,
+            }),
+        ),
     ];
 
     println!("┌──────────────────────┬─────────────┬─────────────┬─────────────┬─────────────┐");
@@ -1009,7 +1034,12 @@ fn main() {
     for (name, start_state) in domains {
         let ctx = SearchContext {
             initial_state: start_state,
-            target_state: DomainState::Financial(FinancialState { balance: 0, initial_balance: 10000, status: FinancialStatus::Paid, current_invoice_amount: 0 }), // Dummy target
+            target_state: DomainState::Financial(FinancialState {
+                balance: 0,
+                initial_balance: 10000,
+                status: FinancialStatus::Paid,
+                current_invoice_amount: 0,
+            }), // Dummy target
             max_depth: 3,
             beam_width: 5,
             weights: ScoringWeights::default(),
@@ -1019,7 +1049,7 @@ fn main() {
         let result = search(&ctx);
         let total_ms = start.elapsed().as_secs_f64() * 1000.0;
 
-        // In a real segmented test, we'd instrument the engine. 
+        // In a real segmented test, we'd instrument the engine.
         // For the benchmark display, we decompose the total by typical profile weights.
         println!(
             "│ {:<20} │ {:>11.3} │ {:>11.3} │ {:>11.3} │ {:>11.3} │",

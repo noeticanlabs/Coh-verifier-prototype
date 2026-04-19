@@ -1,7 +1,7 @@
-use crate::types::{MicroReceiptWire, MetricsWire, Decision, RejectCode, SignatureWire};
+use crate::canon::EXPECTED_CANON_PROFILE_HASH;
+use crate::trajectory::types::{witness_vector, ConstraintWitness, WitnessStatus};
+use crate::types::{Decision, MetricsWire, MicroReceiptWire, RejectCode, SignatureWire};
 use crate::verify_micro;
-use crate::trajectory::types::{witness_vector, WitnessStatus, ConstraintWitness};
-use crate::canon::{EXPECTED_CANON_PROFILE_HASH};
 
 fn dummy_sig() -> Vec<SignatureWire> {
     vec![SignatureWire {
@@ -40,7 +40,11 @@ fn test_vector_c4_policy_violation() {
     assert_eq!(res.code, Some(RejectCode::RejectPolicyViolation));
 
     let witnesses = witness_vector(&res);
-    let c6_status = witnesses.iter().find(|(c, _)| *c == ConstraintWitness::C6Policy).unwrap().1;
+    let c6_status = witnesses
+        .iter()
+        .find(|(c, _)| *c == ConstraintWitness::C6Policy)
+        .unwrap()
+        .1;
     assert_eq!(c6_status, WitnessStatus::Fail);
 }
 

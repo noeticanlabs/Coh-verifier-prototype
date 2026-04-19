@@ -181,13 +181,15 @@ pub async fn health_check() -> impl IntoResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use coh_core::trajectory::{DomainState, FinancialState, FinancialStatus, ScoringWeights, SearchContext};
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
-    use tower::util::ServiceExt;
-    use axum::Router;
     use axum::routing::post;
-    use http_body_util::BodyExt; // For collect()
+    use axum::Router;
+    use coh_core::trajectory::{
+        DomainState, FinancialState, FinancialStatus, ScoringWeights, SearchContext,
+    };
+    use http_body_util::BodyExt;
+    use tower::util::ServiceExt; // For collect()
 
     fn test_app() -> Router {
         Router::new().route("/trajectory/search", post(trajectory_search_handler))
@@ -196,7 +198,7 @@ mod tests {
     #[tokio::test]
     async fn test_trajectory_search_budget_guard() {
         let app = test_app();
-        
+
         // Context exceeding budget
         let idle_f = FinancialState {
             balance: 1000,
@@ -207,7 +209,7 @@ mod tests {
         let context = SearchContext {
             initial_state: DomainState::Financial(idle_f.clone()),
             target_state: DomainState::Financial(idle_f),
-            max_depth: 10, // MAX is 6
+            max_depth: 10,  // MAX is 6
             beam_width: 10, // MAX is 8
             weights: ScoringWeights::default(),
         };
@@ -228,8 +230,12 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let res: UnifiedResponse<SearchResult> = serde_json::from_slice(&body).unwrap();
-        
+
         assert_eq!(res.status, Decision::Reject);
-        assert!(res.error.unwrap().message.contains("Search budget exceeded"));
+        assert!(res
+            .error
+            .unwrap()
+            .message
+            .contains("Search budget exceeded"));
     }
 }

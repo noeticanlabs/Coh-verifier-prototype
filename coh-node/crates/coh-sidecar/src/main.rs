@@ -32,10 +32,7 @@ async fn main() {
         // Legacy Coh endpoints
         .route("/verify/micro", post(routes::verify_micro_handler))
         .route("/verify/chain", post(routes::verify_chain_handler))
-        .route(
-            "/execute/verified",
-            post(routes::execute_verified_handler),
-        )
+        .route("/execute/verified", post(routes::execute_verified_handler))
         .route(
             "/trajectory/search",
             post(routes::trajectory_search_handler),

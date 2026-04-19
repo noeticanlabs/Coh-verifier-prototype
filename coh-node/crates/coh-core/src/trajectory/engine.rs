@@ -42,6 +42,13 @@ pub fn search(ctx: &SearchContext) -> SearchResult {
 
             // Step 1: Expand
             let actions = admissible_actions(current_semantic_state);
+            
+            if actions.is_empty() {
+                if !traj.steps.is_empty() {
+                    result.admissible.push(traj.clone());
+                }
+                continue;
+            }
 
             for action in actions {
                 result.frontier_stats.total_expanded += 1;
@@ -134,9 +141,12 @@ pub fn search(ctx: &SearchContext) -> SearchResult {
         if frontier.is_empty() {
             break;
         }
+        
+        if depth == ctx.max_depth - 1 {
+            result.admissible.extend(frontier.clone());
+        }
     }
 
-    result.admissible = frontier;
     result
 }
 
@@ -149,7 +159,7 @@ fn grounded_receipt_wire(
 ) -> MicroReceiptWire {
     // Derive grounded metrics
     let (v_pre, v_post_or_meta) = prev.to_metrics_tuple();
-    let (_, v_post) = next.to_metrics_tuple();
+    let (v_post, _) = next.to_metrics_tuple();
 
     // Derive grounded state hashes from canonical serialization
     let state_hash_prev = crate::hash::sha256(&serde_json::to_vec(prev).unwrap()).to_hex();

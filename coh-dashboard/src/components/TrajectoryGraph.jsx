@@ -16,7 +16,7 @@ const TrajectoryGraph = ({ candidates, selectedId, onSelect }) => {
   const height = 280;
   const padding = 40;
 
-  const maxDepth = Math.max(...candidates.map(c => c.depth), 1);
+  const maxDepth = Math.max(...candidates.map(c => c.receipts?.length || 0), 1);
   const stepX = (width - padding * 2) / Math.max(maxDepth, 1);
 
   // Dense probe rendering

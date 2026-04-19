@@ -173,7 +173,7 @@ export async function loadDashboardData({ scenarioKey = 'valid' } = {}) {
 // HARDENED TRAJECTORY ENGINE (SIDECAR BOUND)
 // =============================================================================
 
-const SIDECAR_URL = 'http://localhost:3001';
+const SIDECAR_URL = DEFAULT_SIDECAR_BASE_URL;
 const COH_PRECISION = 1000000000;
 
 export async function generateCandidatesImpl(initialReceipt, options = {}) {
@@ -182,7 +182,7 @@ export async function generateCandidatesImpl(initialReceipt, options = {}) {
 
     // Map initialReceipt back to DomainState
     const initial_state = {
-        domain: domain,
+        domain: domain.charAt(0).toUpperCase() + domain.slice(1),
         data: domain === 'financial' ? {
             balance: Number(initialReceipt.metrics.v_post),
             initial_balance: 1000 * COH_PRECISION,

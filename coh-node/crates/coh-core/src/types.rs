@@ -174,7 +174,7 @@ pub struct MicroReceiptPrehash {
     pub version: String,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VerifyMicroResult {
     pub decision: Decision,
     pub code: Option<RejectCode>,
@@ -187,7 +187,7 @@ pub struct VerifyMicroResult {
     pub chain_digest_next: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VerifyChainResult {
     pub decision: Decision,
     pub code: Option<RejectCode>,
@@ -203,7 +203,7 @@ pub struct VerifyChainResult {
     pub steps_verified_before_failure: Option<u64>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BuildSlabResult {
     pub decision: Decision,
     pub code: Option<RejectCode>,
@@ -222,7 +222,7 @@ pub struct BuildSlabResult {
     pub slab: Option<SlabReceiptWire>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VerifySlabResult {
     pub decision: Decision,
     pub code: Option<RejectCode>,

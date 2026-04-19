@@ -166,7 +166,7 @@ pub fn admissible_actions(state: &DomainState) -> Vec<Action> {
     match state {
         DomainState::Financial(fs) => match fs.status {
             FinancialStatus::Idle => vec![Action::Financial(FinancialAction::CreateInvoice {
-                amount: 1000,
+                amount: fs.balance / 10, // Deterministically small: 10% of balance
             })],
             FinancialStatus::Invoiced => vec![Action::Financial(FinancialAction::VerifyVendor)],
             FinancialStatus::ReadyToPay => {
@@ -177,10 +177,12 @@ pub fn admissible_actions(state: &DomainState) -> Vec<Action> {
                     }));
                 }
                 
-                // Intentionally propose an inadmissible action to demonstrate Wedge safety filtering
-                actions.push(Action::Financial(FinancialAction::IssuePayment {
-                    amount: fs.balance.saturating_add(500),
-                }));
+                // Only propose inadmissible action if balance is above a risk threshold
+                if fs.balance > 100 * COH_PRECISION {
+                    actions.push(Action::Financial(FinancialAction::IssuePayment {
+                        amount: fs.balance.saturating_add(500 * COH_PRECISION),
+                    }));
+                }
                 
                 actions
             }

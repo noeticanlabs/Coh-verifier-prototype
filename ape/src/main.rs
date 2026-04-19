@@ -600,6 +600,15 @@ fn run_strategy_demo(
                         rejected += 1;
                         entry.rejected += 1;
                     }
+                    // GCCP: Defer and Reroute count as rejected (not yet executed)
+                    Decision::Defer => {
+                        rejected += 1;
+                        entry.rejected += 1;
+                    }
+                    Decision::Reroute => {
+                        rejected += 1;
+                        entry.rejected += 1;
+                    }
                     Decision::SlabBuilt => {
                         // Shouldn't happen for micro receipts, treat as escaped
                         escaped += 1;

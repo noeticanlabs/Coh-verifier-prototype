@@ -28,6 +28,17 @@ inductive RejectCode where
   | timeBudgetExceeded
   | memoryBudgetExceeded
   | depthLimitExceeded
+  -- GCCP compute-specific failures (Section 18)
+  | rejectTempCap
+  | rejectPowerCap
+  | rejectQueueCap
+  | rejectMemoryCap
+  | rejectDefectCap
+  | rejectBudget
+  | rejectPredictorStale
+  | rejectTelemetryStale
+  | rejectRouteUnavailable
+  | rejectPolicyClassMismatch
   deriving Repr, DecidableEq
 
 end Coh.Contract

@@ -2,6 +2,7 @@ pub mod build_slab;
 pub mod canon;
 pub mod execute;
 pub mod external;
+pub mod gccp;
 pub mod hash;
 pub mod math;
 pub mod measurement;
@@ -17,6 +18,7 @@ pub mod verify_slab;
 
 pub use build_slab::build_slab;
 pub use execute::{ExecuteResponse, ExecutionEngine, ExecutionMode};
+pub use gccp::*;
 pub use trajectory::*;
 pub use verify_chain::verify_chain;
 pub use verify_micro::verify_micro;

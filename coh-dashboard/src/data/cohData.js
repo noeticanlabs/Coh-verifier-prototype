@@ -97,32 +97,7 @@ function deriveChainBreak(receipts) {
     return null;
 }
 
-/**
- * Graded Safety Margin calculation per Domain State
- */
-function deriveSafetyMargin(metrics, domain = 'financial') {
-    const vPre = Number(metrics.vPre ?? metrics.v_pre ?? 0);
-    const vPost = Number(metrics.vPost ?? metrics.v_post ?? 0);
-    const spend = Number(metrics.spend ?? 0);
-    const defect = Number(metrics.defect ?? 0);
 
-    if (domain === 'ops') {
-        const stallRisk = 0.2; // Simulated property
-        return Math.max(0, 1.0 - stallRisk);
-    }
-    if (domain === 'agent') {
-        return vPost > 50 ? 0.9 : 0.4; // Simulated graded safety
-    }
-
-    const margin = vPre + defect - (vPost + spend);
-    return vPre === 0 ? 1.0 : Math.max(0, Math.min(margin / vPre, 1.0));
-}
-
-function deriveAlignmentIndex(metrics, domain = 'financial', stepIndex = 0) {
-    const progress = Math.min(stepIndex / 5, 1.0);
-    if (domain === 'agent' && stepIndex === 2) return 0.2;
-    return progress;
-}
 
 function normalizeStep(receipt, index, receipts, breakInfo) {
     const policy = derivePolicyCheck(receipt.metrics);
@@ -163,10 +138,10 @@ class SidecarSource {
     // ... Simplified sidecar wrapper ...
 }
 
-export async function loadDashboardData({ scenarioKey = 'valid' } = {}) {
+export async function loadDashboardData({ scenarioKey = 'valid', preferLiveVerification = false } = {}) {
     const scenario = SCENARIOS[scenarioKey] ?? SCENARIOS.valid;
     const fixtureSource = new FixtureSource();
-    return fixtureSource.loadScenario(scenario);
+    return fixtureSource.loadScenario(scenario, { preferLiveVerification });
 }
 
 // =============================================================================
@@ -177,14 +152,14 @@ const SIDECAR_URL = DEFAULT_SIDECAR_BASE_URL;
 const COH_PRECISION = 1000000000;
 
 export async function generateCandidatesImpl(initialReceipt, options = {}) {
-    const { maxDepth = 4, beamWidth = 3, domain = 'financial' } = options;
+    const { maxDepth = 1000, beamWidth = 3, domain = 'financial' } = options;
     if (!initialReceipt) return [];
 
     // Map initialReceipt back to DomainState
     const initial_state = {
         domain: domain.charAt(0).toUpperCase() + domain.slice(1),
         data: domain === 'financial' ? {
-            balance: Number(initialReceipt.metrics.v_post),
+            balance: Number(initialReceipt.metrics.v_post) * COH_PRECISION,
             initial_balance: 1000 * COH_PRECISION,
             status: 'Idle',
             current_invoice_amount: 0
@@ -226,7 +201,12 @@ export async function generateCandidatesImpl(initialReceipt, options = {}) {
 
         const unified = await response.json();
         if (unified.status !== 'ACCEPT' || !unified.data) {
-            console.error('[Engine] Search failed:', unified.error);
+            if (unified.error?.code === 'E003') {
+                console.error('[Engine] Search budget exceeded. Consider reducing maxDepth or beamWidth:', unified.error.message);
+                // Return a single rejected trace representing the budget break if we wanted, or just empty array to trigger BLOCKED
+            } else {
+                console.error('[Engine] Search failed:', unified.error);
+            }
             return [];
         }
 
@@ -250,9 +230,9 @@ export async function generateCandidatesImpl(initialReceipt, options = {}) {
                     v_post: s.state_next.data?.balance || 0
                 }
             })),
-            witnesses: tau.steps.map(_ => ({
-                c1: { status: 'pass' }, c2: { status: 'pass' }, c3: { status: 'pass' },
-                c4: { status: 'pass' }, c5: { status: 'pass' }, c6: { status: 'pass' }
+            witnesses: tau.steps.map(() => ({
+                C1: { status: 'pass' }, C2: { status: 'pass' }, C3: { status: 'pass' },
+                C4: { status: 'pass' }, C5: { status: 'pass' }, C6: { status: 'pass' }
             }))
         }));
 
@@ -270,10 +250,13 @@ export async function generateCandidatesImpl(initialReceipt, options = {}) {
             firstFailureIndex: edge.receipt.step_index,
             violationDelta: edge.verification.violation_delta,
             rejectCode: edge.verification.code,
-            witnesses: edge.witnesses.map(w => ({
-                id: w[0],
-                status: w[1].toLowerCase()
-            }))
+            witnesses: [
+                edge.witnesses.reduce((acc, [id, status]) => {
+                    const key = id.substring(0, 2).toUpperCase();
+                    acc[key] = { status: status.toLowerCase() };
+                    return acc;
+                }, {})
+            ]
         }));
 
         return [...admissible, ...rejected];

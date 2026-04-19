@@ -29,7 +29,7 @@ const App = () => {
         if (rootReceipt) {
           // Live search triggers actual Rust search via sidecar
           const proposed = await generateCandidatesImpl(rootReceipt, {
-            maxDepth: 4,
+            maxDepth: 1000,
             beamWidth: 3,
             domain: dashboardData.scenario?.domain || 'financial',
             verification: dashboardData.verification
@@ -101,7 +101,8 @@ const App = () => {
           <TechnicalTabs
             chainSteps={data?.chainSteps || []}
             selectedStepIndex={selectedStepIndex}
-            candidates={data?.candidates || []}
+            onStepSelect={setSelectedStepIndex}
+            candidates={candidates}
             selectedId={selectedTrajectoryId}
           />
         </div>

@@ -27,6 +27,10 @@ impl Hash32 {
 pub enum Decision {
     Accept,
     Reject,
+    /// GCCP: Defer action for later execution
+    Defer,
+    /// GCCP: Reroute to alternate device
+    Reroute,
     SlabBuilt,
     TerminalSuccess,
     TerminalFailure,

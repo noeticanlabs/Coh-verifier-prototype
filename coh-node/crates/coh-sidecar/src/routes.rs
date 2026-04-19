@@ -117,8 +117,8 @@ use coh_core::trajectory::search_result::SearchResult;
 use tokio::time::{timeout, Duration};
 
 const MAX_BEAM: usize = 8;
-const MAX_DEPTH: usize = 6;
-const SEARCH_TIMEOUT_MS: u64 = 500;
+const MAX_DEPTH: usize = 1024;
+const SEARCH_TIMEOUT_MS: u64 = 2000;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TrajectorySearchRequest {

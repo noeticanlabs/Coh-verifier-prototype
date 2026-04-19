@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 
 const WITNESS_LABELS = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6'];
 const CONSTRAINT_LABELS = {
@@ -11,6 +11,7 @@ const CONSTRAINT_LABELS = {
 };
 
 const TrajectoryGraph = ({ candidates, selectedId, onSelect }) => {
+  const [hoveredId, setHoveredId] = useState(null);
   // Dense line probe layout - like an ECG/signal trace
   const width = 800;
   const height = 280;
@@ -59,10 +60,27 @@ const TrajectoryGraph = ({ candidates, selectedId, onSelect }) => {
         ...tau,
         points: densePoints,
         originalPoints: points,
-        isSelected
+        isSelected,
+        decision: tau.pathStatus === 'ADMISSIBLE' ? 'accept' : 'reject'
       };
     });
   }, [candidates, selectedId, stepX]);
+
+  // Render Order Optimization: Selected/Hovered always on top
+  const orderedTrajectories = useMemo(() => {
+    return [...trajectories].sort((a, b) => {
+      const score = t =>
+        t.id === selectedId ? 2 :
+        t.id === hoveredId ? 1 : 0;
+      return score(a) - score(b);
+    });
+  }, [trajectories, selectedId, hoveredId]);
+
+  const getColor = (t) => {
+    if (t.decision === 'reject') return 'var(--brand-blocked)';
+    if (t.decision === 'accept') return 'var(--brand-primary)';
+    return 'var(--text-muted)';
+  };
 
   return (
     <div className="trajectory-viewport" style={{ background: 'var(--bg-base)', borderRadius: 'var(--radius-sm)' }}>
@@ -102,8 +120,9 @@ const TrajectoryGraph = ({ candidates, selectedId, onSelect }) => {
           Execution Timeline (depth →
         </text>
 
-        {trajectories.map(tau => {
-          const { points, originalPoints, isSelectable, isSelected, firstFailureIndex, score } = tau;
+        {orderedTrajectories.map(tau => {
+          const { points, originalPoints, isSelectable, isSelected, firstFailureIndex } = tau;
+          const isHovered = tau.id === hoveredId;
 
           // Determine truncation point
           const truncateAt = !isSelectable && firstFailureIndex != null
@@ -113,31 +132,60 @@ const TrajectoryGraph = ({ candidates, selectedId, onSelect }) => {
           const visiblePoints = points.slice(0, truncateAt);
           const hasFailure = !isSelectable && firstFailureIndex != null;
 
-          // Line color based on validity
-          const lineColor = isSelected
-            ? 'var(--brand-primary)'
-            : hasFailure
-              ? 'var(--brand-blocked)'
-              : 'var(--text-muted)';
+          // Visual hierarchy logic
+          const opacity = selectedId && !isSelected
+            ? 0.12
+            : isHovered
+              ? 0.9
+              : isSelected
+                ? 1
+                : 0.35;
+
+          const strokeWidth = isSelected ? 3.5 : isHovered ? 2.5 : 1.2;
+          const lineColor = getColor(tau, isSelected, isHovered);
+          const pathD = visiblePoints.length > 0 
+            ? `M ${visiblePoints.map(p => `${p.x},${p.y}`).join(' L ')}` 
+            : '';
 
           return (
-            <g key={tau.id} onClick={() => onSelect(tau.id)} style={{ cursor: 'pointer' }}>
-              {/* Dense line probe - continuous signal */}
-              <polyline
-                points={visiblePoints.map(p => `${p.x},${p.y}`).join(' ')}
+            <g 
+              key={tau.id} 
+              onMouseEnter={() => setHoveredId(tau.id)}
+              onMouseLeave={() => setHoveredId(null)}
+              onClick={() => onSelect(tau.id)} 
+              style={{ cursor: 'pointer' }}
+            >
+              <title>
+                {`Trajectory: ${tau.id}\nStatus: ${tau.pathStatus}\nDecision: ${tau.decision.toUpperCase()}\nSafety: ${(tau.evaluation?.safetyBottleneck * 100 || 0).toFixed(1)}%`}
+              </title>
+
+              {/* Invisible Hit Layer - Generous targeting surface */}
+              <path
+                d={pathD}
+                fill="none"
+                stroke="transparent"
+                strokeWidth={12}
+              />
+
+              {/* Visual Line Probe */}
+              <path
+                d={pathD}
                 fill="none"
                 stroke={lineColor}
-                strokeWidth={isSelected ? 2.5 : 1}
+                strokeWidth={strokeWidth}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                opacity={isSelected ? 1 : 0.4}
+                opacity={opacity}
                 filter={isSelected ? 'url(#probe-glow)' : 'none'}
-                style={{ transition: 'all 0.3s ease' }}
+                style={{ transition: 'opacity 0.2s ease, stroke-width 0.2s ease' }}
               />
 
               {/* Failure indicator - spike down */}
               {hasFailure && firstFailureIndex < originalPoints.length && (
-                <g transform={`translate(${originalPoints[firstFailureIndex].x}, ${originalPoints[firstFailureIndex].y})`}>
+                <g 
+                  transform={`translate(${originalPoints[firstFailureIndex].x}, ${originalPoints[firstFailureIndex].y})`}
+                  opacity={opacity}
+                >
                   <line x1="0" y1="0" x2="0" y2={height * 0.3} stroke="var(--brand-blocked)" strokeWidth="2" strokeDasharray="4,2" />
                   <circle r="4" fill="var(--brand-blocked)" opacity="0.8" />
                 </g>

@@ -55,6 +55,18 @@ impl From<RejectCode> for CohErrorCode {
 
             // State link -> E004
             RejectCode::RejectStateHashLink => CohErrorCode::E004,
+
+            // GCCP compute-specific failures (Section 18) -> E001 (resource/governance)
+            RejectCode::RejectTempCap
+            | RejectCode::RejectPowerCap
+            | RejectCode::RejectQueueCap
+            | RejectCode::RejectMemoryCap
+            | RejectCode::RejectDefectCap
+            | RejectCode::RejectBudget
+            | RejectCode::RejectPredictorStale
+            | RejectCode::RejectTelemetryStale
+            | RejectCode::RejectRouteUnavailable
+            | RejectCode::RejectPolicyClassMismatch => CohErrorCode::E001,
         }
     }
 }

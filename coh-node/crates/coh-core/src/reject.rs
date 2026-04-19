@@ -35,4 +35,25 @@ pub enum RejectCode {
     // Measurement failures
     RejectDissipationViolation,
     RejectInvalidMapping,
+    // GCCP Compute-specific failures (Section 18)
+    /// Thermal cap exceeded
+    RejectTempCap,
+    /// Power cap exceeded
+    RejectPowerCap,
+    /// Queue capacity exceeded
+    RejectQueueCap,
+    /// Memory cap exceeded
+    RejectMemoryCap,
+    /// Defect/slack budget exceeded
+    RejectDefectCap,
+    /// Budget exhausted
+    RejectBudget,
+    /// Predictor data is stale
+    RejectPredictorStale,
+    /// Telemetry data is stale
+    RejectTelemetryStale,
+    /// Requested route unavailable
+    RejectRouteUnavailable,
+    /// Policy class mismatch
+    RejectPolicyClassMismatch,
 }

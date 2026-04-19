@@ -81,7 +81,7 @@ export const TrajectoryCard = ({ candidates, selectedId, onSelect }) => {
   );
 };
 
-export const TechnicalTabs = ({ chainSteps, selectedStepIndex, candidates, selectedId }) => {
+export const TechnicalTabs = ({ chainSteps, selectedStepIndex, onStepSelect, candidates, selectedId }) => {
   const [activeTab, setActiveTab] = React.useState('trace');
   const step = chainSteps[selectedStepIndex] || {};
 
@@ -111,7 +111,16 @@ export const TechnicalTabs = ({ chainSteps, selectedStepIndex, candidates, selec
               </thead>
               <tbody>
                 {chainSteps.map((s, i) => (
-                  <tr key={i} style={{ borderTop: '1px solid var(--border-muted)', background: selectedStepIndex === i ? 'var(--bg-base)' : 'transparent' }}>
+                  <tr
+                    key={i}
+                    onClick={() => onStepSelect?.(i)}
+                    style={{
+                      cursor: 'pointer',
+                      borderTop: '1px solid var(--border-muted)',
+                      background: selectedStepIndex === i ? 'var(--bg-base)' : 'transparent',
+                      transition: 'background 0.2s ease'
+                    }}
+                  >
                     <td style={{ padding: '0.5rem 0' }}>#{i}</td>
                     <td style={{ padding: '0.5rem 0' }}>{s.objectId?.substring(0, 12)}...</td>
                     <td style={{ padding: '0.5rem 0', color: 'var(--text-muted)' }}>{s.stateHashPrev?.substring(0, 8)}...</td>

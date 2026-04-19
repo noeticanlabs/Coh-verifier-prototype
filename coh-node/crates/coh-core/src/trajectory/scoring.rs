@@ -1,5 +1,40 @@
 use crate::trajectory::types::{AdmissibleTrajectory, DomainState};
-use crate::trajectory::domain::goal_distance;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct PathEvaluation {
+    pub safety_bottleneck: f64,
+    pub progress: f64,
+    pub normalized_cost: f64,
+}
+
+impl Eq for PathEvaluation {}
+
+impl PartialOrd for PathEvaluation {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for PathEvaluation {
+    /// Lexicographic comparison: Safety > Progress > -Cost
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // 1. Safety Bottleneck (Min-Margin)
+        let s_cmp = self.safety_bottleneck.partial_cmp(&other.safety_bottleneck).unwrap();
+        if s_cmp != std::cmp::Ordering::Equal {
+            return s_cmp;
+        }
+
+        // 2. Progress Index
+        let p_cmp = self.progress.partial_cmp(&other.progress).unwrap();
+        if p_cmp != std::cmp::Ordering::Equal {
+            return p_cmp;
+        }
+
+        // 3. Inverse Cost (Minimize steps)
+        other.normalized_cost.partial_cmp(&self.normalized_cost).unwrap()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ScoringWeights {
@@ -12,41 +47,45 @@ impl Default for ScoringWeights {
     fn default() -> Self {
         Self {
             goal: 1.0,
-            risk: 0.5,
+            risk: 1.0, // Weight is less critical due to lexicographic override, but kept for scalar score
             cost: 0.1,
         }
     }
 }
 
-pub fn calculate_score(
+/// Compute evaluation metrics for a trajectory
+pub fn evaluate_path(
     traj: &AdmissibleTrajectory,
-    target: &DomainState,
-    weights: &ScoringWeights,
-) -> f64 {
-    let last_state = traj.steps.last().map(|s| &s.state_next);
-    
-    // 1. Goal distance
-    let dist = last_state.map(|s| goal_distance(s, target)).unwrap_or(1.0);
-    let goal_score = (1.0 - dist) * weights.goal;
-    
-    // 2. Risk margin (how close are we to balance limits etc)
-    let risk_score = calculate_risk_margin(traj) * weights.risk;
-    
-    // 3. Step cost
-    let step_cost = traj.steps.len() as f64 * weights.cost;
-    
-    goal_score + risk_score - step_cost
+    max_depth: usize,
+) -> PathEvaluation {
+    // 1. Minimum Safety Margin (Bottleneck)
+    let safety_bottleneck = traj.steps.iter()
+        .map(|s| s.state_next.safety_margin())
+        .fold(1.0f64, |acc: f64, m: f64| acc.min(m));
+
+    // 2. Local Progress Index of last state
+    let progress = traj.steps.last()
+        .map(|s| s.state_next.progress_index())
+        .unwrap_or(0.0);
+
+    // 3. Normalized Cost (|\tau| / K_max)
+    let normalized_cost = if max_depth == 0 { 0.0 } else {
+        traj.steps.len() as f64 / max_depth as f64
+    };
+
+    PathEvaluation {
+        safety_bottleneck,
+        progress,
+        normalized_cost: normalized_cost.clamp(0.0, 1.0),
+    }
 }
 
-fn calculate_risk_margin(traj: &AdmissibleTrajectory) -> f64 {
-    // Heuristic: lower balance = higher risk (lower margin)
-    let mut margin = 1.0;
-    for step in &traj.steps {
-        if let DomainState::Financial(fs) = &step.state_next {
-            if fs.balance < 1000 {
-                margin *= 0.8;
-            }
-        }
-    }
-    margin
+/// Scalar weighted sum for UI display (Selection uses evaluate_path().cmp())
+pub fn calculate_weighted_score(
+    eval: &PathEvaluation,
+    weights: &ScoringWeights,
+) -> f64 {
+    (eval.progress * weights.goal) + 
+    (eval.safety_bottleneck * weights.risk) - 
+    (eval.normalized_cost * weights.cost)
 }

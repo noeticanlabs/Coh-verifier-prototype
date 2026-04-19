@@ -15,7 +15,7 @@ use coh_core::external::{
 };
 use coh_core::types::{Decision, MetricsWire, MicroReceipt, MicroReceiptWire};
 use coh_core::trajectory::{
-    search, DomainState, FinancialState, AgentState, OpsState, SearchContext, ScoringWeights
+    search, DomainState, FinancialState, FinancialStatus, AgentState, AgentStatus, OpsState, OpsStatus, SearchContext, ScoringWeights
 };
 use coh_core::{canon::*, hash::compute_chain_digest, verify_chain, verify_micro};
 use serde::Serialize;
@@ -997,9 +997,9 @@ fn main() {
     println!("═══════════════════════════════════════════════════════════════════════════\n");
 
     let domains = vec![
-        ("Financial", DomainState::Financial(FinancialState { balance: 10000, vendor_verified: false })),
-        ("Agent", DomainState::Agent(AgentState { complexity_index: 0, authority_level: 0 })),
-        ("Ops", DomainState::Ops(OpsState { status: "Open".to_string(), materials_logged: false })),
+        ("Financial", DomainState::Financial(FinancialState { balance: 10000, initial_balance: 10000, status: FinancialStatus::Idle, current_invoice_amount: 0 })),
+        ("Agent", DomainState::Agent(AgentState { complexity_index: 0, complexity_budget: 100, authority_level: 0, status: AgentStatus::Observing })),
+        ("Ops", DomainState::Ops(OpsState { status: OpsStatus::Open, materials_logged: false, stall_risk: 0.0, resource_readiness: 1.0 })),
     ];
 
     println!("┌──────────────────────┬─────────────┬─────────────┬─────────────┬─────────────┐");
@@ -1009,7 +1009,7 @@ fn main() {
     for (name, start_state) in domains {
         let ctx = SearchContext {
             initial_state: start_state,
-            target_state: DomainState::Financial(FinancialState { balance: 0, vendor_verified: true }), // Dummy target
+            target_state: DomainState::Financial(FinancialState { balance: 0, initial_balance: 10000, status: FinancialStatus::Paid, current_invoice_amount: 0 }), // Dummy target
             max_depth: 3,
             beam_width: 5,
             weights: ScoringWeights::default(),

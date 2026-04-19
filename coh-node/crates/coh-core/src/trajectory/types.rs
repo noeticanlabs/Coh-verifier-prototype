@@ -1,4 +1,6 @@
 use crate::types::{Hash32, VerifyMicroResult, RejectCode, MicroReceiptWire};
+#[allow(unused_imports)]
+use crate::trajectory::scoring::PathEvaluation;
 use serde::{Deserialize, Serialize};
 
 /// Canonical State Identifier (Verifier Linkage)
@@ -64,26 +66,57 @@ pub struct VerifiedStep {
     pub state_prev: DomainState,
     pub action: Action,
     pub state_next: DomainState,
+    pub receipt_digest: Hash32,
+    pub receipt_prev_digest: Hash32,
     pub witness: AcceptWitness,
+}
+
+impl VerifiedStep {
+    /// Create a new verified step, asserting internal decision is Accept
+    pub fn new(
+        state_prev: DomainState,
+        action: Action,
+        state_next: DomainState,
+        receipt_digest: Hash32,
+        receipt_prev_digest: Hash32,
+        witness: AcceptWitness,
+    ) -> Self {
+        Self {
+            state_prev,
+            action,
+            state_next,
+            receipt_digest,
+            receipt_prev_digest,
+            witness,
+        }
+    }
 }
 
 /// A complete admissible trajectory (Execution Graph)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdmissibleTrajectory {
     pub steps: Vec<VerifiedStep>,
-    pub cumulative_score: f64,
+    pub evaluation: Option<PathEvaluation>,
+    pub cumulative_score: f64, // Used for UI display
 }
 
 impl AdmissibleTrajectory {
     pub fn new() -> Self {
         Self {
             steps: Vec::new(),
+            evaluation: None,
             cumulative_score: 0.0,
         }
     }
 
     pub fn push(&mut self, step: VerifiedStep) {
-        // Invariants: state and chain continuity should be checked in the engine
+        if let Some(last) = self.steps.last() {
+            // Invariant: State Continuity
+            assert_eq!(last.state_next, step.state_prev, "State continuity violation");
+            
+            // Invariant: Chain Continuity
+            assert_eq!(last.receipt_digest, step.receipt_prev_digest, "Chain continuity violation");
+        }
         self.steps.push(step);
     }
 }

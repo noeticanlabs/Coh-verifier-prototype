@@ -55,7 +55,7 @@ pub fn run_external_validation_micro<A: DomainAdapter + FailureInjector + Copy>(
 
     // Derive invalids by cloning latest valid and injecting failures
     let mut invalids: Vec<MicroReceiptWire> = Vec::with_capacity(invalid_count);
-    let mut base = valids
+    let base = valids
         .last()
         .cloned()
         .unwrap_or_else(|| adapter.build_valid(0, &"0".repeat(64), &"0".repeat(64)));

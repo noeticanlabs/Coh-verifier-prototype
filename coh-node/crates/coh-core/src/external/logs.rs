@@ -35,7 +35,7 @@ fn signature_for(step_index: u64, signer: &str) -> SignatureWire {
     SignatureWire {
         signature: format!("sig-log-{:016}", step_index),
         signer: signer.to_string(),
-        timestamp: 1_700_000_000 + step_index as u64,
+        timestamp: 1_700_000_000 + step_index,
     }
 }
 

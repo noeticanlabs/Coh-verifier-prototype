@@ -27,7 +27,7 @@ impl FinancialState {
         if self.initial_balance == 0 {
             return COH_PRECISION;
         }
-        (self.balance as u128 * COH_PRECISION) / self.initial_balance as u128
+        (self.balance * COH_PRECISION) / self.initial_balance
     }
 
     pub fn alignment_index(&self) -> u128 {
@@ -85,7 +85,7 @@ impl AgentState {
     /// Note: PolicyReview is a functional setback (0.2) to reflect safety-driven restarts.
     pub fn alignment_index(&self) -> u128 {
         match self.status {
-            AgentStatus::Observing => (COH_PRECISION * 1) / 10,
+            AgentStatus::Observing => COH_PRECISION / 10,
             AgentStatus::Acting => (COH_PRECISION * 5) / 10,
             AgentStatus::PolicyReview => (COH_PRECISION * 2) / 10, // Setback for safety check
             AgentStatus::Completed => COH_PRECISION,
@@ -160,7 +160,6 @@ pub enum OpsAction {
 }
 
 use crate::trajectory::types::{Action, DomainState};
-use crate::types::{Decision, Hash32, MicroReceiptWire};
 
 /// Get admissible actions based on current semantic state
 pub fn admissible_actions(state: &DomainState) -> Vec<Action> {

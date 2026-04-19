@@ -100,6 +100,12 @@ pub struct AdmissibleTrajectory {
     pub cumulative_score: u128, // Used for UI display
 }
 
+impl Default for AdmissibleTrajectory {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AdmissibleTrajectory {
     pub fn new() -> Self {
         Self {

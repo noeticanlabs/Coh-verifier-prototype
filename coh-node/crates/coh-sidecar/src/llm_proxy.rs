@@ -29,6 +29,7 @@ mod receipt {
     use std::convert::TryFrom;
     const POLICY_HASH_ZERO: &str =
         "0000000000000000000000000000000000000000000000000000000000000000";
+    #[allow(clippy::too_many_arguments)]
     pub fn build(
         step_index: u64,
         state_hash_prev: &str,

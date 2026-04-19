@@ -48,10 +48,10 @@ jobs:
         run: cargo fmt --check
 
       - name: Clippy - deny warnings
-        run: cargo clippy -p coh-core -p coh-cli -p coh-sidecar -- -D warnings
+        run: cargo clippy -p coh-core -p coh-validator -p coh-sidecar -- -D warnings
 
       - name: Build (release, scoped)
-        run: cargo build -p coh-core -p coh-cli -p coh-sidecar --release
+        run: cargo build -p coh-core -p coh-validator -p coh-sidecar --release
 
       - name: Run tests (coh-core only)
         run: cargo test -p coh-core

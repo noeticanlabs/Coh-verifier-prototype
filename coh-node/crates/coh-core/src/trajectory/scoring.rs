@@ -1,5 +1,5 @@
 use crate::trajectory::domain::COH_PRECISION;
-use crate::trajectory::types::{AdmissibleTrajectory, DomainState};
+use crate::trajectory::types::AdmissibleTrajectory;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Eq)]
@@ -47,7 +47,7 @@ impl Default for ScoringWeights {
         Self {
             goal: COH_PRECISION,
             risk: COH_PRECISION,
-            cost: (COH_PRECISION * 1) / 10, // 0.1
+            cost: COH_PRECISION / 10, // 0.1
         }
     }
 }

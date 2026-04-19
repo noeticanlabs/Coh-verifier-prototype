@@ -17,6 +17,12 @@ pub struct SearchResult {
     pub max_violation_seen: u128, // delta(r) max
 }
 
+impl Default for SearchResult {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SearchResult {
     pub fn new() -> Self {
         Self {

@@ -214,6 +214,8 @@ fn decision_to_text(d: &Decision) -> String {
     match d {
         Decision::Accept => "ACCEPT".to_string(),
         Decision::Reject => "REJECT".to_string(),
+        Decision::Defer => "DEFER".to_string(),
+        Decision::Reroute => "REROUTE".to_string(),
         Decision::SlabBuilt => "SLAB_BUILT".to_string(),
         Decision::TerminalSuccess => "TERMINAL_SUCCESS".to_string(),
         Decision::TerminalFailure => "TERMINAL_FAILURE".to_string(),

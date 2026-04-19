@@ -12,3 +12,6 @@ pub use engine::*;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod equivalence_tests;

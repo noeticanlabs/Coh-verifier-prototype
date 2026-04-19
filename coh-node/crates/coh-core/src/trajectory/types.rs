@@ -97,7 +97,7 @@ impl VerifiedStep {
 pub struct AdmissibleTrajectory {
     pub steps: Vec<VerifiedStep>,
     pub evaluation: Option<PathEvaluation>,
-    pub cumulative_score: f64, // Used for UI display
+    pub cumulative_score: u128, // Used for UI display
 }
 
 impl AdmissibleTrajectory {
@@ -105,7 +105,7 @@ impl AdmissibleTrajectory {
         Self {
             steps: Vec::new(),
             evaluation: None,
-            cumulative_score: 0.0,
+            cumulative_score: 0,
         }
     }
 

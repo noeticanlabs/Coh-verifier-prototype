@@ -82,11 +82,38 @@ export const EvidencePanel = ({ stepMetrics, isTrajTrusted }) => {
         <span className="card-title">Verification Evidence Ledger</span>
       </div>
       <div className="card-body">
-        <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-base)', borderRadius: 'var(--radius-sm)' }}>
+        <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-base)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-muted)' }}>
           <div className="metric-label">Consensus Verdict</div>
-          <div className={`monospace ${isTrajTrusted === false ? 'text-ruby' : 'text-emerald'}`} style={{ fontSize: '1.1rem', fontWeight: 800 }}>
+          <div className="monospace" style={{ fontSize: '1.1rem', fontWeight: 800, color: isTrajTrusted === false ? 'var(--brand-blocked)' : 'var(--brand-primary)', marginBottom: '1rem' }}>
             {isTrajTrusted === false ? 'PATH_REJECTED' : 'PATH_VALIDATED'}
           </div>
+          
+          {/* Grounding Gauges */}
+          {m.evaluation && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <div style={{ background: 'var(--bg-surface-elevated)', padding: '0.5rem', borderRadius: '4px' }}>
+                    <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>SAFETY</div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>{(m.evaluation.safetyBottleneck * 100).toFixed(0)}%</div>
+                </div>
+                <div style={{ background: 'var(--bg-surface-elevated)', padding: '0.5rem', borderRadius: '4px' }}>
+                    <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>ALIGNMENT</div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>{(m.evaluation.alignment * 100).toFixed(0)}%</div>
+                </div>
+            </div>
+          )}
+
+          {/* Violation Evidence */}
+          {isTrajTrusted === false && m.violationDelta && (
+            <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#300', border: '1px solid #600', borderRadius: '4px' }}>
+                <div style={{ fontSize: '0.65rem', color: 'var(--brand-blocked)', fontWeight: 800 }}>VIOLATION_EVIDENCE_DELTA</div>
+                <div className="monospace" style={{ fontSize: '1.2rem', color: '#ff5f5f' }}>
+                    &delta;(r) = +{m.violationDelta}
+                </div>
+                <div style={{ fontSize: '0.6rem', marginTop: '0.4rem', color: '#f99' }}>
+                    REJECT_CODE: {m.rejectCode || 'UNSPECIFIED'}
+                </div>
+            </div>
+          )}
         </div>
 
         <EvidenceChecklistItem

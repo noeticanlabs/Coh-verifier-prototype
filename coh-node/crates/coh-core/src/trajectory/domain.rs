@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 // FINANCIAL DOMAIN: Canonical State Machine
 // ============================================================================
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum FinancialStatus {
     Idle,
     Invoiced,
@@ -20,19 +20,25 @@ pub struct FinancialState {
     pub current_invoice_amount: u128,
 }
 
+pub const COH_PRECISION: u128 = 1_000_000_000;
+
 impl FinancialState {
-    pub fn safety_margin(&self) -> f64 {
-        if self.initial_balance == 0 { return 1.0; }
-        (self.balance as f64 / self.initial_balance as f64).clamp(0.0, 1.0)
+    pub fn safety_margin(&self) -> u128 {
+        if self.initial_balance == 0 { return COH_PRECISION; }
+        (self.balance as u128 * COH_PRECISION) / self.initial_balance as u128
     }
 
-    pub fn progress_index(&self) -> f64 {
+    pub fn alignment_index(&self) -> u128 {
         match self.status {
-            FinancialStatus::Idle => 0.0,
-            FinancialStatus::Invoiced => 0.3,
-            FinancialStatus::ReadyToPay => 0.7,
-            FinancialStatus::Paid => 1.0,
+            FinancialStatus::Idle => 0,
+            FinancialStatus::Invoiced => (COH_PRECISION * 3) / 10,
+            FinancialStatus::ReadyToPay => (COH_PRECISION * 7) / 10,
+            FinancialStatus::Paid => COH_PRECISION,
         }
+    }
+
+    pub fn to_metrics_tuple(&self) -> (u128, u128) {
+        (self.balance, self.current_invoice_amount)
     }
 }
 
@@ -47,7 +53,7 @@ pub enum FinancialAction {
 // AGENT DOMAIN: Canonical State Machine
 // ============================================================================
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum AgentStatus {
     Observing,
     Acting,
@@ -64,18 +70,26 @@ pub struct AgentState {
 }
 
 impl AgentState {
-    pub fn safety_margin(&self) -> f64 {
-        if self.complexity_budget == 0 { return 1.0; }
-        (1.0 - (self.complexity_index as f64 / self.complexity_budget as f64)).clamp(0.0, 1.0)
+    pub fn safety_margin(&self) -> u128 {
+        if self.complexity_budget == 0 { return COH_PRECISION; }
+        let index = self.complexity_index as u128 * COH_PRECISION;
+        let budget = self.complexity_budget as u128;
+        COH_PRECISION.saturating_sub(index / budget)
     }
 
-    pub fn progress_index(&self) -> f64 {
+    /// Returns a standardized target-advancement score.
+    /// Note: PolicyReview is a functional setback (0.2) to reflect safety-driven restarts.
+    pub fn alignment_index(&self) -> u128 {
         match self.status {
-            AgentStatus::Observing => 0.1,
-            AgentStatus::Acting => 0.5,
-            AgentStatus::PolicyReview => 0.2, // Setback for safety check
-            AgentStatus::Completed => 1.0,
+            AgentStatus::Observing => (COH_PRECISION * 1) / 10,
+            AgentStatus::Acting => (COH_PRECISION * 5) / 10,
+            AgentStatus::PolicyReview => (COH_PRECISION * 2) / 10, // Setback for safety check
+            AgentStatus::Completed => COH_PRECISION,
         }
+    }
+
+    pub fn to_metrics_tuple(&self) -> (u128, u128) {
+        (self.complexity_index as u128, self.authority_level as u128)
     }
 }
 
@@ -91,7 +105,7 @@ pub enum AgentAction {
 // OPS DOMAIN: Canonical State Machine
 // ============================================================================
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum OpsStatus {
     Open,
     InProgress,
@@ -103,23 +117,28 @@ pub enum OpsStatus {
 pub struct OpsState {
     pub status: OpsStatus,
     pub materials_logged: bool,
-    pub stall_risk: f64, // Graded safety margin [0, 1]
-    pub resource_readiness: f64, // Graded readiness [0, 1]
+    pub stall_risk: u64, // Graded safety margin [0, 100]
+    pub resource_readiness: u64, // Graded readiness [0, 100]
 }
 
 impl OpsState {
-    pub fn safety_margin(&self) -> f64 {
-        // Compositional margin: min of stall risk and resource readiness
-        (1.0 - self.stall_risk).min(self.resource_readiness).clamp(0.0, 1.0)
+    pub fn safety_margin(&self) -> u128 {
+        let stall_risk_fp = (self.stall_risk as u128 * COH_PRECISION) / 100;
+        let readiness_fp = (self.resource_readiness as u128 * COH_PRECISION) / 100;
+        COH_PRECISION.saturating_sub(stall_risk_fp).min(readiness_fp)
     }
 
-    pub fn progress_index(&self) -> f64 {
+    pub fn alignment_index(&self) -> u128 {
         match self.status {
-            OpsStatus::Open => 0.0,
-            OpsStatus::InProgress => 0.3,
-            OpsStatus::MaterialsLogged => 0.7,
-            OpsStatus::Closed => 1.0,
+            OpsStatus::Open => 0,
+            OpsStatus::InProgress => (COH_PRECISION * 3) / 10,
+            OpsStatus::MaterialsLogged => (COH_PRECISION * 7) / 10,
+            OpsStatus::Closed => COH_PRECISION,
         }
+    }
+
+    pub fn to_metrics_tuple(&self) -> (u128, u128) {
+        (if self.materials_logged { 1 } else { 0 }, self.status as u32 as u128)
     }
 }
 
@@ -132,6 +151,7 @@ pub enum OpsAction {
 }
 
 use crate::trajectory::types::{DomainState, Action};
+use crate::types::{Decision, MicroReceiptWire, Hash32};
 
 /// Get admissible actions based on current semantic state
 pub fn admissible_actions(state: &DomainState) -> Vec<Action> {
@@ -240,8 +260,27 @@ pub fn derive_state(state: &DomainState, action: &Action) -> DomainState {
     }
 }
 
+/// Explicit semantic legality check (Phase 2 of constructor rigor)
+pub fn is_transition_valid_semantic(prev: &DomainState, action: &Action, next: &DomainState) -> bool {
+    match (prev, action, next) {
+        (DomainState::Ops(_), Action::Ops(OpsAction::CloseTicket), DomainState::Ops(os_next)) => {
+            // Rule: Must have logged materials before closing
+            os_next.materials_logged
+        }
+        (DomainState::Agent(_), Action::Agent(AgentAction::Finalize), DomainState::Agent(as_next)) => {
+            // Rule: Must be acting or at a finalized phase (avoid finalizing from observing)
+            as_next.status == AgentStatus::Completed
+        }
+        (DomainState::Financial(fs_prev), Action::Financial(FinancialAction::IssuePayment { amount }), _) => {
+            // Rule: Balance must cover payment
+            fs_prev.balance >= *amount
+        }
+        _ => true, // Default to true if simple state derivative holds
+    }
+}
+
 impl DomainState {
-    pub fn safety_margin(&self) -> f64 {
+    pub fn safety_margin(&self) -> u128 {
         match self {
             DomainState::Financial(fs) => fs.safety_margin(),
             DomainState::Agent(as_state) => as_state.safety_margin(),
@@ -249,11 +288,19 @@ impl DomainState {
         }
     }
 
-    pub fn progress_index(&self) -> f64 {
+    pub fn alignment_index(&self) -> u128 {
         match self {
-            DomainState::Financial(fs) => fs.progress_index(),
-            DomainState::Agent(as_state) => as_state.progress_index(),
-            DomainState::Ops(os) => os.progress_index(),
+            DomainState::Financial(fs) => fs.alignment_index(),
+            DomainState::Agent(as_state) => as_state.alignment_index(),
+            DomainState::Ops(os) => os.alignment_index(),
+        }
+    }
+
+    pub fn to_metrics_tuple(&self) -> (u128, u128) {
+        match self {
+            DomainState::Financial(fs) => fs.to_metrics_tuple(),
+            DomainState::Agent(as_state) => as_state.to_metrics_tuple(),
+            DomainState::Ops(os) => os.to_metrics_tuple(),
         }
     }
 }

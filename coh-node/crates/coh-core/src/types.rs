@@ -185,6 +185,8 @@ pub struct VerifyMicroResult {
     pub object_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chain_digest_next: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub violation_delta: Option<u128>, // delta(r) = (v_post + spend) - (v_pre + defect + authority)
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

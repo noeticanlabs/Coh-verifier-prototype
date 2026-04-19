@@ -14,6 +14,7 @@ pub struct SearchResult {
     pub admissible: Vec<AdmissibleTrajectory>,
     pub rejected: Vec<CandidateEdge>,
     pub frontier_stats: FrontierStats,
+    pub max_violation_seen: u128, // delta(r) max
 }
 
 impl SearchResult {
@@ -27,6 +28,7 @@ impl SearchResult {
                 rejected_found: 0,
                 max_depth_reached: 0,
             },
+            max_violation_seen: 0,
         }
     }
 }

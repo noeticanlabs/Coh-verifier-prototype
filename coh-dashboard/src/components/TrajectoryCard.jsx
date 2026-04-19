@@ -129,9 +129,45 @@ export const TechnicalTabs = ({ chainSteps, selectedStepIndex, candidates, selec
 
         {activeTab === 'evidence' && selectedTrajectory && (
           <div style={{ padding: '1rem' }}>
-            <div style={{ marginBottom: '1rem', fontSize: '0.85rem', fontWeight: 600 }}>
-              Trajectory Evidence — {selectedTrajectory.id}
+            <div style={{ marginBottom: '1rem', fontSize: '0.85rem', fontWeight: 600, display: 'flex', justifyContent: 'space-between' }}>
+              <span>Trajectory Evidence — {selectedId}</span>
+              <span className={selectedTrajectory.isSelectable ? 'text-emerald' : 'text-ruby'}>
+                {selectedTrajectory.pathStatus}
+              </span>
             </div>
+
+            {/* Lexicographic Evaluation Summary */}
+            {selectedTrajectory.evaluation && (
+                <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(3, 1fr)', 
+                    gap: '1rem', 
+                    marginBottom: '1.5rem',
+                    padding: '0.75rem',
+                    background: 'var(--bg-base)',
+                    borderRadius: 'var(--radius-sm)',
+                    border: '1px solid var(--border-muted)'
+                }}>
+                    <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Safety Bottleneck</div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: selectedTrajectory.evaluation.safetyBottleneck > 0.8 ? 'var(--brand-primary)' : 'var(--brand-blocked)' }}>
+                            {(selectedTrajectory.evaluation.safetyBottleneck * 100).toFixed(0)}%
+                        </div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Alignment Index</div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            {(selectedTrajectory.evaluation.alignment * 100).toFixed(0)}%
+                        </div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Normalized Cost</div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                            {(selectedTrajectory.evaluation.normalizedCost * 100).toFixed(0)}%
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Step-by-step constraint breakdown */}
             {selectedTrajectory.witnesses && selectedTrajectory.witnesses.map((witness, wi) => (

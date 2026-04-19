@@ -23,6 +23,7 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
                 step_index: Some(step_index),
                 object_id: Some(object_id),
                 chain_digest_next: None,
+                violation_delta: None,
             }
         }
     };
@@ -39,6 +40,7 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
             step_index: Some(r.step_index),
             object_id: Some(r.object_id),
             chain_digest_next: None,
+            violation_delta: None,
         };
     }
     if r.version != EXPECTED_MICRO_VERSION {
@@ -52,6 +54,7 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
             step_index: Some(r.step_index),
             object_id: Some(r.object_id),
             chain_digest_next: None,
+            violation_delta: None,
         };
     }
 
@@ -64,6 +67,7 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
             step_index: Some(r.step_index),
             object_id: Some("".to_string()),
             chain_digest_next: None,
+            violation_delta: None,
         };
     }
 
@@ -81,6 +85,7 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
             step_index: Some(r.step_index),
             object_id: Some(r.object_id),
             chain_digest_next: None,
+            violation_delta: None,
         };
     }
 
@@ -97,6 +102,7 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
             step_index: Some(r.step_index),
             object_id: Some(r.object_id),
             chain_digest_next: None,
+            violation_delta: None,
         };
     }
 
@@ -112,6 +118,7 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
                 step_index: Some(r.step_index),
                 object_id: Some(r.object_id),
                 chain_digest_next: None,
+                violation_delta: None,
             }
         }
     };
@@ -126,6 +133,7 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
                     step_index: Some(r.step_index),
                     object_id: Some(r.object_id),
                     chain_digest_next: None,
+                    violation_delta: None,
                 }
             }
         },
@@ -137,6 +145,7 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
                 step_index: Some(r.step_index),
                 object_id: Some(r.object_id),
                 chain_digest_next: None,
+                violation_delta: None,
             }
         }
     };
@@ -152,6 +161,7 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
             step_index: Some(r.step_index),
             object_id: Some(r.object_id),
             chain_digest_next: None,
+            violation_delta: Some(lhs.saturating_sub(rhs)),
         };
     }
 
@@ -171,6 +181,7 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
             step_index: Some(r.step_index),
             object_id: Some(r.object_id),
             chain_digest_next: None,
+            violation_delta: None,
         };
     }
 
@@ -186,6 +197,7 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
             step_index: Some(r.step_index),
             object_id: Some(r.object_id),
             chain_digest_next: None,
+            violation_delta: None,
         };
     }
     // 6. Cryptographic integrity (Canonicalization + Hashing)
@@ -200,6 +212,7 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
                 step_index: Some(r.step_index),
                 object_id: Some(r.object_id),
                 chain_digest_next: None,
+                violation_delta: None,
             };
         }
     };
@@ -217,6 +230,7 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
             step_index: Some(r.step_index),
             object_id: Some(r.object_id),
             chain_digest_next: Some(r.chain_digest_next.to_hex()),
+            violation_delta: None,
         };
     }
 
@@ -227,5 +241,6 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
         step_index: Some(r.step_index),
         object_id: Some(r.object_id),
         chain_digest_next: Some(r.chain_digest_next.to_hex()),
+        violation_delta: None,
     }
 }

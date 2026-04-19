@@ -30,11 +30,15 @@ async fn main() {
         // Health check
         .route("/health", get(routes::health_check))
         // Legacy Coh endpoints
-        .route("/v1/verify-micro", post(routes::verify_micro_handler))
-        .route("/v1/verify-chain", post(routes::verify_chain_handler))
+        .route("/verify/micro", post(routes::verify_micro_handler))
+        .route("/verify/chain", post(routes::verify_chain_handler))
         .route(
-            "/v1/execute-verified",
+            "/execute/verified",
             post(routes::execute_verified_handler),
+        )
+        .route(
+            "/trajectory/search",
+            post(routes::trajectory_search_handler),
         )
         // OpenAI-compatible LLM proxy endpoints
         .route(

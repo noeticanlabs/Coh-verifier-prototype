@@ -1,14 +1,13 @@
 use crate::trajectory::types::{AdmissibleTrajectory, DomainState};
+use crate::trajectory::domain::COH_PRECISION;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Eq)]
 pub struct PathEvaluation {
-    pub safety_bottleneck: f64,
-    pub progress: f64,
-    pub normalized_cost: f64,
+    pub safety_bottleneck: u128,
+    pub progress: u128,
+    pub normalized_cost: u128,
 }
-
-impl Eq for PathEvaluation {}
 
 impl PartialOrd for PathEvaluation {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -17,43 +16,43 @@ impl PartialOrd for PathEvaluation {
 }
 
 impl Ord for PathEvaluation {
-    /// Lexicographic comparison: Safety > Progress > -Cost
+    /// Lexicographic comparison: Safety > Progress > -Cost (All u128 fixed-point)
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         // 1. Safety Bottleneck (Min-Margin)
-        let s_cmp = self.safety_bottleneck.partial_cmp(&other.safety_bottleneck).unwrap();
+        let s_cmp = self.safety_bottleneck.cmp(&other.safety_bottleneck);
         if s_cmp != std::cmp::Ordering::Equal {
             return s_cmp;
         }
 
         // 2. Progress Index
-        let p_cmp = self.progress.partial_cmp(&other.progress).unwrap();
+        let p_cmp = self.progress.cmp(&other.progress);
         if p_cmp != std::cmp::Ordering::Equal {
             return p_cmp;
         }
 
         // 3. Inverse Cost (Minimize steps)
-        other.normalized_cost.partial_cmp(&self.normalized_cost).unwrap()
+        other.normalized_cost.cmp(&self.normalized_cost)
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScoringWeights {
-    pub goal: f64,
-    pub risk: f64,
-    pub cost: f64,
+    pub goal: u128,
+    pub risk: u128,
+    pub cost: u128,
 }
 
 impl Default for ScoringWeights {
     fn default() -> Self {
         Self {
-            goal: 1.0,
-            risk: 1.0, // Weight is less critical due to lexicographic override, but kept for scalar score
-            cost: 0.1,
+            goal: COH_PRECISION,
+            risk: COH_PRECISION, 
+            cost: (COH_PRECISION * 1) / 10, // 0.1
         }
     }
 }
 
-/// Compute evaluation metrics for a trajectory
+/// Compute evaluation metrics for a trajectory using u128 fixed-point
 pub fn evaluate_path(
     traj: &AdmissibleTrajectory,
     max_depth: usize,
@@ -61,22 +60,22 @@ pub fn evaluate_path(
     // 1. Minimum Safety Margin (Bottleneck)
     let safety_bottleneck = traj.steps.iter()
         .map(|s| s.state_next.safety_margin())
-        .fold(1.0f64, |acc: f64, m: f64| acc.min(m));
+        .fold(COH_PRECISION, |acc: u128, m: u128| acc.min(m));
 
-    // 2. Local Progress Index of last state
-    let progress = traj.steps.last()
-        .map(|s| s.state_next.progress_index())
-        .unwrap_or(0.0);
+    // 2. Alignment Index of last state (Target advanced score)
+    let alignment = traj.steps.last()
+        .map(|s| s.state_next.alignment_index())
+        .unwrap_or(0);
 
     // 3. Normalized Cost (|\tau| / K_max)
-    let normalized_cost = if max_depth == 0 { 0.0 } else {
-        traj.steps.len() as f64 / max_depth as f64
+    let normalized_cost = if max_depth == 0 { 0 } else {
+        (traj.steps.len() as u128 * COH_PRECISION) / max_depth as u128
     };
 
     PathEvaluation {
         safety_bottleneck,
-        progress,
-        normalized_cost: normalized_cost.clamp(0.0, 1.0),
+        progress: alignment,
+        normalized_cost: normalized_cost.min(COH_PRECISION),
     }
 }
 
@@ -84,8 +83,10 @@ pub fn evaluate_path(
 pub fn calculate_weighted_score(
     eval: &PathEvaluation,
     weights: &ScoringWeights,
-) -> f64 {
-    (eval.progress * weights.goal) + 
-    (eval.safety_bottleneck * weights.risk) - 
-    (eval.normalized_cost * weights.cost)
+) -> u128 {
+    let p_part = (eval.progress * weights.goal) / COH_PRECISION;
+    let s_part = (eval.safety_bottleneck * weights.risk) / COH_PRECISION;
+    let c_part = (eval.normalized_cost * weights.cost) / COH_PRECISION;
+    
+    p_part + s_part - c_part
 }

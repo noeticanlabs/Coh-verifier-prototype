@@ -27,9 +27,11 @@ const App = () => {
         const rootReceipt = steps.length > 0 ? steps[steps.length - 1].raw : null;
 
         if (rootReceipt) {
-          const proposed = generateCandidatesImpl(rootReceipt, {
+          // Live search triggers actual Rust search via sidecar
+          const proposed = await generateCandidatesImpl(rootReceipt, {
             maxDepth: 4,
             beamWidth: 3,
+            domain: dashboardData.scenario?.domain || 'financial',
             verification: dashboardData.verification
           });
           setCandidates(proposed);
@@ -105,7 +107,10 @@ const App = () => {
         </div>
 
         <EvidencePanel
-          stepMetrics={currentStep?.metrics}
+          stepMetrics={{
+              ...(currentStep?.metrics || {}),
+              evaluation: selectedTrajectory?.evaluation
+          }}
           isTrajTrusted={selectedTrajectory?.isSelectable}
         />
       </main>

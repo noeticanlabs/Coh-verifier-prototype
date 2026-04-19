@@ -30,12 +30,14 @@ const TrajectoryGraph = ({ candidates, selectedId, onSelect }) => {
 
       for (let i = 0; i < numPoints; i++) {
         const x = padding + i * stepX;
-        // Generate y based on trajectory characteristics
-        // Higher score = higher (more promising), lower = lower (blocked)
-        const baseY = height * 0.5;
-        const scoreOffset = (tau.score || 0) * 0.3;
-        const jitter = (tau.id.charCodeAt(tau.id.length - 1) % 20) - 10;
-        const y = baseY - scoreOffset + jitter;
+        // Generate y based on trajectory evaluation
+        // Safety Bottleneck is the primary positioning driver
+        const baseY = height * 0.7; // Lower baseline for safety-critical UI
+        const safetyFactor = (tau.evaluation?.safetyBottleneck || 0);
+        const alignmentFactor = (tau.evaluation?.alignment || 0);
+        
+        // y decreases as safety and alignment increase (higher on graph)
+        const y = baseY - (safetyFactor * 80) - (alignmentFactor * 40);
 
         points.push({ x, y });
       }
@@ -181,17 +183,25 @@ const TrajectoryGraph = ({ candidates, selectedId, onSelect }) => {
               })}
 
               {/* Score label for selected */}
-              {isSelected && (
-                <text
-                  x={padding - 5}
-                  y={originalPoints[0]?.y || height / 2}
-                  textAnchor="end"
-                  fontSize="8"
-                  fill="var(--brand-primary)"
-                  fontWeight="bold"
-                >
-                  {score?.toFixed(2) || 'N/A'}
-                </text>
+              {isSelected && tau.evaluation && (
+                <g transform={`translate(${padding - 10}, ${originalPoints[0]?.y || height / 2})`}>
+                  <text
+                    textAnchor="end"
+                    fontSize="8"
+                    fill="var(--brand-primary)"
+                    fontWeight="bold"
+                  >
+                    S:{tau.evaluation.safetyBottleneck.toFixed(2)}
+                  </text>
+                  <text
+                    y="10"
+                    textAnchor="end"
+                    fontSize="8"
+                    fill="var(--text-secondary)"
+                  >
+                    A:{tau.evaluation.alignment.toFixed(2)}
+                  </text>
+                </g>
               )}
             </g>
           );

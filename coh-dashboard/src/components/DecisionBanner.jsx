@@ -93,7 +93,12 @@ export const EvidencePanel = ({ stepMetrics, isTrajTrusted }) => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '0.5rem' }}>
                 <div style={{ background: 'var(--bg-surface-elevated)', padding: '0.5rem', borderRadius: '4px' }}>
                     <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>SAFETY</div>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>{(m.evaluation.safetyBottleneck * 100).toFixed(0)}%</div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>
+                      {(m.evaluation.safetyBottleneck * 100).toFixed(0)}% 
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginLeft: '4px', fontWeight: 400 }}>
+                        ({m.evaluation.safetyBottleneck})
+                      </span>
+                    </div>
                 </div>
                 <div style={{ background: 'var(--bg-surface-elevated)', padding: '0.5rem', borderRadius: '4px' }}>
                     <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>ALIGNMENT</div>

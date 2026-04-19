@@ -19,10 +19,11 @@ vi.mock('./data/cohData', async () => {
   return {
     ...actual,
     loadDashboardData: vi.fn(),
+    generateCandidatesImpl: vi.fn(),
   };
 });
 
-import { loadDashboardData } from './data/cohData';
+import { loadDashboardData, generateCandidatesImpl } from './data/cohData';
 
 const mockDashboardData = {
   scenario: { label: 'Test Scenario', description: 'Test Description' },
@@ -32,8 +33,8 @@ const mockDashboardData = {
       stepIndex: 0,
       hash: 'abc1234567890',
       status: 'TRUSTED',
-      metrics: { 
-        vPre: '100', vPost: '90', spend: '10', defect: '0', 
+      metrics: {
+        vPre: '100', vPost: '90', spend: '10', defect: '0',
         isAdmissible: true, leftSide: '100', rightSide: '100',
         violationDelta: 0
       },
@@ -42,16 +43,16 @@ const mockDashboardData = {
     }
   ],
   candidates: [
-      {
-          id: 'traj-1',
-          steps: [],
-          evaluation: {
-              safetyBottleneck: 0.95,
-              alignment: 0.8,
-              normalizedCost: 0.1
-          },
-          isSelectable: true
-      }
+    {
+      id: 'traj-1',
+      steps: [],
+      evaluation: {
+        safetyBottleneck: 0.95,
+        alignment: 0.8,
+        normalizedCost: 0.1
+      },
+      isSelectable: true
+    }
   ],
   isTrusted: true,
   verification: { status: 'ACCEPT', cohVersion: '0.1.0', source: 'sidecar', requestId: 'req-123' },
@@ -62,10 +63,28 @@ const mockDashboardData = {
 describe('App Behavioral Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default candidate so metrics render deterministically in CI
+    generateCandidatesImpl.mockResolvedValue([
+      {
+        id: 'traj-a-0',
+        isSelectable: true,
+        evaluation: { safetyBottleneck: 0.95, alignment: 0.8, normalizedCost: 0.1 },
+        receipts: [],
+      },
+    ]);
   });
 
   it('renders correctly and shows scenario info', async () => {
     loadDashboardData.mockResolvedValueOnce(mockDashboardData);
+    // Ensure candidate evaluation is present
+    generateCandidatesImpl.mockResolvedValueOnce([
+      {
+        id: 'traj-a-1',
+        isSelectable: true,
+        evaluation: { safetyBottleneck: 0.95, alignment: 0.8, normalizedCost: 0.1 },
+        receipts: [],
+      },
+    ]);
 
     render(<App />);
 
@@ -74,13 +93,21 @@ describe('App Behavioral Tests', () => {
 
     // New Branding Assertions
     expect(screen.getByText(/Deterministic Execution Verification/i)).toBeInTheDocument();
-    
+
     // Check for grounded metrics in Evidence Panel (rendered via evaluation mock)
     expect(screen.getByText(/0.95/)).toBeInTheDocument(); // safetyBottleneck
   });
 
   it('handles scenario selection change via CI markers', async () => {
     loadDashboardData.mockResolvedValue(mockDashboardData);
+    generateCandidatesImpl.mockResolvedValue([
+      {
+        id: 'traj-a-2',
+        isSelectable: true,
+        evaluation: { safetyBottleneck: 0.9, alignment: 0.7, normalizedCost: 0.2 },
+        receipts: [],
+      },
+    ]);
 
     render(<App />);
     await waitFor(() => expect(screen.queryByText(/INITIALIZING_SECURE_WEDGE_CONTEXT/i)).not.toBeInTheDocument());

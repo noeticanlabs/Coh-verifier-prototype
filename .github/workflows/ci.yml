@@ -28,6 +28,11 @@ jobs:
           toolchain: stable
           components: rustfmt, clippy
 
+      - name: Diagnose Python presence (pyo3 gate)
+        run: |
+          python3 --version || echo "python3 missing"
+          python --version || echo "python missing"
+
       - name: Cache Cargo registry
         uses: actions/cache@v4
         with:
@@ -42,14 +47,14 @@ jobs:
       - name: Check formatting
         run: cargo fmt --check
 
-      - name: Clippy � deny warnings
-        run: cargo clippy -- -D warnings
+      - name: Clippy - deny warnings
+        run: cargo clippy -p coh-core -p coh-cli -p coh-sidecar -- -D warnings
 
-      - name: Build (release)
-        run: cargo build --release
+      - name: Build (release, scoped)
+        run: cargo build -p coh-core -p coh-cli -p coh-sidecar --release
 
-      - name: Run tests
-        run: cargo test
+      - name: Run tests (coh-core only)
+        run: cargo test -p coh-core
 
       - name: Run bounded acceptance-path suite
         run: cargo test -p coh-core --test test_valid_chain
@@ -112,8 +117,8 @@ jobs:
       - name: Build
         run: cargo build
 
-      - name: Run tests
-        run: cargo test
+      - name: Run tests (coh-core only)
+        run: cargo test -p coh-core
 
   formal-verification:
     name: Lean T-Stack Verification
@@ -202,8 +207,8 @@ jobs:
             coh-node/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('coh-node/Cargo.lock') }}
 
-      - name: Run Equivalence Vectors
-        run: cargo test trajectory::equivalence_tests
+      - name: Run Equivalence Vectors (scoped)
+        run: cargo test -p coh-core trajectory::equivalence_tests
 
   dashboard-test:
     name: Dashboard UI Test

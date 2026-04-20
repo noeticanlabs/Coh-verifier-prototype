@@ -213,6 +213,7 @@ trait DisplayResult {
 fn decision_to_text(d: &Decision) -> String {
     match d {
         Decision::Accept => "ACCEPT".to_string(),
+        Decision::AdvisoryAccept => "ADVISORY_ACCEPT".to_string(),
         Decision::Reject => "REJECT".to_string(),
         Decision::Defer => "DEFER".to_string(),
         Decision::Reroute => "REROUTE".to_string(),
@@ -225,7 +226,7 @@ fn decision_to_text(d: &Decision) -> String {
 
 impl DisplayResult for VerifyMicroResult {
     fn is_accept(&self) -> bool {
-        self.decision == Decision::Accept
+        self.decision == Decision::Accept || self.decision == Decision::AdvisoryAccept
     }
     fn to_text(&self) -> String {
         let mut s = format!("{}\n", decision_to_text(&self.decision));
@@ -234,6 +235,13 @@ impl DisplayResult for VerifyMicroResult {
                 s.push_str(&format!("code: {:?}\n", code));
             }
             s.push_str(&format!("message: {}\n", self.message));
+        }
+        if self.decision == Decision::AdvisoryAccept {
+            // AdvisoryAccept means physics is valid but policy-only violation present
+            if let Some(code) = &self.code {
+                s.push_str(&format!("policy_code: {:?}\n", code));
+            }
+            s.push_str("message: advisory mode - policy-only violation\n");
         }
         if let Some(idx) = self.step_index {
             s.push_str(&format!("step_index: {}\n", idx));

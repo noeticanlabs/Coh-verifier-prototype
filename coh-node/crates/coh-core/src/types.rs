@@ -25,15 +25,23 @@ impl Hash32 {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Decision {
+    /// Clean acceptance - no physics or policy violations
     Accept,
+    /// Advisory acceptance - physics valid but policy-only violation(s) present
+    AdvisoryAccept,
+    /// Hard rejection - physics violation or critical error
     Reject,
     /// GCCP: Defer action for later execution
     Defer,
     /// GCCP: Reroute to alternate device
     Reroute,
+    /// Slab construction completed
     SlabBuilt,
+    /// Terminal success state
     TerminalSuccess,
+    /// Terminal failure state
     TerminalFailure,
+    /// Budget aborted
     AbortBudget,
 }
 

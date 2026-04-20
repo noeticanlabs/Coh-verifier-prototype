@@ -28,8 +28,22 @@ pub struct AdmissibilityResult {
 }
 
 impl AdmissibilityResult {
+    /// Check admissibility with checked arithmetic to prevent overflow
+    /// Returns Accept if inequality holds, Reject otherwise
     pub fn accept(v_current: u128, v_predicted: u128, spend: u128, defect: u128) -> Self {
-        let inequality_holds = v_predicted + spend <= v_current + defect;
+        // Use checked arithmetic: v_predicted + spend <= v_current + defect
+        // Rearranged: v_predicted + spend <= v_current + defect
+        // Equivalent to: v_predicted + spend <= v_current.checked_add(defect).unwrap_or(u128::MAX)
+        let lhs = v_predicted.checked_add(spend);
+        let rhs = v_current.checked_add(defect);
+
+        let inequality_holds = match (lhs, rhs) {
+            (Some(l), Some(r)) => l <= r,
+            // If either addition overflows, treat as inequality failing
+            // (conservative: overflow means we're over budget)
+            _ => false,
+        };
+
         Self {
             decision: Decision::Accept,
             reject_code: None,

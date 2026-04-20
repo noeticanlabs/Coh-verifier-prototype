@@ -185,9 +185,7 @@ mod tests {
     use axum::http::{Request, StatusCode};
     use axum::routing::post;
     use axum::Router;
-    use coh_core::trajectory::{
-        DomainState, FinancialState, FinancialStatus, ScoringWeights, SearchContext,
-    };
+    use coh_core::trajectory::{DomainState, FinancialState, FinancialStatus, SearchContext};
     use http_body_util::BodyExt;
     use tower::util::ServiceExt; // For collect()
 
@@ -208,10 +206,12 @@ mod tests {
         };
         let context = SearchContext {
             initial_state: DomainState::Financial(idle_f.clone()),
-            target_state: DomainState::Financial(idle_f),
             max_depth: 10,  // MAX is 6
             beam_width: 10, // MAX is 8
-            weights: ScoringWeights::default(),
+            weight_goal: 1_000_000_000_000_000_u128,
+            weight_risk: 1_000_000_000_000_000_u128,
+            weight_cost: 100_000_000_000_000_u128,
+            weight_uncertainty: 0_u128,
         };
         let req_payload = TrajectorySearchRequest { context };
 

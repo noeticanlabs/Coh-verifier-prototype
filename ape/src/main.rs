@@ -589,7 +589,7 @@ fn run_strategy_demo(
                 latencies.push(elapsed);
 
                 match result.decision {
-                    Decision::Accept => {
+                    Decision::Accept | Decision::AdvisoryAccept => {
                         escaped += 1;
                         entry.escaped += 1;
                         if first_escaped_seed.is_none() {

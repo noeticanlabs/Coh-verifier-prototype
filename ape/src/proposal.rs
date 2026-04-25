@@ -435,18 +435,27 @@ impl Candidate {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use coh_core::types::MetricsWire;
+    use coh_core::canon::EXPECTED_CANON_PROFILE_HASH;
+    use coh_core::finalize_micro_receipt;
+    use coh_core::types::{MetricsWire, SignatureWire};
 
     fn sample_micro() -> MicroReceiptWire {
-        MicroReceiptWire {
+        finalize_micro_receipt(MicroReceiptWire {
             schema_id: "coh.receipt.micro.v1".to_string(),
             version: "1.0.0".to_string(),
             object_id: "test".to_string(),
-            canon_profile_hash: "0".repeat(64),
+            canon_profile_hash: EXPECTED_CANON_PROFILE_HASH.to_string(),
             policy_hash: "0".repeat(64),
             step_index: 0,
             step_type: None,
-            signatures: None,
+            signatures: Some(vec![SignatureWire {
+                signature: "sig-0000000000000000".to_string(),
+                signer: "fixture-signer-0".to_string(),
+                timestamp: 1_700_000_000,
+                authority_id: Some("fixture-signer-0".to_string()),
+                scope: Some("*".to_string()),
+                expires_at: None,
+            }]),
             state_hash_prev: "0".repeat(64),
             state_hash_next: "0".repeat(64),
             chain_digest_prev: "0".repeat(64),
@@ -457,7 +466,8 @@ mod tests {
                 spend: "15".to_string(),
                 defect: "0".to_string(),
             },
-        }
+        })
+        .expect("proposal test fixture should finalize")
     }
 
     #[test]

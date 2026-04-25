@@ -5,6 +5,7 @@
 use crate::proposal::Candidate;
 use crate::proposal::Input;
 use crate::seed::SeededRng;
+use coh_core::finalize_micro_receipt;
 use coh_core::types::MicroReceiptWire;
 
 /// Run mutation strategy
@@ -108,7 +109,7 @@ pub(crate) fn generate_valid_micro(rng: &mut SeededRng) -> Candidate {
     let spend = rng.next() as u128 % 50;
     let v_post = v_pre.saturating_sub(spend);
 
-    let mut wire = MicroReceiptWire {
+    let wire = MicroReceiptWire {
         schema_id: "coh.receipt.micro.v1".to_string(),
         version: "1.0.0".to_string(),
         object_id: format!("ape.mutation.{}", step),
@@ -130,20 +131,5 @@ pub(crate) fn generate_valid_micro(rng: &mut SeededRng) -> Candidate {
         },
     };
 
-    // Seal with valid-looking digest
-    use coh_core::canon::{to_canonical_json_bytes, to_prehash_view};
-    use coh_core::hash::compute_chain_digest;
-    use std::convert::TryFrom;
-
-    if let Ok(r) = MicroReceipt::try_from(wire.clone()) {
-        let prehash = to_prehash_view(&r);
-        if let Ok(bytes) = to_canonical_json_bytes(&prehash) {
-            let digest = compute_chain_digest(r.chain_digest_prev, &bytes);
-            wire.chain_digest_next = digest.to_hex();
-        }
-    }
-
-    Candidate::Micro(wire)
+    Candidate::Micro(finalize_micro_receipt(wire).expect("mutation fixture should finalize"))
 }
-
-use coh_core::types::MicroReceipt;

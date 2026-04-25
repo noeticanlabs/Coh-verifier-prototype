@@ -6,6 +6,14 @@ use std::fs;
 use std::path::PathBuf;
 use thiserror::Error;
 
+fn normalize_legacy_metrics(value: &mut serde_json::Value) {
+    if let Some(metrics) = value.get_mut("metrics").and_then(|v| v.as_object_mut()) {
+        if let Some(authority) = metrics.remove("authority") {
+            metrics.entry("defect".to_string()).or_insert(authority);
+        }
+    }
+}
+
 /// Errors that can occur during fixture loading
 #[derive(Error, Debug)]
 pub enum FixtureError {
@@ -27,7 +35,9 @@ pub enum FixtureError {
 pub fn load_micro(name: &str) -> Result<coh_core::MicroReceiptWire, FixtureError> {
     let path = fixtures_path(&format!("{}.json", name));
     let content = fs::read_to_string(&path)?;
-    let receipt: coh_core::MicroReceiptWire = serde_json::from_str(&content)?;
+    let mut value: serde_json::Value = serde_json::from_str(&content)?;
+    normalize_legacy_metrics(&mut value);
+    let receipt: coh_core::MicroReceiptWire = serde_json::from_value(value)?;
     Ok(receipt)
 }
 
@@ -48,7 +58,9 @@ pub fn load_chain(name: &str) -> Result<Vec<coh_core::MicroReceiptWire>, Fixture
         if line.is_empty() {
             continue;
         }
-        let receipt: coh_core::MicroReceiptWire = serde_json::from_str(line)?;
+        let mut value: serde_json::Value = serde_json::from_str(line)?;
+        normalize_legacy_metrics(&mut value);
+        let receipt: coh_core::MicroReceiptWire = serde_json::from_value(value)?;
         receipts.push(receipt);
     }
 

@@ -3,6 +3,11 @@ name = "coh-fuzz"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "coh-fuzz"
+path = "src/main.rs"
+test = false
+
 [dependencies]
 libafl = "0.11.2"
 libafl_bolts = "0.11.2"

@@ -15,6 +15,13 @@ pub enum RejectCode {
     RejectIntervalInvalid,
     RejectMissingSignature,
     RejectMissingObjectId,
+    RejectSignatureMalformed,
+    RejectSignatureBad,
+    RejectSignerUnknown,
+    RejectSignerUntrusted,
+    RejectSignatureScopeMismatch,
+    RejectSignaturePolicyMismatch,
+    RejectSignatureExpired,
     // Trajectory failures
     NoProgressLoop,
     StateCycleDetected,

@@ -21,6 +21,9 @@ fn bench_execution(c: &mut Criterion) {
             signature: "sig-0000000000000000".to_string(),
             signer: "fixture-signer-0".to_string(),
             timestamp: 1700000000,
+            authority_id: Some("fixture-signer-0".to_string()),
+            scope: Some("*".to_string()),
+            expires_at: None,
         }]),
         state_hash_prev: "1111111111111111111111111111111111111111111111111111111111111111"
             .to_string(),
@@ -101,6 +104,9 @@ fn bench_verify_before_execute(c: &mut Criterion) {
             signature: "sig-0000000000000000".to_string(),
             signer: "fixture-signer-0".to_string(),
             timestamp: 1700000000,
+            authority_id: Some("fixture-signer-0".to_string()),
+            scope: Some("*".to_string()),
+            expires_at: None,
         }]),
         state_hash_prev: "1111111111111111111111111111111111111111111111111111111111111111"
             .to_string(),

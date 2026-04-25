@@ -25,6 +25,7 @@ impl From<RejectCode> for CohErrorCode {
             | RejectCode::RejectIntervalInvalid
             | RejectCode::RejectMissingSignature
             | RejectCode::RejectMissingObjectId
+            | RejectCode::RejectSignatureMalformed
             // Trajectory failures -> E004 (chain/continuity)
             | RejectCode::NoProgressLoop
             | RejectCode::StateCycleDetected
@@ -43,6 +44,12 @@ impl From<RejectCode> for CohErrorCode {
             // Policy -> E003
             RejectCode::RejectPolicyViolation
             | RejectCode::RejectSlabSummary
+            | RejectCode::RejectSignatureBad
+            | RejectCode::RejectSignerUnknown
+            | RejectCode::RejectSignerUntrusted
+            | RejectCode::RejectSignatureScopeMismatch
+            | RejectCode::RejectSignaturePolicyMismatch
+            | RejectCode::RejectSignatureExpired
             // Semantic integrity failures (TypeConfusion defense)
             | RejectCode::VacuousZeroReceipt
             | RejectCode::SpendExceedsBalance

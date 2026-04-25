@@ -32,6 +32,7 @@ pub struct LlmResponse {
 impl LlmResponse {
     /// Convert to micro receipt
     pub fn to_micro(&self) -> coh_core::types::MicroReceiptWire {
+        use coh_core::finalize_micro_receipt;
         use coh_core::types::MetricsWire;
 
         let metrics = MetricsWire {
@@ -41,7 +42,7 @@ impl LlmResponse {
             defect: self.defect.to_string(),
         };
 
-        let mut wire = coh_core::types::MicroReceiptWire {
+        let wire = coh_core::types::MicroReceiptWire {
             schema_id: "coh.receipt.micro.v1".to_string(),
             version: "1.0.0".to_string(),
             object_id: format!("llm.step.{}", self.step_index),
@@ -50,7 +51,14 @@ impl LlmResponse {
             policy_hash: "0".repeat(64),
             step_index: self.step_index,
             step_type: Some("llm_step".to_string()),
-            signatures: None,
+            signatures: Some(vec![coh_core::types::SignatureWire {
+                signature: "sig-0000000000000000".to_string(),
+                signer: "fixture-signer-0".to_string(),
+                timestamp: 1_700_000_000 + self.step_index,
+                authority_id: Some("fixture-signer-0".to_string()),
+                scope: Some("*".to_string()),
+                expires_at: None,
+            }]),
             state_hash_prev: self.state_hash_prev.clone(),
             state_hash_next: self.state_hash_next.clone(),
             chain_digest_prev: "0".repeat(64),
@@ -58,20 +66,7 @@ impl LlmResponse {
             metrics,
         };
 
-        // Seal with valid digest if possible
-        use coh_core::canon::{to_canonical_json_bytes, to_prehash_view};
-        use coh_core::hash::compute_chain_digest;
-        use std::convert::TryFrom;
-
-        if let Ok(r) = coh_core::types::MicroReceipt::try_from(wire.clone()) {
-            let prehash = to_prehash_view(&r);
-            if let Ok(bytes) = to_canonical_json_bytes(&prehash) {
-                let digest = compute_chain_digest(r.chain_digest_prev, &bytes);
-                wire.chain_digest_next = digest.to_hex();
-            }
-        }
-
-        wire
+        finalize_micro_receipt(wire).expect("adapter fixture should finalize")
     }
 }
 

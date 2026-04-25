@@ -163,6 +163,9 @@ fn signature_for(step: u64) -> SignatureWire {
         signature: format!("sig-{:016x}", step),
         signer: format!("fixture-signer-{}", step % 3),
         timestamp: 1_700_000_000 + step,
+        authority_id: Some(format!("fixture-signer-{}", step % 3)),
+        scope: Some("*".to_string()),
+        expires_at: None,
     }
 }
 

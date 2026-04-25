@@ -1,4 +1,4 @@
-use coh_core::types::{SlabReceiptWire, Decision};
+use coh_core::types::SlabReceiptWire;
 use coh_core::verify_slab::verify_slab_envelope;
 use libafl::{
     corpus::{InMemoryCorpus, OnDiskCorpus},
@@ -17,14 +17,14 @@ use libafl::{
 use libafl_bolts::{current_nanos, rands::StdRand, tuples::tuple_list, AsSlice};
 use std::path::PathBuf;
 
-/// The main entry point for the LibAFL fuzzer.
-/// This fuzzer targets `coh_core::verify_slab_envelope`.
+#[cfg(not(test))]
 fn main() {
-    // 1. Define the observer for coverage (using a dummy map for now as we aren't using a compiler plugin)
-    // In a real scenario, we'd use libafl_cc for edge coverage.
-    // For this setup, we'll use a basic crash-oriented feedback.
-    static mut MAP: [u8; 65536] = [0; 65536];
-    let observer = unsafe { StdMapObserver::new("edges", &mut MAP) };
+    // 1. Define the observer for coverage
+    // Using a local heap allocated map to avoid static mut alignment issues
+    let mut map = vec![0u8; 65536];
+    let map_ptr = map.as_mut_ptr();
+    let map_slice = unsafe { std::slice::from_raw_parts_mut(map_ptr, 65536) };
+    let observer = StdMapObserver::from_mut_slice("edges", map_slice.into());
 
     // 2. Define the feedback mechanism
     let mut feedback = MaxMapFeedback::new(&observer);
@@ -55,8 +55,6 @@ fn main() {
         let target = input.target_bytes();
         let buf = target.as_slice();
 
-        // Attempt to deserialize the input as SlabReceiptWire
-        // LibAFL will mutate the bytes, and we see if verify_slab_envelope crashes.
         if let Ok(wire) = serde_json::from_slice::<SlabReceiptWire>(buf) {
             let _ = verify_slab_envelope(wire);
         }
@@ -77,7 +75,12 @@ fn main() {
     // 9. Initial seed (optional but recommended)
     if state.must_load_initial_inputs() {
         state
-            .load_initial_inputs(&mut fuzzer, &mut executor, &mut mgr, &[PathBuf::from("./corpus")])
+            .load_initial_inputs(
+                &mut fuzzer,
+                &mut executor,
+                &mut mgr,
+                &[PathBuf::from("./corpus")],
+            )
             .unwrap_or_else(|_| {
                 println!("No initial corpus found, starting from scratch.");
             });
@@ -93,3 +96,6 @@ fn main() {
         .fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)
         .expect("Error in the fuzzing loop");
 }
+
+#[cfg(test)]
+fn main() {}

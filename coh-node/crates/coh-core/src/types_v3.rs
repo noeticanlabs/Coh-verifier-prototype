@@ -6,7 +6,7 @@
 //! - Policy governance (override_applied)
 
 use crate::reject::RejectCode;
-use crate::types::{Hash32, Metrics, MicroReceipt, MicroReceiptWire};
+use crate::types::{Hash32, Metrics, MicroReceiptWire};
 use serde::{Deserialize, Serialize};
 
 /// Objective target types for V3

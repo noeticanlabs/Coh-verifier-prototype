@@ -10,6 +10,7 @@
 use crate::proposal::Candidate;
 use crate::proposal::Input;
 use crate::seed::SeededRng;
+use coh_core::finalize_micro_receipt;
 use coh_core::types::MicroReceiptWire;
 
 /// Non-Termination: creates candidates with repeated states or zero-progress cycles
@@ -174,18 +175,11 @@ pub fn parser_pathology(input: &Input, rng: &mut SeededRng) -> Candidate {
 
 /// Generate a base receipt for strategies that need one
 fn generate_base(rng: &mut SeededRng) -> MicroReceiptWire {
-    use coh_core::canon::{to_canonical_json_bytes, to_prehash_view};
-    use coh_core::hash::compute_chain_digest;
-
     let v_pre = 100u128 + (rng.next() as u128 % 100);
     let spend = rng.next() as u128 % 20;
     let v_post = v_pre.saturating_sub(spend);
 
-    let chain_digest_prev_hex = "0".repeat(64);
-    let chain_digest_prev = coh_core::types::Hash32::from_hex(&chain_digest_prev_hex)
-        .unwrap_or(coh_core::types::Hash32([0u8; 32]));
-
-    let mut wire = MicroReceiptWire {
+    let wire = MicroReceiptWire {
         schema_id: "coh.receipt.micro.v1".to_string(),
         version: "1.0.0".to_string(),
         object_id: format!("runtime.{}", rng.next() % 100),
@@ -194,10 +188,17 @@ fn generate_base(rng: &mut SeededRng) -> MicroReceiptWire {
         policy_hash: "0".repeat(64),
         step_index: rng.next() as u64 % 10,
         step_type: Some("action".to_string()),
-        signatures: Some(vec![]),
+        signatures: Some(vec![coh_core::types::SignatureWire {
+            signature: "sig-0000000000000000".to_string(),
+            signer: "fixture-signer-0".to_string(),
+            timestamp: 1_700_000_000,
+            authority_id: Some("fixture-signer-0".to_string()),
+            scope: Some("*".to_string()),
+            expires_at: None,
+        }]),
         state_hash_prev: format!("{:064x}", rng.next() as u64),
         state_hash_next: format!("{:064x}", rng.next() as u64),
-        chain_digest_prev: chain_digest_prev_hex,
+        chain_digest_prev: "0".repeat(64),
         chain_digest_next: "0".repeat(64),
         metrics: coh_core::types::MetricsWire {
             v_pre: v_pre.to_string(),
@@ -207,14 +208,5 @@ fn generate_base(rng: &mut SeededRng) -> MicroReceiptWire {
         },
     };
 
-    // Compute valid digest
-    if let Ok(r) = coh_core::types::MicroReceipt::try_from(wire.clone()) {
-        let prehash = to_prehash_view(&r);
-        if let Ok(bytes) = to_canonical_json_bytes(&prehash) {
-            let digest = compute_chain_digest(chain_digest_prev, &bytes);
-            wire.chain_digest_next = digest.to_hex();
-        }
-    }
-
-    wire
+    finalize_micro_receipt(wire).expect("runtime base fixture should finalize")
 }

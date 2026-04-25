@@ -1,8 +1,6 @@
 use crate::fixtures::FixtureError;
-use coh_core::canon::{to_canonical_json_bytes, to_prehash_view};
-use coh_core::hash::compute_chain_digest;
-use coh_core::types::{MicroReceipt, MicroReceiptWire};
-use std::convert::TryFrom;
+use coh_core::compute_micro_digest_hex;
+use coh_core::types::MicroReceiptWire;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -122,10 +120,6 @@ fn load_jsonl_micro(path: impl AsRef<Path>) -> Result<Vec<MicroReceiptWire>, Fix
 }
 
 fn seal(receipt: &MicroReceiptWire) -> Result<String, FixtureError> {
-    let runtime = MicroReceipt::try_from(receipt.clone())
-        .map_err(|e| FixtureError::NotFound(format!("runtime conversion failed: {:?}", e)))?;
-    let prehash = to_prehash_view(&runtime);
-    let bytes = to_canonical_json_bytes(&prehash)
-        .map_err(|e| FixtureError::NotFound(format!("canonicalization failed: {:?}", e)))?;
-    Ok(compute_chain_digest(runtime.chain_digest_prev, &bytes).to_hex())
+    compute_micro_digest_hex(receipt)
+        .map_err(|e| FixtureError::NotFound(format!("receipt finalization failed: {:?}", e)))
 }

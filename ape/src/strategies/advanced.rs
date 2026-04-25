@@ -5,6 +5,7 @@
 
 use crate::proposal::{Candidate, Input};
 use crate::seed::SeededRng;
+use coh_core::finalize_micro_receipt;
 use coh_core::types::MicroReceiptWire;
 
 /// ShadowChain: Creates individual valid receipts but with chain_digest_prev mismatches
@@ -342,7 +343,7 @@ fn generate_valid_base_micro(rng: &mut SeededRng) -> MicroReceiptWire {
     let spend = rng.next() as u128 % 50;
     let v_post = v_pre.saturating_sub(spend);
 
-    let mut wire = MicroReceiptWire {
+    let wire = MicroReceiptWire {
         schema_id: "coh.receipt.micro.v1".to_string(),
         version: "1.0.0".to_string(),
         object_id: format!("ape.advanced.{}", step),
@@ -351,7 +352,14 @@ fn generate_valid_base_micro(rng: &mut SeededRng) -> MicroReceiptWire {
         policy_hash: "0".repeat(64),
         step_index: step,
         step_type: Some("advanced".to_string()),
-        signatures: None,
+        signatures: Some(vec![coh_core::types::SignatureWire {
+            signature: "sig-0000000000000000".to_string(),
+            signer: "fixture-signer-0".to_string(),
+            timestamp: 1_700_000_000,
+            authority_id: Some("fixture-signer-0".to_string()),
+            scope: Some("*".to_string()),
+            expires_at: None,
+        }]),
         state_hash_prev: format!("{:064x}", step),
         state_hash_next: format!("{:064x}", step + 1),
         chain_digest_prev: "0".repeat(64),
@@ -364,20 +372,7 @@ fn generate_valid_base_micro(rng: &mut SeededRng) -> MicroReceiptWire {
         },
     };
 
-    // Seal with valid-looking digest
-    use coh_core::canon::{to_canonical_json_bytes, to_prehash_view};
-    use coh_core::hash::compute_chain_digest;
-    use std::convert::TryFrom;
-
-    if let Ok(r) = MicroReceipt::try_from(wire.clone()) {
-        let prehash = to_prehash_view(&r);
-        if let Ok(bytes) = to_canonical_json_bytes(&prehash) {
-            let digest = compute_chain_digest(r.chain_digest_prev, &bytes);
-            wire.chain_digest_next = digest.to_hex();
-        }
-    }
-
-    wire
+    finalize_micro_receipt(wire).expect("advanced base fixture should finalize")
 }
 
 // Helper function to compute digest (simplified)
@@ -395,8 +390,6 @@ fn compute_digest(wire: &MicroReceiptWire) -> String {
 
     format!("{:032x}", hasher.finish())
 }
-
-use coh_core::types::MicroReceipt;
 
 #[cfg(test)]
 mod tests {

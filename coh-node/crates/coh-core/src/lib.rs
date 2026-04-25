@@ -1,6 +1,8 @@
+pub mod auth;
 pub mod build_slab;
 pub mod canon;
 pub mod execute;
+pub mod fixtures;
 pub mod hash;
 pub mod math;
 pub mod merkle;
@@ -15,8 +17,14 @@ pub mod verify_slab;
 pub mod types_v3;
 pub mod verify_micro_v3;
 
+pub use auth::{
+    canonical_signed_transition_bytes, decode_signature, decode_verifying_key, fixture_signing_key,
+    sign_micro_receipt, verify_signature, ScopePolicy, TrustedAuthority, VerifierContext,
+    COHENC_V1_SIGNED_TRANSITION_TAG, DEFAULT_SCOPE,
+};
 pub use build_slab::build_slab;
 pub use execute::{ExecuteResponse, ExecutionEngine, ExecutionMode};
+pub use fixtures::{compute_micro_digest_hex, finalize_micro_receipt};
 pub use verify_chain::verify_chain;
 pub use verify_micro::verify_micro;
 pub use verify_slab::{verify_slab_envelope, verify_slab_with_leaves};

@@ -1,16 +1,15 @@
 //! V3 Micro Verification - Transition Contract verification logic
-//! 
+//!
 //! Extends V1/V2 verification with:
 //! - Objective layer checking
 //! - Sequence guard checking
 //! - Policy governance checking
 
 use crate::reject::RejectCode;
-use crate::types::{Decision, MicroReceipt};
+use crate::types::Decision;
 use crate::types_v3::{
-    MicroReceiptV3, MicroReceiptV3Wire, 
-    SequenceGuard, TieredConfig, VerificationMode,
-    ObjectiveResult, PolicyGovernance
+    MicroReceiptV3, MicroReceiptV3Wire, PolicyGovernance, SequenceGuard, TieredConfig,
+    VerificationMode,
 };
 use std::collections::HashMap;
 
@@ -37,11 +36,11 @@ pub struct VerifyMicroV3Result {
 #[must_use]
 pub fn verify_micro_v3(
     wire: MicroReceiptV3Wire,
-    config: &TieredConfig,
-    sequence_guard: &SequenceGuard,
+    _config: &TieredConfig,
+    _sequence_guard: &SequenceGuard,
     policy_gov: &PolicyGovernance,
-    prev_state: Option<crate::types::Hash32>,
-    prev_chain_digest: Option<crate::types::Hash32>,
+    _prev_state: Option<crate::types::Hash32>,
+    _prev_chain_digest: Option<crate::types::Hash32>,
 ) -> VerifyMicroV3Result {
     // 1. Parse V3 wire to internal type
     let r = match MicroReceiptV3::try_from(wire.clone()) {
@@ -59,7 +58,7 @@ pub fn verify_micro_v3(
             };
         }
     };
-    
+
     // 2. Schema check
     if wire.schema_id != "coh.receipt.micro.v3" {
         return VerifyMicroV3Result {
@@ -67,13 +66,13 @@ pub fn verify_micro_v3(
             code: Some(RejectCode::RejectSchema),
             message: "Invalid schema_id for V3".to_string(),
             step_index: Some(r.step_index),
-            object_id: Some(r.object_id),
+            object_id: Some(r.object_id.clone()),
             objective_checked: None,
             sequence_checked: None,
             override_applied: Some(r.override_applied),
         };
     }
-    
+
     // 3. Object ID check
     if r.object_id.is_empty() {
         return VerifyMicroV3Result {
@@ -87,7 +86,7 @@ pub fn verify_micro_v3(
             override_applied: Some(r.override_applied),
         };
     }
-    
+
     // 4. Override check - if override applied, accept (governance exception)
     if r.override_applied {
         if policy_gov.allow_overrides {
@@ -114,7 +113,7 @@ pub fn verify_micro_v3(
             };
         }
     }
-    
+
     // 5. Objective layer check (V3 extension)
     if !r.objective_satisfied() {
         return VerifyMicroV3Result {
@@ -128,7 +127,7 @@ pub fn verify_micro_v3(
             override_applied: Some(false),
         };
     }
-    
+
     // 6. Sequence guard check (V3 extension)
     // Note: In real implementation, we'd check the rolling accumulator
     if !r.sequence_valid {
@@ -143,10 +142,148 @@ pub fn verify_micro_v3(
             override_applied: Some(false),
         };
     }
-    
+
     // 7. Base V1/V2 checks would go here (state hash, chain digest, etc.)
-    // For now, we return ACCEPT with V3 fields
-    
+    // Base Policy logic (Arithmetic boundary check)
+    use crate::math::CheckedMath;
+    let lhs = match r.metrics.v_post.safe_add(r.metrics.spend) {
+        Ok(val) => val,
+        Err(e) => {
+            return VerifyMicroV3Result {
+                decision: Decision::Reject,
+                code: Some(e),
+                message: "Policy arithmetic overflow (v_post + spend)".to_string(),
+                step_index: Some(r.step_index),
+                object_id: Some(r.object_id.clone()),
+                objective_checked: Some(r.objective_satisfied()),
+                sequence_checked: Some(r.sequence_valid),
+                override_applied: Some(false),
+            }
+        }
+    };
+    let rhs = match r.metrics.v_pre.safe_add(r.metrics.defect) {
+        Ok(val) => val,
+        Err(e) => {
+            return VerifyMicroV3Result {
+                decision: Decision::Reject,
+                code: Some(e),
+                message: "Policy arithmetic overflow (v_pre + defect)".to_string(),
+                step_index: Some(r.step_index),
+                object_id: Some(r.object_id.clone()),
+                objective_checked: Some(r.objective_satisfied()),
+                sequence_checked: Some(r.sequence_valid),
+                override_applied: Some(false),
+            }
+        }
+    };
+
+    if lhs > rhs {
+        return VerifyMicroV3Result {
+            decision: Decision::Reject,
+            code: Some(RejectCode::RejectPolicyViolation),
+            message: format!(
+                "Policy violation: v_post + spend ({}) exceeds v_pre + defect ({})",
+                lhs, rhs
+            ),
+            step_index: Some(r.step_index),
+            object_id: Some(r.object_id.clone()),
+            objective_checked: Some(r.objective_satisfied()),
+            sequence_checked: Some(r.sequence_valid),
+            override_applied: Some(false),
+        };
+    }
+
+    // Vacuous zero receipt
+    if r.metrics.v_pre == 0
+        && r.metrics.v_post == 0
+        && r.metrics.spend == 0
+        && r.metrics.defect == 0
+    {
+        return VerifyMicroV3Result {
+            decision: Decision::Reject,
+            code: Some(RejectCode::VacuousZeroReceipt),
+            message: "Vacuous zero receipt: all metrics are zero (no economic activity)"
+                .to_string(),
+            step_index: Some(r.step_index),
+            object_id: Some(r.object_id.clone()),
+            objective_checked: Some(r.objective_satisfied()),
+            sequence_checked: Some(r.sequence_valid),
+            override_applied: Some(false),
+        };
+    }
+
+    // Cannot spend more than balance (spend <= v_pre)
+    if r.metrics.spend > r.metrics.v_pre {
+        return VerifyMicroV3Result {
+            decision: Decision::Reject,
+            code: Some(RejectCode::SpendExceedsBalance),
+            message: format!(
+                "Spend exceeds balance: spend ({}) > v_pre ({})",
+                r.metrics.spend, r.metrics.v_pre
+            ),
+            step_index: Some(r.step_index),
+            object_id: Some(r.object_id.clone()),
+            objective_checked: Some(r.objective_satisfied()),
+            sequence_checked: Some(r.sequence_valid),
+            override_applied: Some(false),
+        };
+    }
+
+    // Cryptographic integrity
+    use crate::canon::{to_canonical_json_bytes, to_prehash_view};
+    use crate::hash::compute_chain_digest;
+
+    let v1_receipt = crate::types::MicroReceipt {
+        schema_id: r.schema_id.clone(),
+        version: r.version.clone(),
+        object_id: r.object_id.clone(),
+        canon_profile_hash: r.canon_profile_hash.clone(),
+        policy_hash: r.policy_hash.clone(),
+        step_index: r.step_index,
+        step_type: r.step_type.clone(),
+        signatures: r.signatures.clone(),
+        state_hash_prev: r.state_hash_prev.clone(),
+        state_hash_next: r.state_hash_next.clone(),
+        chain_digest_prev: r.chain_digest_prev.clone(),
+        chain_digest_next: r.chain_digest_next.clone(),
+        metrics: r.metrics.clone(),
+    };
+
+    let prehash = to_prehash_view(&v1_receipt);
+    let canon_bytes = match to_canonical_json_bytes(&prehash) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            return VerifyMicroV3Result {
+                decision: Decision::Reject,
+                code: Some(e),
+                message: "Canonicalization failed: invalid JSON encoding".to_string(),
+                step_index: Some(r.step_index),
+                object_id: Some(r.object_id.clone()),
+                objective_checked: Some(r.objective_satisfied()),
+                sequence_checked: Some(r.sequence_valid),
+                override_applied: Some(false),
+            };
+        }
+    };
+    let computed_digest = compute_chain_digest(r.chain_digest_prev.clone(), &canon_bytes);
+
+    if computed_digest != r.chain_digest_next {
+        return VerifyMicroV3Result {
+            decision: Decision::Reject,
+            code: Some(RejectCode::RejectChainDigest),
+            message: format!(
+                "Cryptographic digest mismatch: computed {} but found {}",
+                computed_digest.to_hex(),
+                r.chain_digest_next.to_hex()
+            ),
+            step_index: Some(r.step_index),
+            object_id: Some(r.object_id.clone()),
+            objective_checked: Some(r.objective_satisfied()),
+            sequence_checked: Some(r.sequence_valid),
+            override_applied: Some(false),
+        };
+    }
+
     VerifyMicroV3Result {
         decision: Decision::Accept,
         code: None,
@@ -172,9 +309,14 @@ pub fn verify_with_mode(
 ) -> VerifyMicroV3Result {
     match config.mode {
         // STRICT: Full verification
-        VerificationMode::Strict => {
-            verify_micro_v3(wire, config, sequence_guard, policy_gov, prev_state, prev_chain_digest)
-        }
+        VerificationMode::Strict => verify_micro_v3(
+            wire,
+            config,
+            sequence_guard,
+            policy_gov,
+            prev_state,
+            prev_chain_digest,
+        ),
         // FAST: Use cache if available
         VerificationMode::Fast => {
             let cache_key = format!("{}:{}", wire.object_id, wire.step_index);
@@ -192,7 +334,14 @@ pub fn verify_with_mode(
                 }
             } else {
                 // Verify and cache
-                verify_micro_v3(wire, config, sequence_guard, policy_gov, prev_state, prev_chain_digest)
+                verify_micro_v3(
+                    wire,
+                    config,
+                    sequence_guard,
+                    policy_gov,
+                    prev_state,
+                    prev_chain_digest,
+                )
             }
         }
         // ASYNC: Accept immediately, verify later
@@ -204,8 +353,8 @@ pub fn verify_with_mode(
                 message: "(async queued)".to_string(),
                 step_index: Some(wire.step_index),
                 object_id: Some(wire.object_id),
-                objective_checked: None,  // Not checked yet
-                sequence_checked: None,   // Not checked yet
+                objective_checked: None, // Not checked yet
+                sequence_checked: None,  // Not checked yet
                 override_applied: Some(wire.override_applied),
             }
         }
@@ -215,46 +364,95 @@ pub fn verify_with_mode(
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
+    fn build_valid_wire() -> MicroReceiptV3Wire {
+        let mut wire = MicroReceiptV3Wire::default();
+        wire.object_id = "test_obj".to_string();
+        wire.canon_profile_hash = "a".repeat(64);
+        wire.policy_hash = "b".repeat(64);
+        wire.state_hash_prev = "c".repeat(64);
+        wire.state_hash_next = "d".repeat(64);
+        wire.chain_digest_prev = "e".repeat(64);
+        wire.chain_digest_next = "f".repeat(64);
+        wire.metrics = crate::types::MetricsWire {
+            v_pre: "100".to_string(),
+            v_post: "50".to_string(),
+            spend: "50".to_string(),
+            defect: "0".to_string(),
+        };
+
+        // Calculate correct digest to pass crypto check
+        use crate::canon::{to_canonical_json_bytes, to_prehash_view};
+        use crate::hash::compute_chain_digest;
+        use crate::types::MicroReceipt;
+        use std::convert::TryFrom;
+
+        let v1_wire = crate::types::MicroReceiptWire {
+            schema_id: wire.schema_id.clone(),
+            version: wire.version.clone(),
+            object_id: wire.object_id.clone(),
+            canon_profile_hash: wire.canon_profile_hash.clone(),
+            policy_hash: wire.policy_hash.clone(),
+            step_index: wire.step_index,
+            step_type: wire.step_type.clone(),
+            signatures: wire.signatures.clone(),
+            state_hash_prev: wire.state_hash_prev.clone(),
+            state_hash_next: wire.state_hash_next.clone(),
+            chain_digest_prev: wire.chain_digest_prev.clone(),
+            chain_digest_next: wire.chain_digest_next.clone(),
+            metrics: wire.metrics.clone(),
+        };
+
+        if let Ok(r) = MicroReceipt::try_from(v1_wire) {
+            let prehash = to_prehash_view(&r);
+            if let Ok(canon_bytes) = to_canonical_json_bytes(&prehash) {
+                let computed_digest = compute_chain_digest(r.chain_digest_prev, &canon_bytes);
+                wire.chain_digest_next = computed_digest.to_hex();
+            }
+        }
+
+        wire
+    }
+
     #[test]
     fn test_v3_accept() {
-        let wire = MicroReceiptV3Wire::default();
+        let wire = build_valid_wire();
         let config = TieredConfig::default();
         let guard = SequenceGuard::default();
         let policy = PolicyGovernance::default();
-        
+
         let result = verify_micro_v3(wire, &config, &guard, &policy, None, None);
         assert_eq!(result.decision, Decision::Accept);
     }
-    
+
     #[test]
     fn test_v3_reject_override_disallowed() {
-        let mut wire = MicroReceiptV3Wire::default();
+        let mut wire = build_valid_wire();
         wire.override_applied = true;
-        
+
         let mut policy = PolicyGovernance::default();
         policy.allow_overrides = false;
-        
+
         let config = TieredConfig::default();
         let guard = SequenceGuard::default();
-        
+
         let result = verify_micro_v3(wire, &config, &guard, &policy, None, None);
         assert_eq!(result.decision, Decision::Reject);
     }
-    
+
     #[test]
     fn test_v3_accept_override_allowed() {
-        let mut wire = MicroReceiptV3Wire::default();
+        let mut wire = build_valid_wire();
         wire.override_applied = true;
-        
+
         let policy = PolicyGovernance {
             allow_overrides: true,
             ..Default::default()
         };
-        
+
         let config = TieredConfig::default();
         let guard = SequenceGuard::default();
-        
+
         let result = verify_micro_v3(wire, &config, &guard, &policy, None, None);
         assert_eq!(result.decision, Decision::Accept);
     }

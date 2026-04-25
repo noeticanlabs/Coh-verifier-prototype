@@ -1,5 +1,0 @@
-* text=auto
-*.lean text eol=lf
-*.rs text eol=lf
-*.md text eol=lf
-*.json text eol=lf

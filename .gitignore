@@ -4,15 +4,23 @@ target/
 Cargo.lock
 **/*.rs.bk
 
-# IDE
+# Node.js
+node_modules/
+dist/
+build/
+.npm/
+
+# IDE / Editor
 .idea/
 .vscode/
 *.swp
 *.swo
-
-# OS
+*.swn
 .DS_Store
 Thumbs.db
+.env
+.env.local
+.env.*.local
 
 # Build artifacts
 *.exe
@@ -20,12 +28,37 @@ Thumbs.db
 *.so
 *.dylib
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+venv/
+env/
+.venv/
+
 # Documentation build
 docs/book/
-# Lake build artifacts
+docs/_build/
+
+# Lake build artifacts (Lean)
 .lake/
 lake-packages/
-build/
 
-# Generated Data
+# Test outputs and temporary fixtures
 coh-dashboard/public/demo/sidecar_valid.jsonl
+*.log
+*.txt
+!CMakeLists.txt
+!requirements.txt
+
+# Generated outputs
+benchmarks/results/
+output/
+*.pdf
+*.png
+*.svg
+!ape_cinematic_funnel.png
+!coh_funnel_final.png

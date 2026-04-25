@@ -4,6 +4,7 @@
 use coh_core::canon::{
     EXPECTED_CANON_PROFILE_HASH, EXPECTED_MICRO_SCHEMA_ID, EXPECTED_MICRO_VERSION,
 };
+use coh_core::finalize_micro_receipt;
 use coh_core::types::{Decision, MetricsWire, RejectCode, SignatureWire};
 use coh_core::verify_micro::verify_micro;
 
@@ -24,7 +25,7 @@ fn build_test_wire_with_metrics(
     spend: &str,
     defect: &str,
 ) -> coh_core::types::MicroReceiptWire {
-    coh_core::types::MicroReceiptWire {
+    let wire = coh_core::types::MicroReceiptWire {
         schema_id: EXPECTED_MICRO_SCHEMA_ID.to_string(),
         version: EXPECTED_MICRO_VERSION.to_string(),
         object_id: TEST_OBJ_ID.to_string(),
@@ -36,6 +37,9 @@ fn build_test_wire_with_metrics(
             signature: VALID_SIG.to_string(),
             signer: VALID_SIGNER.to_string(),
             timestamp: VALID_TIMESTAMP,
+            authority_id: Some(VALID_SIGNER.to_string()),
+            scope: Some("*".to_string()),
+            expires_at: None,
         }]),
         state_hash_prev: "1111111111111111111111111111111111111111111111111111111111111111"
             .to_string(),
@@ -43,7 +47,7 @@ fn build_test_wire_with_metrics(
             .to_string(),
         chain_digest_prev: "0000000000000000000000000000000000000000000000000000000000000000"
             .to_string(),
-        chain_digest_next: "431bf30f44950ef6f3d60e75bc2fd891a2f259fe218c8cf19655acf149dc85ba"
+        chain_digest_next: "0000000000000000000000000000000000000000000000000000000000000000"
             .to_string(),
         metrics: MetricsWire {
             v_pre: v_pre.to_string(),
@@ -51,7 +55,8 @@ fn build_test_wire_with_metrics(
             spend: spend.to_string(),
             defect: defect.to_string(),
         },
-    }
+    };
+    finalize_micro_receipt(wire).expect("fixture should finalize")
 }
 
 // =============================================================================
@@ -88,7 +93,7 @@ fn test_accounting_law_valid_receipts_accepted() {
 fn test_accounting_law_violation_rejected() {
     // Test cases that violate v_post + spend <= v_pre + defect
     let invalid_cases = vec![
-        ("100", "80", "30", "10"), // 80+30=110 > 100+10 = 110 ✗
+        ("100", "90", "30", "10"), // 90+30=120 > 100+10 = 110 ✗
         ("50", "50", "10", "5"),   // 50+10=60 > 50+5 = 55 ✗
         ("100", "60", "50", "5"),  // 60+50=110 > 100+5 = 105 ✗
     ];
@@ -143,9 +148,9 @@ fn test_boundary_plus_one_rejected() {
 
 #[test]
 fn test_overflow_rejected() {
-    // Test with u64::MAX values - will get parsed but violate policy
-    let max_val = "18446744073709551615".to_string(); // u64::MAX
-    let wire = build_test_wire_with_metrics(&max_val, "1000", "1000", "0");
+    // Test with u128::MAX values - will get parsed but violate policy
+    let max_val = u128::MAX.to_string(); // u128::MAX
+    let wire = build_test_wire_with_metrics("1000", &max_val, "1000", "0");
     let result = verify_micro(wire);
 
     // Should reject - policy violation or malformed

@@ -1,0 +1,42 @@
+[
+  {
+    "file": "accept_base.json",
+    "accept": true,
+    "code": "Accept"
+  },
+  {
+    "file": "reject_bad_digest.json",
+    "accept": false,
+    "code": "RejectChainDigest"
+  },
+  {
+    "file": "reject_bad_policy.json",
+    "accept": false,
+    "code": "RejectInvalidSignature"
+  },
+  {
+    "file": "reject_bad_schema.json",
+    "accept": false,
+    "code": "RejectSchema"
+  },
+  {
+    "file": "reject_bad_sig.json",
+    "accept": false,
+    "code": "RejectInvalidSignature"
+  },
+  {
+    "file": "reject_bad_state_hex.json",
+    "accept": false,
+    "code": "RejectNumericParse"
+  },
+  {
+    "file": "reject_empty_object.json",
+    "accept": false,
+    "code": "RejectMissingObjectId"
+  },
+  {
+    "file": "reject_missing_pk.json",
+    "accept": false,
+    "code": "RejectMissingSignature"
+  }
+]

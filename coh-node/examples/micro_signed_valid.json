@@ -1,0 +1,29 @@
+{
+  "schema_id": "coh.receipt.micro.v1",
+  "version": "1.0.0",
+  "object_id": "signed_valid_001",
+  "public_key": "fa785f9cd02b1beb2c9d03943cc376112e9025c5086e778ef8613ff239b53a3c",
+  "canon_profile_hash": "4fb5a33116a4e393ad7900f0744e8ec5d1b7a2d67d71003666d628d7a1cded09",
+  "policy_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "step_index": 0,
+  "step_type": "test",
+  "signatures": [
+    {
+      "signature": "1ce8da0f082562bd931f67473699d665385a0b4f36d58fb8b5bd868adda91b743ba80125a56eae26472d1a746d7babdac04b841518276ce7d63d25a14fa9b704",
+      "signer": "node-generated",
+      "public_key": "fa785f9cd02b1beb2c9d03943cc376112e9025c5086e778ef8613ff239b53a3c",
+      "timestamp": 1700000000
+    }
+  ],
+  "state_hash_prev": "0000000000000000000000000000000000000000000000000000000000000000",
+  "state_hash_next": "1111111111111111111111111111111111111111111111111111111111111111",
+  "chain_digest_prev": "0000000000000000000000000000000000000000000000000000000000000000",
+  "chain_digest_next": "b83dbe9878face10fd5c4c79f5c0195c17d22c5123f5407ba658c4e4124bed4e",
+  "metrics": {
+    "authority": "0",
+    "defect": "0",
+    "spend": "15",
+    "v_post": "80",
+    "v_pre": "100"
+  }
+}

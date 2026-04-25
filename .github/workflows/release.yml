@@ -20,7 +20,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build
-        run: cargo build --release --package coh-cli --locked
+        run: cargo build --release -p coh-validator --locked
 
       - name: Create Release
         id: create_release

@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verifier Admissibility - Dense Line Graphs</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="data.js"></script>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text: #f8fafc;
+            --accent: #38bdf8;
+            --v_pre: #38bdf8;
+            --v_post: #818cf8;
+            --spend: #fb7185;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1100px;
+            width: 100%;
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 32px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        header {
+            margin-bottom: 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin: 0;
+            background: linear-gradient(to right, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+        }
+
+        button {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text);
+            padding: 8px 16px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+
+        button.active {
+            background: var(--accent);
+            color: var(--bg);
+            border-color: var(--accent);
+        }
+
+        button:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        #chart {
+            width: 100%;
+            height: 500px;
+            position: relative;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+
+        .legend {
+            display: flex;
+            gap: 24px;
+            margin-top: 24px;
+            justify-content: center;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #94a3b8;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+
+        .grid line {
+            stroke: rgba(255, 255, 255, 0.05);
+        }
+
+        .axis-label {
+            fill: #94a3b8;
+            font-size: 11px;
+        }
+
+        .domain {
+            stroke: rgba(255, 255, 255, 0.1);
+        }
+
+        .tick line {
+            stroke: rgba(255, 255, 255, 0.1);
+        }
+
+        .line {
+            fill: none;
+            stroke-width: 2.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .focus-line {
+            stroke: rgba(255, 255, 255, 0.2);
+            stroke-dasharray: 4;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Verifier Admissibility Metrics</h1>
+            <div class="controls">
+                <button id="btn-honest" class="active">Honest Trace</button>
+                <button id="btn-hallucinated">Hallucinated Trace</button>
+            </div>
+        </header>
+        
+        <div id="chart">
+            <div id="tooltip" class="tooltip"></div>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item"><div class="dot" style="background: var(--v_pre)"></div> V_pre</div>
+            <div class="legend-item"><div class="dot" style="background: var(--v_post)"></div> V_post</div>
+            <div class="legend-item"><div class="dot" style="background: var(--spend)"></div> Spend</div>
+        </div>
+    </div>
+
+    <script>
+        const margin = {top: 20, right: 30, bottom: 40, left: 50};
+        const width = 1000 - margin.left - margin.right;
+        const height = 500 - margin.top - margin.bottom;
+
+        const svg = d3.select("#chart")
+            .append("svg")
+            .attr("width", "100%")
+            .attr("height", "100%")
+            .attr("viewBox", `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        const x = d3.scaleLinear().range([0, width]);
+        const y = d3.scaleLinear().range([height, 0]);
+
+        const line_vpre = d3.line()
+            .x(d => x(d.step_index))
+            .y(d => y(+d.metrics.v_pre));
+
+        const line_vpost = d3.line()
+            .x(d => x(d.step_index))
+            .y(d => y(+d.metrics.v_post));
+
+        const line_spend = d3.line()
+            .x(d => x(d.step_index))
+            .y(d => y(+d.metrics.spend));
+
+        // Add axes groups
+        const xAxis = svg.append("g")
+            .attr("transform", `translate(0,${height})`)
+            .attr("class", "axis");
+
+        const yAxis = svg.append("g")
+            .attr("class", "axis");
+
+        // Add gridlines
+        const grid = svg.append("g").attr("class", "grid");
+
+        // Add paths
+        const path_vpre = svg.append("path").attr("class", "line").attr("stroke", "var(--v_pre)");
+        const path_vpost = svg.append("path").attr("class", "line").attr("stroke", "var(--v_post)");
+        const path_spend = svg.append("path").attr("class", "line").attr("stroke", "var(--spend)");
+
+        // Tooltip line
+        const focus = svg.append("g").style("display", "none");
+        focus.append("line").attr("class", "focus-line").attr("y1", 0).attr("y2", height);
+
+        const overlay = svg.append("rect")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("fill", "transparent");
+
+        function update(data) {
+            x.domain(d3.extent(data, d => d.step_index));
+            y.domain([0, d3.max(data, d => Math.max(+d.metrics.v_pre, +d.metrics.v_post)) * 1.1]);
+
+            xAxis.transition().duration(500).call(d3.axisBottom(x).ticks(10));
+            yAxis.transition().duration(500).call(d3.axisLeft(y));
+
+            grid.transition().duration(500).call(d3.axisLeft(y).tickSize(-width).tickFormat(""));
+
+            path_vpre.datum(data).transition().duration(500).attr("d", line_vpre);
+            path_vpost.datum(data).transition().duration(500).attr("d", line_vpost);
+            path_spend.datum(data).transition().duration(500).attr("d", line_spend);
+
+            overlay.on("mousemove", (event) => {
+                const mouseX = d3.pointer(event)[0];
+                const xVal = Math.round(x.invert(mouseX));
+                const d = data.find(p => p.step_index === xVal);
+
+                if (d) {
+                    focus.style("display", null)
+                        .attr("transform", `translate(${x(d.step_index)},0)`);
+                    
+                    const tooltip = d3.select("#tooltip");
+                    tooltip.style("opacity", 1)
+                        .style("left", (event.pageX + 15) + "px")
+                        .style("top", (event.pageY - 15) + "px")
+                        .html(`
+                            <div style="font-weight:bold;margin-bottom:4px">Step ${d.step_index}</div>
+                            <div style="color:var(--v_pre)">V_pre: ${d.metrics.v_pre}</div>
+                            <div style="color:var(--v_post)">V_post: ${d.metrics.v_post}</div>
+                            <div style="color:var(--spend)">Spend: ${d.metrics.spend}</div>
+                        `);
+                }
+            }).on("mouseout", () => {
+                focus.style("display", "none");
+                d3.select("#tooltip").style("opacity", 0);
+            });
+        }
+
+        document.getElementById("btn-honest").onclick = (e) => {
+            document.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+            e.target.classList.add("active");
+            update(honestData);
+        };
+
+        document.getElementById("btn-hallucinated").onclick = (e) => {
+            document.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+            e.target.classList.add("active");
+            update(hallucinatedData);
+        };
+
+        update(honestData);
+    </script>
+</body>
+</html>

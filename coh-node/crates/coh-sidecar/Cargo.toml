@@ -15,6 +15,3 @@ coh-core = { path = "../coh-core" }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-reqwest = { version = "0.12", features = ["json"] }
-tower = { version = "0.5", features = ["util"] }
-http-body-util = "0.1"

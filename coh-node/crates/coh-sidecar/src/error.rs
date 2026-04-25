@@ -4,9 +4,9 @@ use axum::{
     Json,
 };
 use coh_core::reject::RejectCode;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+#[derive(Debug, Serialize, Clone, Copy)]
 pub enum CohErrorCode {
     E001, // Malformed Input / Schema / Overflow
     E002, // Cryptographic Failure (Digest/Merkle)
@@ -50,28 +50,13 @@ impl From<RejectCode> for CohErrorCode {
             // Cumulative drift failures (GradientDescent defense)
             | RejectCode::CumulativeDriftDetected => CohErrorCode::E003,
 
-            // Measurement/oplax failures -> E003 (policy-style quantitative violation)
-            RejectCode::RejectDissipationViolation | RejectCode::RejectInvalidMapping => CohErrorCode::E003,
-
             // State link -> E004
             RejectCode::RejectStateHashLink => CohErrorCode::E004,
-
-            // GCCP compute-specific failures (Section 18) -> E001 (resource/governance)
-            RejectCode::RejectTempCap
-            | RejectCode::RejectPowerCap
-            | RejectCode::RejectQueueCap
-            | RejectCode::RejectMemoryCap
-            | RejectCode::RejectDefectCap
-            | RejectCode::RejectBudget
-            | RejectCode::RejectPredictorStale
-            | RejectCode::RejectTelemetryStale
-            | RejectCode::RejectRouteUnavailable
-            | RejectCode::RejectPolicyClassMismatch => CohErrorCode::E001,
         }
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub struct ApiError {
     pub code: CohErrorCode,
     pub message: String,

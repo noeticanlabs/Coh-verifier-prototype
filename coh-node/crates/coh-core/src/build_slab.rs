@@ -43,6 +43,7 @@ pub fn build_slab(receipts: Vec<MicroReceiptWire>) -> BuildSlabResult {
     // 2. Aggregate totals and collect leaves
     let mut total_spend: u128 = 0;
     let mut total_defect: u128 = 0;
+    let mut total_delta: u128 = 0;
     let first_wire = receipts.first().unwrap();
     let last_wire = receipts.last().unwrap();
 
@@ -98,7 +99,42 @@ pub fn build_slab(receipts: Vec<MicroReceiptWire>) -> BuildSlabResult {
                 }
             }
         };
+
+        total_delta = match total_delta.safe_add(crate::semantic::SemanticRegistry::delta_for_type(&r.step_type)) {
+            Ok(val) => val,
+            Err(e) => {
+                return BuildSlabResult {
+                    decision: Decision::Reject,
+                    code: Some(e),
+                    message: format!("Total delta overflow: {:?}", e),
+                    range_start: None,
+                    range_end: None,
+                    micro_count: None,
+                    merkle_root: None,
+                    output: None,
+                    slab: None,
+                }
+            }
+        };
         leaves.push(r.chain_digest_next);
+    }
+
+    // Macro-defect check: total_defect must be >= sum(delta)
+    if total_defect < total_delta {
+        return BuildSlabResult {
+            decision: Decision::Reject,
+            code: Some(RejectCode::RejectPolicyViolation),
+            message: format!(
+                "Macro defect bound violation: total_defect ({}) < total_delta ({})",
+                total_defect, total_delta
+            ),
+            range_start: Some(first_wire.step_index),
+            range_end: Some(last_wire.step_index),
+            micro_count: Some(receipts.len() as u64),
+            merkle_root: None,
+            output: None,
+            slab: None,
+        };
     }
 
     let merkle_root = build_merkle_root(&leaves);

@@ -5,6 +5,7 @@ use crate::canon::{
 };
 use crate::hash::compute_chain_digest;
 use crate::math::CheckedMath;
+use crate::semantic::SemanticRegistry;
 use crate::types::{Decision, MicroReceipt, MicroReceiptWire, RejectCode, VerifyMicroResult};
 use std::convert::TryFrom;
 
@@ -175,6 +176,34 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
                 "Spend exceeds balance: spend ({}) > v_pre ({})",
                 r.metrics.spend, r.metrics.v_pre
             ),
+            step_index: Some(r.step_index),
+            object_id: Some(r.object_id),
+            chain_digest_next: None,
+        };
+    }
+
+    // C5: Defect bound enforcement (delta(trace) <= defect)
+    if !SemanticRegistry::verify_defect_bound(&r) {
+        let delta = SemanticRegistry::delta_for_type(&r.step_type);
+        return VerifyMicroResult {
+            decision: Decision::Reject,
+            code: Some(RejectCode::RejectPolicyViolation),
+            message: format!(
+                "Defect bound violation: defect ({}) < delta ({}) for step type {:?}",
+                r.metrics.defect, delta, r.step_type
+            ),
+            step_index: Some(r.step_index),
+            object_id: Some(r.object_id),
+            chain_digest_next: None,
+        };
+    }
+
+    // C6: Identity cost check (Identity spend must be zero)
+    if SemanticRegistry::is_identity(&r.step_type) && r.metrics.spend > 0 {
+        return VerifyMicroResult {
+            decision: Decision::Reject,
+            code: Some(RejectCode::RejectPolicyViolation),
+            message: "Identity step cannot have non-zero spend".to_string(),
             step_index: Some(r.step_index),
             object_id: Some(r.object_id),
             chain_digest_next: None,

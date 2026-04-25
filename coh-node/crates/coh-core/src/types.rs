@@ -110,6 +110,52 @@ pub struct Metrics {
     pub defect: u128,
 }
 
+/// A Certified Morphism in the Coh Category.
+/// Mirrors the Slack2Cell and CertifiedMorphism structures in Lean.
+pub struct CertifiedMorphism {
+    pub v_pre: u128,
+    pub v_post: u128,
+    pub spend: u128,
+    pub defect: u128,
+}
+
+impl CertifiedMorphism {
+    pub fn new(v_pre: u128, v_post: u128, spend: u128, defect: u128) -> Self {
+        Self {
+            v_pre,
+            v_post,
+            spend,
+            defect,
+        }
+    }
+
+    /// The fundamental inequality: V_post + spend <= V_pre + defect
+    pub fn is_certified(&self) -> bool {
+        let lhs = self.v_post.saturating_add(self.spend);
+        let rhs = self.v_pre.saturating_add(self.defect);
+        lhs <= rhs
+    }
+
+    /// Compose with another certified morphism (f ; g)
+    /// Cost additivity: spend = spend_f + spend_g, defect = defect_f + defect_g
+    pub fn compose(&self, other: &Self) -> Option<Self> {
+        // v_post of first must match v_pre of second (simplified object match)
+        if self.v_post != other.v_pre {
+            return None;
+        }
+
+        let total_spend = self.spend.checked_add(other.spend)?;
+        let total_defect = self.defect.checked_add(other.defect)?;
+
+        Some(Self {
+            v_pre: self.v_pre,
+            v_post: other.v_post,
+            spend: total_spend,
+            defect: total_defect,
+        })
+    }
+}
+
 pub struct MicroReceipt {
     pub schema_id: String,
     pub version: String,

@@ -28,7 +28,7 @@ pub use build_slab::build_slab;
 pub use execute::{ExecuteResponse, ExecutionEngine, ExecutionMode};
 pub use fixtures::{compute_micro_digest_hex, finalize_micro_receipt};
 pub use verify_chain::verify_chain;
-pub use verify_micro::verify_micro;
+pub use verify_micro::{verify_micro, verify_micro_with_context};
 pub use verify_slab::{verify_slab_envelope, verify_slab_with_leaves};
 // V3 exports
 pub use types_v3::{

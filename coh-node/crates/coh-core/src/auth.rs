@@ -99,7 +99,8 @@ impl VerifierContext {
 
         Self {
             trusted_signers,
-            active_policy_hash: Some("0".repeat(64)),
+            // Empty string means no policy hash enforcement (for backward compatibility)
+            active_policy_hash: Some(String::new()),
             current_time: None,
         }
     }

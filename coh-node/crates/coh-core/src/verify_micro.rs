@@ -1,3 +1,4 @@
+use crate::auth::{verify_signature, VerifierContext};
 use crate::canon::{
     to_canonical_json_bytes, to_prehash_view, EXPECTED_CANON_PROFILE_HASH,
     EXPECTED_MICRO_SCHEMA_ID, EXPECTED_MICRO_VERSION,
@@ -8,8 +9,13 @@ use crate::semantic::SemanticRegistry;
 use crate::types::{Decision, MicroReceipt, MicroReceiptWire, RejectCode, VerifyMicroResult};
 use std::convert::TryFrom;
 
+/// Production verifier entrypoint that requires a trusted authority context.
+/// This is the primary entrypoint for signature verification enforcement.
 #[must_use]
-pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
+pub fn verify_micro_with_context(
+    wire: MicroReceiptWire,
+    ctx: VerifierContext,
+) -> VerifyMicroResult {
     let step_index = wire.step_index;
     let object_id = wire.object_id.clone();
 
@@ -68,7 +74,7 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
         };
     }
 
-    // 3.5 Signature Presence
+    // 3.5 Signature Presence Check
     let missing_sig = match &r.signatures {
         None => true,
         Some(sigs) => sigs.is_empty(),
@@ -85,24 +91,22 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
         };
     }
 
-    // 4. Signature presence check (for backwards compatibility - ENFORCEMENT DISABLED)
-    // NOTE: This section is disabled for backwards compatibility with existing fixtures.
-    // To enable full cryptographic verification, uncomment the code below.
-    // let ctx = VerifierContext::fixture_default();
-    // if let Some(sigs) = &r.signatures {
-    //     for sig in sigs {
-    //         if let Err(e) = verify_signature(&r, sig, None, None, &ctx) {
-    //             return VerifyMicroResult {
-    //                 decision: Decision::Reject,
-    //                 code: Some(e),
-    //                 message: format!("Signature verification failed: {:?}", e),
-    //                 step_index: Some(r.step_index),
-    //                 object_id: Some(r.object_id),
-    //                 chain_digest_next: None,
-    //             };
-    //         }
-    //     }
-    // }
+    // 4. Signature AUTHENTICATION - ENFORCED
+    // This is the critical security check that verifies the signature is valid
+    if let Some(sigs) = &r.signatures {
+        for sig in sigs {
+            if let Err(e) = verify_signature(&r, sig, None, None, &ctx) {
+                return VerifyMicroResult {
+                    decision: Decision::Reject,
+                    code: Some(e),
+                    message: format!("Signature verification failed: {:?}", e),
+                    step_index: Some(r.step_index),
+                    object_id: Some(r.object_id),
+                    chain_digest_next: None,
+                };
+            }
+        }
+    }
 
     // 5. Profile check
     if r.canon_profile_hash.to_hex() != EXPECTED_CANON_PROFILE_HASH {
@@ -263,4 +267,13 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
         object_id: Some(r.object_id),
         chain_digest_next: Some(r.chain_digest_next.to_hex()),
     }
+}
+
+/// Legacy verifier entrypoint that uses default fixture context for backward compatibility.
+/// NOTE: Signature verification IS now enforced with the default context.
+#[must_use]
+pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
+    // Use default fixture context - signature verification is now enforced
+    let ctx = VerifierContext::fixture_default();
+    verify_micro_with_context(wire, ctx)
 }

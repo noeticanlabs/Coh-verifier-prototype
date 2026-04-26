@@ -59,8 +59,8 @@ jobs:
       - name: Rename libcoh.so to coh.so (Linux)
         shell: bash
         run: |
-          if [ -f coh-node/target/release/libcoh.so ]; then
-            cp coh-node/target/release/libcoh.so coh-node/target/release/coh.so
+          if [ -f target/release/libcoh.so ]; then
+            cp target/release/libcoh.so target/release/coh.so
             echo "Successfully renamed libcoh.so to coh.so"
           fi
 
@@ -139,6 +139,15 @@ jobs:
             coh-node/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('coh-node/Cargo.lock') }}
 
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Build coh-validator
+        run: cargo build --release --bin coh-validator
+        working-directory: ./coh-node
+
       - name: Verify Adversarial Rejections
         shell: bash
         run: bash scripts/verify_adversarial.sh
@@ -162,6 +171,15 @@ jobs:
             ~/.cargo/git
             coh-node/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('coh-node/Cargo.lock') }}
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Build coh-sidecar
+        run: cargo build --release --bin coh-sidecar
+        working-directory: ./coh-node
 
       - name: Install Python dependencies
         run: |

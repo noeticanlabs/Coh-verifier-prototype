@@ -6,13 +6,14 @@
 //! - Policy governance (override_applied)
 
 use crate::reject::RejectCode;
-use crate::types::{Hash32, Metrics, MicroReceiptWire};
+use crate::types::{Hash32, Metrics};
 use serde::{Deserialize, Serialize};
 
 /// Objective target types for V3
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ObjectiveTarget {
+    #[default]
     MinimizeSpend,
     MaximizeValue,
     CloseTickets,
@@ -20,25 +21,14 @@ pub enum ObjectiveTarget {
     Custom(String),
 }
 
-impl Default for ObjectiveTarget {
-    fn default() -> Self {
-        ObjectiveTarget::MinimizeSpend
-    }
-}
-
 /// Objective result if checked
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ObjectiveResult {
     Satisfied(ObjectiveTarget),
     Violated(ObjectiveTarget),
+    #[default]
     NotApplicable,
-}
-
-impl Default for ObjectiveResult {
-    fn default() -> Self {
-        ObjectiveResult::NotApplicable
-    }
 }
 
 /// V3 MicroReceipt - extends V1/V2 with Transition Contract fields
@@ -239,18 +229,13 @@ impl Default for PolicyGovernance {
 }
 
 /// Verification mode
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum VerificationMode {
+    #[default]
     Strict, // Full verification
-    Fast,   // Cached/partial
-    Async,  // Post-check
-}
-
-impl Default for VerificationMode {
-    fn default() -> Self {
-        VerificationMode::Strict
-    }
+    Fast,  // Cached/partial
+    Async, // Post-check
 }
 
 /// Tiered verification config

@@ -10,20 +10,20 @@ This runbook documents the audit procedures, thresholds, and testing requirement
 
 | Check | Threshold | Status |
 |-------|-----------|--------|
-| Accounting law holds | `v_post + spend <= v_pre + defect` for all valid inputs | [ ] |
-| Policy violations rejected | Exit code 1 for all policy violations | [ ] |
-| Malformed inputs rejected | Exit code 2 for all parse errors | [ ] |
-| Schema validation | Proper rejection with RejectSchema code | [ ] |
+| Accounting law holds | `v_post + spend <= v_pre + defect` for all valid inputs | [x] (Automated: `test_property`) |
+| Policy violations rejected | Exit code 1 for all policy violations | [x] (Automated: `verify_adversarial.sh`) |
+| Malformed inputs rejected | Exit code 2 for all parse errors | [x] (Automated: `verify_adversarial.sh`) |
+| Schema validation | Proper rejection with RejectSchema code | [x] (Automated: `verify_adversarial.sh`) |
 
 ### 2. Property-Based Test Coverage
 
 | Property | Test Count | Minimum |
 |----------|------------|---------|
-| Accounting law | Minimum 100 variations | [ ] |
-| Boundary cases | Edge at equality, edge +1 | [ ] |
-| Overflow resistance | Max values tested | [ ] |
-| Determinism | Same input = same output (3x) | [ ] |
-| Vacuous rejection | All-zero receipts | [ ] |
+| Accounting law | Minimum 100 variations | [x] (CI: 1000 iter) |
+| Boundary cases | Edge at equality, edge +1 | [x] (CI: `test_boundary`) |
+| Overflow resistance | Max values tested | [x] (CI: `test_overflow`) |
+| Determinism | Same input = same output (3x) | [x] (CI: `test_determinism`) |
+| Vacuous rejection | All-zero receipts | [x] (CI: `test_vacuous`) |
 
 ### 3. Differential Testing
 
@@ -177,14 +177,14 @@ Adversarial vectors:
 
 Before production release:
 
-- [ ] All unit tests pass
-- [ ] All property-based tests pass (1000+ iterations)
-- [ ] All differential tests pass
-- [ ] All adversarial vectors rejected
-- [ ] All valid vectors accepted
+- [x] All unit tests pass (CI: `cargo test --workspace`)
+- [x] All property-based tests pass (CI: `test_property`)
+- [x] All differential tests pass (CI: `test_differential`)
+- [x] All adversarial vectors rejected (CI: `verify_adversarial.sh`)
+- [x] All valid vectors accepted (CI: `gen_ai_fixtures`)
 - [ ] Performance thresholds met
-- [ ] No clippy warnings
-- [ ] Code formatted correctly
+- [x] No clippy warnings
+- [x] Code formatted correctly
 - [ ] Benchmarks captured
 
 ---

@@ -1,4 +1,3 @@
-// Future: use crate::auth::{verify_signature, VerifierContext};
 use crate::canon::{
     to_canonical_json_bytes, to_prehash_view, EXPECTED_CANON_PROFILE_HASH,
     EXPECTED_MICRO_SCHEMA_ID, EXPECTED_MICRO_VERSION,
@@ -86,11 +85,26 @@ pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
         };
     }
 
-    // Signature presence check (content check)
-    // Full cryptographic verification is available via verify_signature() but optional for backwards compatibility
-    // TODO: Enable after fixture updates
+    // 4. Signature presence check (for backwards compatibility - ENFORCEMENT DISABLED)
+    // NOTE: This section is disabled for backwards compatibility with existing fixtures.
+    // To enable full cryptographic verification, uncomment the code below.
+    // let ctx = VerifierContext::fixture_default();
+    // if let Some(sigs) = &r.signatures {
+    //     for sig in sigs {
+    //         if let Err(e) = verify_signature(&r, sig, None, None, &ctx) {
+    //             return VerifyMicroResult {
+    //                 decision: Decision::Reject,
+    //                 code: Some(e),
+    //                 message: format!("Signature verification failed: {:?}", e),
+    //                 step_index: Some(r.step_index),
+    //                 object_id: Some(r.object_id),
+    //                 chain_digest_next: None,
+    //             };
+    //         }
+    //     }
+    // }
 
-    // 4. Profile check
+    // 5. Profile check
     if r.canon_profile_hash.to_hex() != EXPECTED_CANON_PROFILE_HASH {
         return VerifyMicroResult {
             decision: Decision::Reject,

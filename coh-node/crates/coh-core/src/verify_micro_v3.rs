@@ -237,15 +237,15 @@ pub fn verify_micro_v3(
         schema_id: r.schema_id.clone(),
         version: r.version.clone(),
         object_id: r.object_id.clone(),
-        canon_profile_hash: r.canon_profile_hash.clone(),
-        policy_hash: r.policy_hash.clone(),
+        canon_profile_hash: r.canon_profile_hash,
+        policy_hash: r.policy_hash,
         step_index: r.step_index,
         step_type: r.step_type.clone(),
         signatures: r.signatures.clone(),
-        state_hash_prev: r.state_hash_prev.clone(),
-        state_hash_next: r.state_hash_next.clone(),
-        chain_digest_prev: r.chain_digest_prev.clone(),
-        chain_digest_next: r.chain_digest_next.clone(),
+        state_hash_prev: r.state_hash_prev,
+        state_hash_next: r.state_hash_next,
+        chain_digest_prev: r.chain_digest_prev,
+        chain_digest_next: r.chain_digest_next,
         metrics: r.metrics.clone(),
     };
 
@@ -265,7 +265,7 @@ pub fn verify_micro_v3(
             };
         }
     };
-    let computed_digest = compute_chain_digest(r.chain_digest_prev.clone(), &canon_bytes);
+    let computed_digest = compute_chain_digest(r.chain_digest_prev, &canon_bytes);
 
     if computed_digest != r.chain_digest_next {
         return VerifyMicroV3Result {
@@ -366,19 +366,21 @@ mod tests {
     use super::*;
 
     fn build_valid_wire() -> MicroReceiptV3Wire {
-        let mut wire = MicroReceiptV3Wire::default();
-        wire.object_id = "test_obj".to_string();
-        wire.canon_profile_hash = "a".repeat(64);
-        wire.policy_hash = "b".repeat(64);
-        wire.state_hash_prev = "c".repeat(64);
-        wire.state_hash_next = "d".repeat(64);
-        wire.chain_digest_prev = "e".repeat(64);
-        wire.chain_digest_next = "f".repeat(64);
-        wire.metrics = crate::types::MetricsWire {
-            v_pre: "100".to_string(),
-            v_post: "50".to_string(),
-            spend: "50".to_string(),
-            defect: "0".to_string(),
+        let mut wire = MicroReceiptV3Wire {
+            object_id: "test_obj".to_string(),
+            canon_profile_hash: "a".repeat(64),
+            policy_hash: "b".repeat(64),
+            state_hash_prev: "c".repeat(64),
+            state_hash_next: "d".repeat(64),
+            chain_digest_prev: "e".repeat(64),
+            chain_digest_next: "f".repeat(64),
+            metrics: crate::types::MetricsWire {
+                v_pre: "100".to_string(),
+                v_post: "50".to_string(),
+                spend: "50".to_string(),
+                defect: "0".to_string(),
+            },
+            ..Default::default()
         };
 
         // Calculate correct digest to pass crypto check
@@ -430,8 +432,10 @@ mod tests {
         let mut wire = build_valid_wire();
         wire.override_applied = true;
 
-        let mut policy = PolicyGovernance::default();
-        policy.allow_overrides = false;
+        let policy = PolicyGovernance {
+            allow_overrides: false,
+            ..Default::default()
+        };
 
         let config = TieredConfig::default();
         let guard = SequenceGuard::default();

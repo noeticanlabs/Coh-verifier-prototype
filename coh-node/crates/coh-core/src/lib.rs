@@ -8,6 +8,7 @@ pub mod math;
 pub mod merkle;
 pub mod reject;
 pub mod semantic;
+pub mod trajectory;
 pub mod trajectory_probability;
 pub mod types;
 pub mod vectors;

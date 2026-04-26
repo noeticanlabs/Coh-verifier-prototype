@@ -66,7 +66,7 @@ fn build_v3_wire(v_pre: &str, v_post: &str, spend: &str, defect: &str) -> MicroR
         state_hash_prev: "b".repeat(64),
         state_hash_next: "c".repeat(64),
         chain_digest_prev: "d".repeat(64),
-        chain_digest_next: "e".repeat(64),
+        chain_digest_next: "0".repeat(64), // Computed by sign
         metrics: MetricsWire {
             v_pre: v_pre.to_string(),
             v_post: v_post.to_string(),

@@ -77,15 +77,16 @@ pub struct TrajectoryProbabilityVerifier {
     config: TrajectoryProbabilityConfig,
 }
 
+impl Default for TrajectoryProbabilityVerifier {
+    fn default() -> Self {
+        Self::new(TrajectoryProbabilityConfig::default())
+    }
+}
+
 impl TrajectoryProbabilityVerifier {
     /// Create a new verifier with the given configuration
     pub fn new(config: TrajectoryProbabilityConfig) -> Self {
         Self { config }
-    }
-
-    /// Create a verifier with default configuration
-    pub fn default() -> Self {
-        Self::new(TrajectoryProbabilityConfig::default())
     }
 
     /// Compute probability bound for a given number of steps
@@ -110,7 +111,7 @@ impl TrajectoryProbabilityVerifier {
         }
 
         // Conservative single-step confidence (99.99% = 1 in 10,000 failure rate)
-        let p_single = single_step_confidence.max(0.0).min(1.0);
+        let p_single = single_step_confidence.clamp(0.0, 1.0);
 
         // Telescoping probability: P(all succeed) = P(s1) * P(s2) * ... * P(sn)
         // For identical independent steps: = P(single)^n

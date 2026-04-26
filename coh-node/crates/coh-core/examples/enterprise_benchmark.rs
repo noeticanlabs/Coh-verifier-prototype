@@ -4,7 +4,7 @@ use std::time::Instant;
 
 fn main() {
     println!("=== Enterprise Benchmark Starting ===");
-    
+
     // Create a realistic-ish slab for benchmarking
     let slab = SlabReceiptWire {
         schema_id: "coh.receipt.slab.v1".to_string(),

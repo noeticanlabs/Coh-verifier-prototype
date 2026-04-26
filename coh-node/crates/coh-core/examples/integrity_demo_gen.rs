@@ -30,14 +30,18 @@ fn main() {
         let defect = 0;
         let v_post = v_pre - spend + defect;
 
+        let metrics = MetricsWire {
+            v_pre: v_pre.to_string(),
+            v_post: v_post.to_string(),
+            spend: spend.to_string(),
+            defect: defect.to_string(),
+        };
+
         let mut receipt = create_receipt(
             i as u64,
             &prev_state_h,
             &next_state,
-            &v_pre.to_string(),
-            &v_post.to_string(),
-            &spend.to_string(),
-            &defect.to_string(),
+            metrics,
             &prev_digest_h,
         );
         receipt.chain_digest_next = seal(&receipt);
@@ -48,14 +52,17 @@ fn main() {
         // Hallucinated trace logic
         let h_receipt = if i == 25 {
             let corrupt_v_post = v_post + 500;
+            let metrics = MetricsWire {
+                v_pre: v_pre.to_string(),
+                v_post: corrupt_v_post.to_string(),
+                spend: spend.to_string(),
+                defect: defect.to_string(),
+            };
             let mut r = create_receipt(
                 i as u64,
                 &prev_state_c,
                 &next_state,
-                &v_pre.to_string(),
-                &corrupt_v_post.to_string(),
-                &spend.to_string(),
-                &defect.to_string(),
+                metrics,
                 &prev_digest_c,
             );
             r.chain_digest_next = seal(&r);
@@ -64,14 +71,17 @@ fn main() {
             let corrupt_offset = 500;
             let v_pre_corrupt = v_pre + corrupt_offset;
             let v_post_corrupt = v_post + corrupt_offset;
+            let metrics = MetricsWire {
+                v_pre: v_pre_corrupt.to_string(),
+                v_post: v_post_corrupt.to_string(),
+                spend: spend.to_string(),
+                defect: defect.to_string(),
+            };
             let mut r = create_receipt(
                 i as u64,
                 &prev_state_c,
                 &next_state,
-                &v_pre_corrupt.to_string(),
-                &v_post_corrupt.to_string(),
-                &spend.to_string(),
-                &defect.to_string(),
+                metrics,
                 &prev_digest_c,
             );
             r.chain_digest_next = seal(&r);
@@ -97,10 +107,7 @@ fn create_receipt(
     step: u64,
     prev_state: &str,
     next_state: &str,
-    v_pre: &str,
-    v_post: &str,
-    spend: &str,
-    defect: &str,
+    metrics: MetricsWire,
     prev_digest: &str,
 ) -> MicroReceiptWire {
     MicroReceiptWire {
@@ -116,12 +123,7 @@ fn create_receipt(
         state_hash_next: next_state.to_string(),
         chain_digest_prev: prev_digest.to_string(),
         chain_digest_next: "0".repeat(64),
-        metrics: MetricsWire {
-            v_pre: v_pre.to_string(),
-            v_post: v_post.to_string(),
-            spend: spend.to_string(),
-            defect: defect.to_string(),
-        },
+        metrics,
     }
 }
 

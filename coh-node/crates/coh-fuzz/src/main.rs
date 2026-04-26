@@ -1,21 +1,24 @@
-use coh_core::types::SlabReceiptWire;
-use coh_core::verify_slab::verify_slab_envelope;
-use libafl::{
-    corpus::{InMemoryCorpus, OnDiskCorpus},
-    events::SimpleEventManager,
-    executors::{ExitKind, InProcessExecutor},
-    feedbacks::{CrashFeedback, MaxMapFeedback},
-    fuzzer::{Fuzzer, StdFuzzer},
-    inputs::{BytesInput, HasTargetBytes},
-    monitors::SimpleMonitor,
-    mutators::scheduled::{havoc_mutations, StdScheduledMutator},
-    observers::StdMapObserver,
-    schedulers::QueueScheduler,
-    stages::mutational::StdMutationalStage,
-    state::StdState,
+#[cfg(not(test))]
+use {
+    coh_core::types::SlabReceiptWire,
+    coh_core::verify_slab::verify_slab_envelope,
+    libafl::{
+        corpus::{InMemoryCorpus, OnDiskCorpus},
+        events::SimpleEventManager,
+        executors::{ExitKind, InProcessExecutor},
+        feedbacks::{CrashFeedback, MaxMapFeedback},
+        fuzzer::{Fuzzer, StdFuzzer},
+        inputs::{BytesInput, HasTargetBytes},
+        monitors::SimpleMonitor,
+        mutators::scheduled::{havoc_mutations, StdScheduledMutator},
+        observers::StdMapObserver,
+        schedulers::QueueScheduler,
+        stages::mutational::StdMutationalStage,
+        state::StdState,
+    },
+    libafl_bolts::{current_nanos, rands::StdRand, tuples::tuple_list, AsSlice},
+    std::path::PathBuf,
 };
-use libafl_bolts::{current_nanos, rands::StdRand, tuples::tuple_list, AsSlice};
-use std::path::PathBuf;
 
 #[cfg(not(test))]
 fn main() {

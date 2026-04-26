@@ -288,7 +288,7 @@ pub fn verify_chain(receipts: Vec<MicroReceiptWire>) -> VerifyChainResult {
 
     if let Some(v_pre_0) = first_v_pre {
         let prob_result = prob_verifier.risk_adjusted_verification(
-            step_count as u64,
+            step_count,
             cumulative_spend,
             total_defect,
             v_pre_0,

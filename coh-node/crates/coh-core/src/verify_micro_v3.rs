@@ -379,7 +379,9 @@ mod tests {
                 v_pre: "100".to_string(),
                 v_post: "50".to_string(),
                 spend: "50".to_string(),
-                defect: "0".to_string(), authority: "0".to_string(),
+                defect: "0".to_string(),
+                authority: "0".to_string(),
+                ..Default::default()
             },
             ..Default::default()
         };
@@ -403,6 +405,7 @@ mod tests {
             state_hash_next: wire.state_hash_next.clone(),
             chain_digest_prev: wire.chain_digest_prev.clone(),
             chain_digest_next: wire.chain_digest_next.clone(),
+            profile: crate::types::AdmissionProfile::CoherenceOnlyV1,
             metrics: wire.metrics.clone(),
         };
 

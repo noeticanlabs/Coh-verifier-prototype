@@ -33,6 +33,7 @@ pub fn verify_chain(receipts: Vec<MicroReceiptWire>) -> VerifyChainResult {
     let mut total_defect: u128 = 0;
     let mut total_authority: u128 = 0;
     let mut prev_defect: Option<u128> = None;
+    let mut current_m_state: Option<u128> = None;
     let mut no_progress_count: usize = 0;
 
     // Cumulative value tracking (GradientDescent defense — Q1)
@@ -151,6 +152,25 @@ pub fn verify_chain(receipts: Vec<MicroReceiptWire>) -> VerifyChainResult {
                     };
                 }
             }
+
+            if let Some(prev_m) = current_m_state {
+                if r.metrics.m_pre != prev_m {
+                    return VerifyChainResult {
+                        decision: Decision::Reject,
+                        code: Some(RejectCode::ChaosViolation),
+                        message: format!(
+                            "Chaos state link broken at step {}: expected m_pre {}, but found {}.",
+                            step_idx, prev_m, r.metrics.m_pre
+                        ),
+                        steps_verified: i as u64,
+                        first_step_index: first_index,
+                        last_step_index: last_good_index,
+                        final_chain_digest: current_digest.clone(),
+                        failing_step_index: Some(step_idx),
+                        steps_verified_before_failure: Some(i as u64),
+                    };
+                }
+            }
         }
 
         // 3. Trajectory invariants
@@ -180,8 +200,34 @@ pub fn verify_chain(receipts: Vec<MicroReceiptWire>) -> VerifyChainResult {
         seen_states.insert(state_key);
 
         // 3b. Progress check (NoProgressLoop) - defect must decrease or terminal
-        total_defect += r.metrics.defect;
-        total_authority += r.metrics.authority;
+        total_defect = match total_defect.checked_add(r.metrics.defect) {
+            Some(v) => v,
+            None => return VerifyChainResult {
+                decision: Decision::Reject,
+                code: Some(RejectCode::TrajectoryCostExceeded),
+                message: "Total defect overflow".to_string(),
+                steps_verified: i as u64,
+                first_step_index: first_index,
+                last_step_index: last_good_index,
+                final_chain_digest: current_digest,
+                failing_step_index: Some(step_idx),
+                steps_verified_before_failure: Some(i as u64),
+            },
+        };
+        total_authority = match total_authority.checked_add(r.metrics.authority) {
+            Some(v) => v,
+            None => return VerifyChainResult {
+                decision: Decision::Reject,
+                code: Some(RejectCode::TrajectoryCostExceeded),
+                message: "Total authority overflow".to_string(),
+                steps_verified: i as u64,
+                first_step_index: first_index,
+                last_step_index: last_good_index,
+                final_chain_digest: current_digest,
+                failing_step_index: Some(step_idx),
+                steps_verified_before_failure: Some(i as u64),
+            },
+        };
         if let Some(prev) = prev_defect {
             if r.metrics.defect > 0 && r.metrics.defect >= prev {
                 no_progress_count += 1;
@@ -235,6 +281,7 @@ pub fn verify_chain(receipts: Vec<MicroReceiptWire>) -> VerifyChainResult {
         last_good_index = step_idx;
         current_digest = Some(r.chain_digest_next.to_hex());
         current_state = Some(r.state_hash_next.to_hex());
+        current_m_state = Some(r.metrics.m_post);
     }
 
     // Final trajectory check - total defect should be bounded

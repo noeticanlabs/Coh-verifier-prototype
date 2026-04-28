@@ -27,11 +27,15 @@ mod tests {
             chain_digest_next: "0000000000000000000000000000000000000000000000000000000000000000"
                 .to_string(),
             metrics: MetricsWire {
-                v_pre: "80".to_string(),
-                v_post: "60".to_string(),
-                spend: "20".to_string(),
-                defect: "0".to_string(), authority: "0".to_string(),
+                v_pre: "100".to_string(),
+                v_post: "50".to_string(),
+                spend: "50".to_string(),
+                defect: "0".to_string(),
+                authority: "0".to_string(),
+                ..Default::default()
             },
+            profile: AdmissionProfile::CoherenceOnlyV1,
+            ..Default::default()
         };
 
         let r = MicroReceipt::try_from(wire).unwrap();

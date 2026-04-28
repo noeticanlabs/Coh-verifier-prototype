@@ -48,8 +48,12 @@ mod tests {
                 v_pre: "100".to_string(),
                 v_post: "90".to_string(),
                 spend: "10".to_string(),
-                defect: "0".to_string(), authority: "0".to_string(),
+                defect: "0".to_string(),
+                authority: "0".to_string(),
+                ..Default::default()
             },
+            profile: crate::types::AdmissionProfile::CoherenceOnlyV1,
+            ..Default::default()
         }
     }
 

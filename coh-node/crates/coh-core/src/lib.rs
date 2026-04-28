@@ -18,6 +18,7 @@ pub mod verify_slab;
 // V3 extensions
 pub mod types_v3;
 pub mod verify_micro_v3;
+pub mod fuzz;
 
 pub use auth::{
     canonical_signed_transition_bytes, decode_signature, decode_verifying_key, fixture_signing_key,

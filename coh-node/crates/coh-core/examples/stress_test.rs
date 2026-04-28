@@ -2,6 +2,7 @@
 //!
 //! Tests large-scale performance, streaming IO, and provides CPU breakdown estimates.
 
+#![allow(clippy::needless_update)]
 use coh_core::types::{MetricsWire, MicroReceipt, MicroReceiptWire};
 use coh_core::{canon::*, hash::compute_chain_digest, verify_chain};
 use std::convert::TryFrom;

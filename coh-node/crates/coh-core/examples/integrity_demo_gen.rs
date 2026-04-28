@@ -131,7 +131,6 @@ fn create_receipt(
         chain_digest_next: "0".repeat(64),
         metrics,
         profile: coh_core::types::AdmissionProfile::CoherenceOnlyV1,
-        ..Default::default()
     }
 }
 

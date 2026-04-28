@@ -39,9 +39,9 @@ pub enum RejectCode {
     TimeBudgetExceeded,
     MemoryBudgetExceeded,
     DepthLimitExceeded,
-    // Chaos–Coherence Boundary failures
-    ChaosMissing,
-    ChaosViolation,
+    // Genesis–Coherence Boundary failures
+    GenesisMissing,
+    GenesisViolation,
     ProjectionMismatch,
     SemanticEnvelopeMissing,
     SemanticEnvelopeViolation,

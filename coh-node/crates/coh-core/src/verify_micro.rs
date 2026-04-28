@@ -251,20 +251,20 @@ pub fn verify_micro_with_context(
             }
         }
         AdmissionProfile::FormationV2 => {
-            // 7.1 Law of Chaos check (Checked arithmetic)
-            let chaos_lhs = r.metrics.m_post.checked_add(r.metrics.c_cost);
-            let chaos_rhs = r.metrics.m_pre.checked_add(r.metrics.d_slack);
+            // 7.1 Law of Genesis check (Checked arithmetic)
+            let genesis_lhs = r.metrics.m_post.checked_add(r.metrics.c_cost);
+            let genesis_rhs = r.metrics.m_pre.checked_add(r.metrics.d_slack);
 
-            match (chaos_lhs, chaos_rhs) {
+            match (genesis_lhs, genesis_rhs) {
                 (Some(lhs), Some(rhs)) if lhs <= rhs => {
                     // OK
                 }
                 (Some(lhs), Some(rhs)) => {
                     return VerifyMicroResult {
                         decision: Decision::Reject,
-                        code: Some(RejectCode::ChaosViolation),
+                        code: Some(RejectCode::GenesisViolation),
                         message: format!(
-                            "Chaos violation: M(g') + C(p) ({}) > M(g) + D(p) ({})",
+                            "Genesis violation: M(g') + C(p) ({}) > M(g) + D(p) ({})",
                             lhs, rhs
                         ),
                         step_index: Some(r.step_index),
@@ -276,7 +276,7 @@ pub fn verify_micro_with_context(
                     return VerifyMicroResult {
                         decision: Decision::Reject,
                         code: Some(RejectCode::RejectOverflow),
-                        message: "Chaos arithmetic overflow".to_string(),
+                        message: "Genesis arithmetic overflow".to_string(),
                         step_index: Some(r.step_index),
                         object_id: Some(r.object_id),
                         chain_digest_next: None,
@@ -345,19 +345,19 @@ pub fn verify_micro_with_context(
 }
 
 /// Compute the deterministic projection hash for a receipt's coherence transition.
-/// This binds the Chaos generation layer to the specific executable claim.
+/// This binds the Genesis generation layer to the specific executable claim.
 pub fn compute_projection_hash(r: &MicroReceipt) -> crate::types::Hash32 {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(r.object_id.as_bytes());
-    hasher.update(&r.step_index.to_be_bytes());
-    hasher.update(&r.metrics.v_pre.to_be_bytes());
-    hasher.update(&r.metrics.v_post.to_be_bytes());
-    hasher.update(&r.metrics.spend.to_be_bytes());
-    hasher.update(&r.metrics.defect.to_be_bytes());
-    hasher.update(&r.metrics.authority.to_be_bytes());
-    hasher.update(&r.state_hash_prev.0);
-    hasher.update(&r.state_hash_next.0);
+    hasher.update(r.step_index.to_be_bytes());
+    hasher.update(r.metrics.v_pre.to_be_bytes());
+    hasher.update(r.metrics.v_post.to_be_bytes());
+    hasher.update(r.metrics.spend.to_be_bytes());
+    hasher.update(r.metrics.defect.to_be_bytes());
+    hasher.update(r.metrics.authority.to_be_bytes());
+    hasher.update(r.state_hash_prev.0);
+    hasher.update(r.state_hash_next.0);
     crate::types::Hash32(hasher.finalize().into())
 }
 

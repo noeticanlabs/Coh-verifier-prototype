@@ -1,3 +1,4 @@
+#![allow(clippy::needless_update)]
 use coh_core::auth::{fixture_signing_key, sign_micro_receipt};
 use coh_core::fixtures::finalize_micro_receipt;
 use coh_core::types::*;
@@ -128,6 +129,7 @@ fn test_valid_transfer() {
             ..Default::default()
         },
         profile: AdmissionProfile::FormationV2,
+        ..Default::default()
     };
 
     // Use finalize to ensure projection_hash and chain_digest_next are valid

@@ -156,7 +156,6 @@ fn generate_chain(steps: usize, _breach_at: Option<usize>) -> Vec<MicroReceiptWi
                 ..Default::default()
             },
             profile: coh_core::types::AdmissionProfile::CoherenceOnlyV1,
-            ..Default::default()
         };
 
         receipt.chain_digest_next = seal(&receipt);

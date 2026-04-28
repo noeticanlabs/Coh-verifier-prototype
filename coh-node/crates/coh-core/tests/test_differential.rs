@@ -1,6 +1,7 @@
 // Differential tests comparing V1 and V3 verification implementations
 // Ensures both implementations make consistent decisions on the core accounting law
 
+#![allow(clippy::needless_update)]
 use coh_core::canon::{
     EXPECTED_CANON_PROFILE_HASH, EXPECTED_MICRO_SCHEMA_ID, EXPECTED_MICRO_VERSION,
 };
@@ -39,7 +40,6 @@ fn build_v1_wire(
             ..Default::default()
         },
         profile: coh_core::types::AdmissionProfile::CoherenceOnlyV1,
-        ..Default::default()
     };
 
     // Sign with a trusted fixture key for tests

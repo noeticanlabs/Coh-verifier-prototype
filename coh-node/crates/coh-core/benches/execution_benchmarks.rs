@@ -1,3 +1,4 @@
+#![allow(clippy::needless_update)]
 //! Execution Layer Benchmarks
 
 use criterion::{criterion_group, criterion_main, Criterion};
@@ -39,7 +40,9 @@ fn bench_execution(c: &mut Criterion) {
             spend: "12".to_string(),
             defect: "0".to_string(),
             authority: "0".to_string(),
+            ..Default::default()
         },
+        profile: coh_core::types::AdmissionProfile::CoherenceOnlyV1,
     };
 
     let action = coh_core::execute::Action {
@@ -123,7 +126,10 @@ fn bench_verify_before_execute(c: &mut Criterion) {
             spend: "12".to_string(),
             defect: "0".to_string(),
             authority: "0".to_string(),
+            ..Default::default()
         },
+        profile: coh_core::types::AdmissionProfile::CoherenceOnlyV1,
+        ..Default::default()
     };
 
     group.bench_function("verify", |b| {

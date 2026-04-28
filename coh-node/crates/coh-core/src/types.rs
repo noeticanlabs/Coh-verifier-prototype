@@ -50,7 +50,7 @@ pub struct MetricsWire {
     pub defect: String,
     #[serde(default = "default_authority")]
     pub authority: String,
-    // Chaos Metrics (Forward Generation)
+    // Genesis Metrics (Forward Generation)
     #[serde(default)]
     pub m_pre: String,
     #[serde(default)]
@@ -157,7 +157,7 @@ pub struct Metrics {
     pub spend: u128,
     pub defect: u128,
     pub authority: u128,
-    // Chaos Metrics (Forward Generation)
+    // Genesis Metrics (Forward Generation)
     pub m_pre: u128,
     pub m_post: u128,
     pub c_cost: u128,
@@ -192,7 +192,7 @@ pub struct CertifiedMorphism {
     pub spend: u128,
     pub defect: u128,
     pub authority: u128,
-    // Chaos Metrics
+    // Genesis Metrics
     pub m_pre: u128,
     pub m_post: u128,
     pub c_cost: u128,
@@ -200,6 +200,7 @@ pub struct CertifiedMorphism {
 }
 
 impl CertifiedMorphism {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         v_pre: u128,
         v_post: u128,
@@ -234,8 +235,8 @@ impl CertifiedMorphism {
         lhs <= rhs
     }
 
-    /// The Law of Chaos: M(g') + C(p) <= M(g) + D(p)
-    pub fn is_chaos_admissible(&self) -> bool {
+    /// The Law of Genesis: M(g') + C(p) <= M(g) + D(p)
+    pub fn is_genesis_admissible(&self) -> bool {
         let lhs = self.m_post.checked_add(self.c_cost);
         let rhs = self.m_pre.checked_add(self.d_slack);
         match (lhs, rhs) {
@@ -244,9 +245,9 @@ impl CertifiedMorphism {
         }
     }
 
-    /// Intersection of Chaos and Coherence
+    /// Intersection of Genesis and Coherence
     pub fn is_formation_admissible(&self) -> bool {
-        self.is_certified() && self.is_chaos_admissible()
+        self.is_certified() && self.is_genesis_admissible()
     }
 
     /// Compose with another certified morphism (f ; g)
@@ -261,7 +262,7 @@ impl CertifiedMorphism {
         let total_defect = self.defect.checked_add(other.defect)?;
         let total_authority = self.authority.checked_add(other.authority)?;
 
-        // Chaos composition (Additivity assumption for V1)
+        // Genesis composition (Additivity assumption for V1)
         let total_cost = self.c_cost.checked_add(other.c_cost)?;
         let total_slack = self.d_slack.checked_add(other.d_slack)?;
 

@@ -76,7 +76,6 @@ fn main() {
                 ..Default::default()
             },
             profile: coh_core::types::AdmissionProfile::CoherenceOnlyV1,
-            ..Default::default()
         };
 
         // 3. SEAL THE RECEIPT

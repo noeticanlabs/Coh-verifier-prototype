@@ -32,7 +32,6 @@ fn create_valid_receipt(step_index: u64, prev_digest: &str, prev_state: &str) ->
             ..Default::default()
         },
         profile: coh_core::types::AdmissionProfile::CoherenceOnlyV1,
-        ..Default::default()
     };
     // Seal the receipt with proper digest
     let r = MicroReceipt::try_from(wire.clone()).unwrap();

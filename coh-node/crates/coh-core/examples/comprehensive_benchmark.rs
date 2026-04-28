@@ -9,8 +9,7 @@
 //! - Comparison matrices
 
 use coh_core::auth::{fixture_signing_key, sign_micro_receipt};
-use coh_core::canon::{to_canonical_json_bytes, to_prehash_view};
-use coh_core::types::{Decision, MetricsWire, MicroReceipt, MicroReceiptWire, RejectCode};
+use coh_core::types::{Decision, MetricsWire, MicroReceiptWire};
 use coh_core::verify_micro::verify_micro;
 use std::collections::HashMap;
 use std::time::Instant;
@@ -31,6 +30,7 @@ const CONCURRENCY_LEVELS: &[u32] = &[1, 10, 50, 100, 500, 1000];
 #[derive(Clone)]
 struct PerformanceSample {
     latency_ns: u64,
+    #[allow(dead_code)]
     success: bool,
 }
 
@@ -41,7 +41,7 @@ fn generate_sample(microseconds: u64) -> PerformanceSample {
     }
 }
 
-fn percentile(values: &mut Vec<u64>, p: f64) -> u64 {
+fn percentile(values: &mut [u64], p: f64) -> u64 {
     if values.is_empty() {
         return 0;
     }
@@ -115,7 +115,7 @@ fn benchmark_chain_scaling(chain_length: u64) -> HashMap<String, f64> {
     let mut samples = Vec::with_capacity(chain_length as usize);
 
     // Build chain
-    let mut chain = build_test_chain(chain_length);
+    let chain = build_test_chain(chain_length);
 
     let start = Instant::now();
     for receipt in &chain {
@@ -128,7 +128,7 @@ fn benchmark_chain_scaling(chain_length: u64) -> HashMap<String, f64> {
 
     let total_ns = samples.iter().sum::<u64>();
     let ops_per_sec = (chain_length as f64) / (elapsed as f64 / 1_000_000_000.0);
-    let mean_per_receipt = total_ns / (chain_length as u64);
+    let mean_per_receipt = total_ns / chain_length;
 
     results.insert("chain_length".to_string(), chain_length as f64);
     results.insert("total_latency_ns".to_string(), elapsed as f64);
@@ -198,7 +198,6 @@ fn build_signed_test_receipt() -> MicroReceiptWire {
             ..Default::default()
         },
         profile: coh_core::types::AdmissionProfile::CoherenceOnlyV1,
-        ..Default::default()
     };
 
     // Sign with test key
@@ -220,7 +219,7 @@ fn build_signed_test_receipt() -> MicroReceiptWire {
 fn build_test_chain(length: u64) -> Vec<MicroReceiptWire> {
     (0..length)
         .map(|idx| {
-            let mut wire = MicroReceiptWire {
+            let wire = MicroReceiptWire {
                 schema_id: "coh.receipt.micro.v1".to_string(),
                 version: "1.0.0".to_string(),
                 object_id: "benchmark.chain".to_string(),
@@ -243,7 +242,6 @@ fn build_test_chain(length: u64) -> Vec<MicroReceiptWire> {
                     ..Default::default()
                 },
                 profile: coh_core::types::AdmissionProfile::CoherenceOnlyV1,
-                ..Default::default()
             };
 
             let signing_key = fixture_signing_key("test_signer");
@@ -305,7 +303,7 @@ fn main() {
         let chain = benchmark_chain_scaling(len);
         println!(
             "  {:>9} | {:>11.2} | {:>14.2} | {:>11.0}",
-            len as u64,
+            { len },
             chain["total_latency_ns"] / 1_000_000.0,
             chain["mean_per_receipt_ns"] / 1000.0,
             chain["chain_throughput_ops_sec"]

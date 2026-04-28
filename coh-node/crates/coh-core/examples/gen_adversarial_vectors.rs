@@ -130,7 +130,6 @@ where
                 ..Default::default()
             },
             profile: coh_core::types::AdmissionProfile::CoherenceOnlyV1,
-            ..Default::default()
         };
 
         // Apply tampering *conditionally* on whether we need a valid digest first

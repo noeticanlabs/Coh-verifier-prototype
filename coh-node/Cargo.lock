@@ -438,7 +438,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "coh-npe"
+name = "coh-genesis"
 version = "0.1.0"
 dependencies = [
  "coh-core",

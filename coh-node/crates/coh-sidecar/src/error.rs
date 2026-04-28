@@ -64,8 +64,8 @@ impl From<RejectCode> for CohErrorCode {
 
             // State link -> E004
             RejectCode::RejectStateHashLink => CohErrorCode::E004,
-            RejectCode::ChaosMissing => CohErrorCode::E007,
-            RejectCode::ChaosViolation => CohErrorCode::E008,
+            RejectCode::GenesisMissing => CohErrorCode::E007,
+            RejectCode::GenesisViolation => CohErrorCode::E008,
             RejectCode::ProjectionMismatch => CohErrorCode::E009,
             RejectCode::SemanticEnvelopeMissing => CohErrorCode::E010,
             RejectCode::SemanticEnvelopeViolation => CohErrorCode::E011,

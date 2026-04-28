@@ -129,7 +129,6 @@ fn create_receipt(
             ..Default::default()
         },
         profile: AdmissionProfile::CoherenceOnlyV1,
-        ..Default::default()
     };
 
     wire.signatures = Some(vec![signature_for(step_index)]);

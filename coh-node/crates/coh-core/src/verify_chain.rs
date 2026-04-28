@@ -157,9 +157,9 @@ pub fn verify_chain(receipts: Vec<MicroReceiptWire>) -> VerifyChainResult {
                 if r.metrics.m_pre != prev_m {
                     return VerifyChainResult {
                         decision: Decision::Reject,
-                        code: Some(RejectCode::ChaosViolation),
+                        code: Some(RejectCode::GenesisViolation),
                         message: format!(
-                            "Chaos state link broken at step {}: expected m_pre {}, but found {}.",
+                            "Genesis state link broken at step {}: expected m_pre {}, but found {}.",
                             step_idx, prev_m, r.metrics.m_pre
                         ),
                         steps_verified: i as u64,

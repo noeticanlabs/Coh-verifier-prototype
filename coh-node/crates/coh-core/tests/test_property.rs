@@ -1,3 +1,4 @@
+#![allow(clippy::needless_update)]
 // Production-grade property-based tests for Coh verification kernel
 // Tests core invariants: accounting law, determinism, reject codes, chain linkage
 
@@ -51,7 +52,6 @@ fn build_test_wire_with_metrics(
             ..Default::default()
         },
         profile: coh_core::types::AdmissionProfile::CoherenceOnlyV1,
-        ..Default::default()
     };
 
     // Finalize first to compute correct digest, then sign

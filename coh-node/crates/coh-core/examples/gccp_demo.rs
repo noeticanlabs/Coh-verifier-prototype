@@ -116,7 +116,7 @@ fn process_vector_file(
         wire.policy_hash = fix_hash(wire.policy_hash);
 
         let receipt = MicroReceipt::try_from(wire.clone()).unwrap();
-        let digest = receipt.chain_digest_next.clone();
+        let digest = receipt.chain_digest_next;
 
         // Step A: Core Verification
         // Note: verify_micro will likely reject due to digest mismatch because we modified the hashes,

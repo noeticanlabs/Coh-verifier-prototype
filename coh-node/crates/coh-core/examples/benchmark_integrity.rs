@@ -131,7 +131,6 @@ fn generate_demo_chain(steps: usize, breach_at: Option<usize>) -> Vec<MicroRecei
                 ..Default::default()
             },
             profile: coh_core::types::AdmissionProfile::CoherenceOnlyV1,
-            ..Default::default()
         };
 
         // If this is the breach step, we force a policy violation

@@ -86,18 +86,67 @@ jobs:
   ape-build:
     name: APE Build & Test
     runs-on: ubuntu-latest
-
+    # Only run if ape/ directory exists
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Skip if ape/ folder is missing
+      - name: Check if ape/ exists
+        id: check_ape
         shell: bash
         run: |
-          if [ ! -d "ape" ]; then
-            echo "Directory 'ape' not found — skipping APE Build & Test job."
-            exit 0
+          if [ -d "ape" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Install Rust stable toolchain
+        if: steps.check_ape.outputs.exists == 'true'
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          components: rustfmt, clippy
+
+      - name: Cache Cargo registry
+        if: steps.check_ape.outputs.exists == 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ape/target
+          key: ${{ runner.os }}-ape-cargo-${{ hashFiles('ape/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-ape-cargo-
+
+      - name: Check formatting
+        if: steps.check_ape.outputs.exists == 'true'
+        run: cargo fmt --check
+        working-directory: ape
+
+      - name: Clippy deny warnings
+        if: steps.check_ape.outputs.exists == 'true'
+        run: cargo clippy -- -D warnings
+        working-directory: ape
+
+      - name: Build
+        if: steps.check_ape.outputs.exists == 'true'
+        run: cargo build
+        working-directory: ape
+
+      - name: Run tests
+        if: steps.check_ape.outputs.exists == 'true'
+        run: cargo test
+        working-directory: ape
+
+  genesis-npe-test:
+    name: Genesis/NPE Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Install Rust stable toolchain
         uses: actions-rs/toolchain@v1
@@ -112,26 +161,22 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            ape/target
-          key: ${{ runner.os }}-ape-cargo-${{ hashFiles('ape/Cargo.lock') }}
+            coh-node/target
+          key: ${{ runner.os }}-genesis-cargo-${{ hashFiles('coh-node/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-ape-cargo-
+            ${{ runner.os }}-genesis-cargo-
 
-      - name: Check formatting
-        run: cargo fmt --check
-        working-directory: ape
+      - name: Test Genesis metrics
+        run: cargo test -p coh-npe --lib
+        working-directory: coh-node
 
-      - name: Clippy deny warnings
-        run: cargo clippy -- -D warnings
-        working-directory: ape
+      - name: Test Formation admissibility
+        run: cargo test -p coh-core --lib -- is_formation
+        working-directory: coh-node
 
-      - name: Build
-        run: cargo build
-        working-directory: ape
-
-      - name: Run tests
-        run: cargo test
-        working-directory: ape
+      - name: Verify Genesis check in verify_micro
+        run: cargo test -p coh-core -- verify_micro_with_context
+        working-directory: coh-node
 
   compliance-audit:
     name: Compliance Vector Audit
@@ -267,5 +312,7 @@ jobs:
         working-directory: coh-t-stack
 
       - name: Build Lean library
-        run: lake build
+        run: |
+          lake exe cache get
+          lake build
         working-directory: coh-t-stack

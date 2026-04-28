@@ -251,7 +251,6 @@ fn generate_ai_chain(steps: usize) -> Vec<MicroReceiptWire> {
                 ..Default::default()
             },
             profile: coh_core::types::AdmissionProfile::CoherenceOnlyV1,
-            ..Default::default()
         };
         receipt.chain_digest_next = seal(&receipt);
         prev_digest = receipt.chain_digest_next.clone();

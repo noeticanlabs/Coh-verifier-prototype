@@ -6,10 +6,10 @@
 //! and verify proof candidates. It uses the stabilized PhaseLoom meta-loop
 //! with Boltzmann exploration and entropy floor.
 
-use coh_genesis::mathlib_advisor::{generate_report, MathlibLakeQuery, LemmaMatch};
+use coh_genesis::mathlib_advisor::MathlibLakeQuery;
 use coh_genesis::phaseloom_lite::{
     phaseloom_ingest, phaseloom_init, phaseloom_sample_boltzmann,
-    BoundaryReceiptSummary, PhaseLoomConfig, PhaseLoomState,
+    BoundaryReceiptSummary, PhaseLoomConfig, PhaseLoomState, MathlibEffect,
 };
 use coh_genesis::lean_proof::{ProofCandidate, LeanVerificationReport, is_formation_admissible};
 use std::env;
@@ -68,6 +68,7 @@ fn verify_candidate(
             genesis_margin: 0,
             coherence_margin: 0,
             formation_accept: false,
+            failure_report: None,
         };
     }
 
@@ -113,6 +114,7 @@ fn verify_candidate(
                 genesis_margin: 0,
                 coherence_margin: 0,
                 formation_accept: false,
+                failure_report: None,
             }
         }
         Err(e) => LeanVerificationReport {
@@ -128,6 +130,7 @@ fn verify_candidate(
             genesis_margin: 0,
             coherence_margin: 0,
             formation_accept: false,
+            failure_report: None,
         },
     }
 }
@@ -173,7 +176,7 @@ fn main() {
     state.strategy_weights.0.insert("Direct".to_string(), 0.2);
     state.strategy_weights.normalize();
 
-    let mut rng = SimpleRng::new(42);
+    let mut _rng = SimpleRng::new(42);
     let mut best_candidate: Option<ProofCandidate> = None;
 
     println!("\nStarting meta-loop sweeps...");
@@ -267,3 +270,4 @@ fn main() {
         println!("\nNo full proof closed in this run.");
     }
 }
+

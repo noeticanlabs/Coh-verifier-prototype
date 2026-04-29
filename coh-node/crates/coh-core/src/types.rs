@@ -59,9 +59,15 @@ pub struct MetricsWire {
     pub c_cost: String,
     #[serde(default)]
     pub d_slack: String,
-    // Projection Integrity
     #[serde(default)]
     pub projection_hash: String,
+    // PhaseLoom Ecology
+    #[serde(default)]
+    pub pl_tau: String,
+    #[serde(default)]
+    pub pl_budget: String,
+    #[serde(default)]
+    pub pl_provenance: String,
 }
 
 impl Default for MetricsWire {
@@ -78,6 +84,9 @@ impl Default for MetricsWire {
             d_slack: "0".to_string(),
             projection_hash: "0000000000000000000000000000000000000000000000000000000000000000"
                 .to_string(),
+            pl_tau: "0".to_string(),
+            pl_budget: "0".to_string(),
+            pl_provenance: "EXT".to_string(),
         }
     }
 }
@@ -162,8 +171,11 @@ pub struct Metrics {
     pub m_post: u128,
     pub c_cost: u128,
     pub d_slack: u128,
-    // Projection
     pub projection_hash: Hash32,
+    // PhaseLoom Ecology
+    pub pl_tau: u64,
+    pub pl_budget: u128,
+    pub pl_provenance: String,
 }
 
 impl Default for Metrics {
@@ -179,6 +191,9 @@ impl Default for Metrics {
             c_cost: 0,
             d_slack: 0,
             projection_hash: Hash32([0; 32]),
+            pl_tau: 0,
+            pl_budget: 0,
+            pl_provenance: "EXT".to_string(),
         }
     }
 }
@@ -334,6 +349,9 @@ pub struct MetricsPrehash {
     pub c_cost: String,
     pub d_slack: String,
     pub projection_hash: String,
+    pub pl_tau: u64,
+    pub pl_budget: String,
+    pub pl_provenance: String,
 }
 
 #[derive(Serialize)]
@@ -432,6 +450,9 @@ impl TryFrom<MetricsWire> for Metrics {
             c_cost: parse_u128(&w.c_cost)?,
             d_slack: parse_u128(&w.d_slack)?,
             projection_hash: Hash32::from_hex(&w.projection_hash)?,
+            pl_tau: w.pl_tau.parse::<u64>().map_err(|_| RejectCode::RejectNumericParse)?,
+            pl_budget: parse_u128(&w.pl_budget)?,
+            pl_provenance: w.pl_provenance,
         })
     }
 }

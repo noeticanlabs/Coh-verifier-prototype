@@ -132,6 +132,7 @@ fn run_sweep_one_level(
             genesis_margin: 0,
             coherence_margin: 0,
             formation_accept: false,
+            failure_report: None,
         };
 
         let (formation_accept, gen_margin, coh_margin) =

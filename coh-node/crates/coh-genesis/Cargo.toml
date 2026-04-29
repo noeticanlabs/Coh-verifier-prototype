@@ -8,6 +8,56 @@ license.workspace = true
 coh-core = { path = "../coh-core" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+schemars = "0.8"
 thiserror = { workspace = true }
 tracing = { workspace = true }
+
+# Deterministic NPE mutation
 rand = "0.8"
+rand_chacha = "0.3"
+
+# Serialization & Hashing
+sha2 = { workspace = true }
+hex = { workspace = true }
+
+# Optional NPE Libraries (enabled via features)
+petgraph = { version = "0.6", optional = true }
+egg = { version = "0.9", optional = true }
+rusqlite = { version = "0.31", features = ["bundled"], optional = true }
+rayon = { version = "1", optional = true }
+nalgebra = { version = "0.33", optional = true }
+ndarray = { version = "0.16", optional = true }
+z3 = { version = "0.9", optional = true }
+
+[features]
+default = []
+
+# NPE Search & Graph
+npe-graph = ["petgraph"]
+
+# NPE Rewrite / Equivalence
+npe-rewrite = ["egg"]
+
+# NPE Memory / Storage
+npe-store = ["rusqlite"]
+
+# NPE Parallel Execution
+npe-parallel = ["rayon"]
+
+# NPE Numeric Scoring
+npe-numeric = ["nalgebra", "ndarray"]
+
+# NPE SMT Adviser
+npe-smt = ["z3"]
+
+# All NPE features
+npe-all = [
+    "npe-graph",
+    "npe-rewrite",
+    "npe-store",
+    "npe-parallel",
+    "npe-numeric",
+    "npe-smt",
+]
+
+[dev-dependencies]

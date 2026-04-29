@@ -1,8 +1,7 @@
 use std::env;
 use std::path::PathBuf;
-use coh_genesis::mathlib_advisor::{MathlibLakeQuery, classify_lean_error};
-use coh_genesis::lean_proof::{ProofCandidate, ProofFailureClass};
-use coh_genesis::phaseloom_lite::{PhaseLoomConfig, PhaseLoomState, BoundaryReceiptSummary};
+use coh_genesis::mathlib_advisor::{MathlibLakeQuery, generate_failure_report};
+use coh_genesis::failure_taxonomy::{FailureKind, LeanProofFailure};
 
 fn main() {
     println!("NPE Field Equation Production Loop");
@@ -28,13 +27,15 @@ fn main() {
     // The current proof of field_equation_unique is circular.
     // Let's see if the loop identifies the 'rw' failure.
     if !output.status.success() {
-        let failure = classify_lean_error(&combined);
-        println!("Failure Class: {:?}", failure);
-        
-        if let ProofFailureClass::Other(msg) = failure {
-            if msg.contains("tactic 'rewrite' failed") {
-                println!("\n[Insight] Circular proof detected in field_equation_unique.");
-                println!("The metric uniqueness depends on the coupling λ < 1.");
+        let report = generate_failure_report("example", "FieldEquation", &combined);
+        if let Some(r) = report {
+            println!("Failure Class: {:?}", r.kind);
+            
+            if let FailureKind::LeanProof(LeanProofFailure::TacticFailed(msg)) = r.kind {
+                if msg.contains("tactic 'rewrite' failed") {
+                    println!("\n[Insight] Circular proof detected in field_equation_unique.");
+                    println!("The metric uniqueness depends on the coupling λ < 1.");
+                }
             }
         }
     }
@@ -42,7 +43,7 @@ fn main() {
     // --- Step 2: Propose 'Full Production' Repair ---
     println!("\n[Phase 2] Proposing repaired unique determination theorem...");
     
-    let repaired_theorem = "
+    let _repaired_theorem = "
 theorem field_equation_unique {g1 g2 : Tensor2} {Ψ : MatterField} {κ λ : ENNRat}
   (h1 : FieldEquation g1 Ψ κ λ)
   (h2 : FieldEquation g2 Ψ κ λ)

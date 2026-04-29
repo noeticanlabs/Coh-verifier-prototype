@@ -100,7 +100,7 @@ pub fn build_slab(receipts: Vec<MicroReceiptWire>) -> BuildSlabResult {
             }
         };
 
-        let delta = match crate::semantic::SemanticRegistry::delta_hat(&r.step_type) {
+        let delta = match crate::semantic::PolicyEnvelopeRegistry::delta_hat(&r.step_type) {
             Ok((d, _)) => d,
             Err(e) => {
                 return BuildSlabResult {

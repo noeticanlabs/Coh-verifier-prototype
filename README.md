@@ -10,14 +10,14 @@
 
 ## Overview
 
-**Coh Safety Wedge** formalizes **Chaos–Coherence Boundary Theory**: 
-- **Chaos** is forward admissible generation (proposing possibilities).
+**Coh Safety Wedge** formalizes **Genesis–Coherence Boundary Theory**: 
+- **Genesis** is forward admissible generation (proposing possibilities).
 - **Coherence** is backward admissible justification (verifying actuality).
 - **Formation** is their intersection—the stricter V2 profile where AI proposals are cryptographically linked to executable commitments.
 
 ## Core Invariants
 
-### 1. Law of Chaos (Forward Generation)
+### 1. Law of Genesis (Forward Generation)
 ```text
 M(g') + C(p) <= M(g) + D(p)
 ```
@@ -40,10 +40,10 @@ Enforced by the **Verifier Kernel** to ensure deterministic safety.
 
 ## Quick Start
 
-### 1. Run the NPE (Chaos Admissibility)
+### 1. Run the NPE (Genesis Admissibility)
 ```bash
-# Verify a proposal satisfies the Law of Chaos
-cargo test -p coh-npe
+# Verify a proposal satisfies the Law of Genesis
+cargo test -p coh-genesis
 ```
 
 ### 2. Verify a Chain (Coherence)

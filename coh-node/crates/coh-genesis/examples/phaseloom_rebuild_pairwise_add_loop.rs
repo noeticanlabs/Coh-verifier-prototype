@@ -1,18 +1,10 @@
 //! PhaseLoom-Guided Rebuild Pairwise Add Loop
 //!
 //! Uses the proven existence lemma (isRationalInf_exists_lt_of_lt) to close pairwise_add.
-//!
-//! Flow:
-//! 1. Start with existence lemma proven
-//! 2. Use it to attack GLB greatest-half
-//! 3. Use GLB to close pairwise_add
-//! 4. Close original theorem
-//!
-//! Target chain:
-//! isRationalInf_exists_lt_of_lt → GLB greatest → pairwise_add → original
 
 use coh_genesis::phaseloom_lite::{
     phaseloom_ingest, phaseloom_init, BoundaryReceiptSummary, PhaseLoomConfig,
+    MathlibEffect,
 };
 
 /// Rebuild strategy classes
@@ -202,8 +194,6 @@ fn run_sweep(
 fn outcome_to_receipt(
     strategy: RebuildStrategy,
     outcome: RebuildOutcome,
-    existence_weight: f64,
-    approx_weight: f64,
 ) -> BoundaryReceiptSummary {
     let accepted = outcome.is_useful();
 
@@ -371,12 +361,7 @@ fn main() {
     let mut state = phaseloom_init(&config);
 
     for (strategy, outcome) in &baseline_outcomes {
-        let receipt = outcome_to_receipt(
-            *strategy,
-            *outcome,
-            previous_existence_weight,
-            previous_approx_weight,
-        );
+        let receipt = outcome_to_receipt(*strategy, *outcome);
         phaseloom_ingest(&mut state, &receipt, &config);
     }
 
@@ -568,3 +553,4 @@ fn main() {
     println!();
     println!("PhaseLoom Rebuild Pairwise Add Loop - Complete");
 }
+

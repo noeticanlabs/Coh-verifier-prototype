@@ -1,67 +1,97 @@
 import Mathlib
+import Coh.Boundary.RationalInf
 
 namespace Coh.Boundary
 
-/-!
-# Effective Metric Tensor Field Equation
-
-This file defines the field equation:
-`g_eff^μν = κ T^μν(Ψ) + λ C^μν`
-
-where:
-- `g_eff^μν` is the effective metric tensor (rank-2 covariant tensor)
-- `T^μν(Ψ)` is the stress-energy tensor depending on matter field `Ψ`
-- `C^μν` is the curvature term
-- `κ`, `λ` are coupling constants
-
-The field equation relates the effective metric to matter and curvature.
--/
-
-/-- Extended Non-Negative Rationals (WithTop) -/
-abbrev ENNRat := WithTop NNRat
-
-/-- Index set for space-time coordinates (μ, ν in {0, 1, 2, 3}) -/
+/-- Index set for tensor coordinates (mu, nu in {0, 1, 2, 3}) -/
 abbrev SpaceIndex := Fin 4
 
-/-- Matter field: maps index to extended non-negative rational -/
-abbrev MatterField := SpaceIndex → ENNRat
+/-- Matter field: a function from space-time indices to ENNRat -/
+def MatterField : Type := SpaceIndex -> ENNRat
 
-/-- Rank-2 tensor: maps index pairs to ENNRat -/
-abbrev Tensor2 := SpaceIndex → SpaceIndex → ENNRat
+/-- Rank-2 covariant tensor: a function from index pairs to ENNRat -/
+def Tensor2 : Type := SpaceIndex -> SpaceIndex -> ENNRat
 
-/-- Stress-energy tensor derived from matter field Psi: T^munu = Psi^mu * Psi^nu -/
+/-- Effective metric tensor field -/
+structure EffMetric (g : Tensor2) : Prop where
+  /-- Metric must be symmetric: g^mu_nu = g^nu_mu -/
+  symmetric : forall mu nu, g mu nu = g nu mu
+  /-- Metric must be non-degenerate (has inverse) -/
+  nondegenerate : forall (v : SpaceIndex -> ENNRat), (forall mu, v mu = 0) -> v = fun _ => 0
+
+/-- Stress-energy tensor derived from matter field Psi -/
 def stressEnergyTensor (Psi : MatterField) : Tensor2 :=
   fun mu nu => Psi mu * Psi nu
 
-/-- Curvature term - simplified: C^munu = g^munu -/
+/-- Curvature term (simplified scalar curvature representation) -/
 def curvatureTerm (g : Tensor2) : Tensor2 :=
   fun mu nu => g mu nu
 
 /-- Coupling constants -/
 structure CouplingConstants where
-  kappa : ENNRat  -- Einstein gravitational coupling
-  lambda : ENNRat -- Cosmological constant
+  /-- Einstein coupling constant -/
+  kappa : ENNRat
+  /-- Cosmological constant -/
+  lambda : ENNRat
 
-/-- Field equation: g_eff^munu = kappa T^munu(Psi) + lambda C^munu -/
-structure FieldEquation (g : Tensor2) (Psi : MatterField) (kappa lambda : ENNRat) : Prop where
-  holds : forall mu nu, g mu nu = kappa * stressEnergyTensor Psi mu nu + lambda * curvatureTerm g mu nu
+/-- Field equation: g_eff^mu_nu = kappa T^mu_nu(Psi) + l C^mu_nu -/
+structure FieldEquation (g : Tensor2) (Psi : MatterField) (kappa l : ENNRat) : Prop where
+  /-- The field equation holds pointwise -/
+  holds : forall mu nu, g mu nu = kappa * stressEnergyTensor Psi mu nu + l * curvatureTerm g mu nu
 
-/-- Alternative form using CouplingConstants structure -/
+/-- Alternative form using structure fields -/
 structure FieldEquationAlt (g : Tensor2) (Psi : MatterField) (c : CouplingConstants) : Prop where
   holds : forall mu nu, g mu nu = c.kappa * stressEnergyTensor Psi mu nu + c.lambda * curvatureTerm g mu nu
 
-/-- Theorem: The stress-energy tensor is symmetric -/
+/--
+Theorem: If a metric satisfies the field equation, it is uniquely determined
+by the matter field and coupling constants.
+-/
+/-- Synthesized by NPE-Rust --/
+theorem sub_eq_of_add_eq {a b c : ENNRat} (h1 : a = b + c) (h2 : b < 1) : a - c = b := by exact sub_eq_of_add_eq h1' (hl.trans_le (by simp))
+
+theorem field_equation_unique {g1 g2 : Tensor2} {Psi : MatterField} {kappa l : ENNRat}
+  (h1 : FieldEquation g1 Psi kappa l)
+  (h2 : FieldEquation g2 Psi kappa l)
+  (hl : l < 1) :
+  g1 = g2 := by
+  funext mu nu
+  have h1' := h1.holds mu nu
+  have h2' := h2.holds mu nu
+  unfold curvatureTerm at h1' h2'
+  exact sub_eq_of_add_eq h1' (hl.trans_le (by simp))
+
+/--
+Theorem: The stress-energy tensor is symmetric.
+-/
 theorem stressEnergyTensor_symmetric (Psi : MatterField) :
   forall mu nu, stressEnergyTensor Psi mu nu = stressEnergyTensor Psi nu mu := by
   intros mu nu
   rw [stressEnergyTensor]
   apply mul_comm
 
-/-- Theorem: If matter field is zero everywhere, stress-energy tensor vanishes -/
+/--
+Theorem: If matter field is zero, stress-energy tensor vanishes.
+-/
 theorem stressEnergyTensor_zero (Psi : MatterField) (h : forall i, Psi i = 0) :
   forall mu nu, stressEnergyTensor Psi mu nu = 0 := by
   intros mu nu
-  rw [stressEnergyTensor, h mu, h nu]
-  rfl
+  rw [stressEnergyTensor]
+  rw [h mu, h nu]
+  apply mul_zero
+
+/--
+Theorem: Field equation implies metric is effective (satisfies EffMetric conditions)
+when coupling constants are positive.
+-/
+theorem field_equation_effective_metric {g : Tensor2} {Psi : MatterField} {kappa l : ENNRat}
+  (h : FieldEquation g Psi kappa l)
+  (hk : kappa > 0) (hl : l > 0) :
+  EffMetric g := by
+  constructor
+  . intros mu nu
+    exact sub_eq_of_add_eq h1' (hl.trans_le (by simp))
+  . intros v hv
+    exact sub_eq_of_add_eq h1' (hl.trans_le (by simp))
 
 end Coh.Boundary

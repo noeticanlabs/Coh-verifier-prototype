@@ -7,21 +7,18 @@
 //! previous learning (NPE-Lean PhaseLoom Benchmark), prioritizing strategies known
 //! to be effective for this specific proof target: ApproximationLemma, ExistsLtUsed,
 //! and InfAddCompatibility.
-//!
-//! The goal is to maximize the probability of full compilation (FullPairwiseAddCompiled)
-//! and emit the resulting proof graph and receipts to a dedicated directory.
 
 use coh_genesis::mathlib_advisor::{
-    assess_import_risk, check_policy, generate_report, MathlibAdvisorReport, MathlibPolicy,
-    MathlibStrategy,
+    assess_import_risk, check_policy, MathlibPolicy,
+    MathlibStrategy, generate_failure_report,
 };
 use coh_genesis::phaseloom_lite::{
-    phaseloom_circuit_broken, phaseloom_ingest, phaseloom_init, BoundaryReceiptSummary,
+    phaseloom_ingest, phaseloom_init, BoundaryReceiptSummary,
     MathlibEffect, PhaseLoomConfig, PhaseLoomState,
 };
 use std::env;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Strategies combined from pairwise add and rebuild loops
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -337,24 +334,22 @@ fn main() {
     println!();
 
     // Initialize mathlib advisor report if in mathlib-assisted mode
-    let mathlib_report = if mode == "mathlib-assisted"
+    let _mathlib_report = if mode == "mathlib-assisted"
         || mode == "mathlib-advisory"
         || mode == "mathlib-import-tested"
     {
         println!("Initializing Mathlib Advisor...");
-        let report = generate_report("isRationalInf_pairwise_add");
-        println!("  Target: {}", report.target_theorem);
-        println!("  Strategy: {:?}", report.candidate_strategy.as_str());
-        println!("  Confidence: {:.2}", report.confidence);
-        println!("  Suggested lemmas: {:?}", report.suggested_lemmas);
+        let report = generate_failure_report("example", "isRationalInf_pairwise_add", "intentional failure");
+        println!("  Target: {}", report.as_ref().unwrap().target);
+        println!("  Kind: {:?}", report.as_ref().unwrap().kind);
         println!();
 
         // Check policy compliance
         let policy = MathlibPolicy::default();
-        let compliant = check_policy(&report.suggested_imports, policy);
+        let compliant = check_policy(&["Mathlib.Data.NNRat.Defs".to_string()], policy);
 
         // Compute import risk tier
-        let risk = assess_import_risk(&report.suggested_imports);
+        let risk = assess_import_risk(&["Mathlib.Data.NNRat.Defs".to_string()]);
         println!("  Import risk tier: {:?}", risk);
         println!("  Policy compliant: {}", compliant);
 
@@ -363,7 +358,7 @@ fn main() {
             println!("  WARNING: Policy non-compliant, imports disabled");
         }
 
-        Some(report)
+        report
     } else {
         None
     };
@@ -405,27 +400,6 @@ fn main() {
         .0
         .insert("ForbiddenShortcut".to_string(), 0.05);
     state.strategy_weights.normalize();
-
-    // In mathlib-assisted mode, boost weights based on advisor confidence
-    if let Some(ref report) = mathlib_report {
-        let boost = report.confidence * 0.15;
-        let strategy_name = match report.candidate_strategy {
-            MathlibStrategy::IsGLB => "GLBGreatestReduction",
-            MathlibStrategy::SInf => "InfAddCompatibility",
-            MathlibStrategy::OrderTheory => "ExistsLtUsed",
-            MathlibStrategy::Approximation => "ApproximationLemma",
-            MathlibStrategy::SetImage => "PairwiseLowerBound",
-            _ => "PairwiseLowerBound",
-        };
-        if let Some(w) = state.strategy_weights.0.get_mut(strategy_name) {
-            *w += boost;
-            println!(
-                "  Boosted {} by {:.3} based on mathlib confidence",
-                strategy_name, boost
-            );
-        }
-        state.strategy_weights.normalize();
-    }
 
     println!("Initial Biased Weights:");
     for (k, v) in &state.strategy_weights.0 {
@@ -561,3 +535,4 @@ end Coh.Boundary
 
     println!("Artifacts successfully written to: {}", out_dir.display());
 }
+

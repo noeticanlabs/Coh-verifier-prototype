@@ -3,22 +3,12 @@
 //! This example demonstrates the meta-engineering cycle where the NPE Rust loop
 //! proposes improvements to the NPE Lean proof-search machinery, which then
 //! leads to better Lean proof candidates.
-//!
-//! Cycle:
-//! 1. Run Baseline Lean Loop (target: isRationalInf_pairwise_add)
-//! 2. Identify dominant failure (e.g., UnknownField: 'greatest' vs '.2')
-//! 3. NPE-Rust proposes a patch to 'mathlib_advisor.rs' or 'lean_failure_taxonomy.rs'
-//! 4. Coh verifies the Rust patch (PatchAdmit)
-//! 5. Rerun Lean Loop with improved machinery
-//! 6. Verify improved metrics (Higher compile rate, lower cost)
 
 use coh_genesis::code_patch::{
     is_formation_admissible, CodePatchCandidate, CodePatchReport,
-    PatchPolicy, RejectPolicyMode,
 };
-use coh_genesis::lean_failure_taxonomy::{
-    LeanElabFailure, LeanFailureReport, ProofFailureLayer, ProofFailureKind,
-    FailureSeverity, NearMissClass, suggest_next_strategies,
+use coh_genesis::failure_taxonomy::{
+    FailureLayer, FailureKind, LeanElabFailure, FailureSeverity, FailureReport, RepairStrategy,
 };
 use std::collections::HashMap;
 
@@ -128,20 +118,21 @@ fn main() {
 
     // 2. Identify Failure
     println!("Step 2: Identifying dominant failure layer...");
-    let report = LeanFailureReport {
+    let report = FailureReport {
         candidate_id: "baseline_proof_042".to_string(),
-        target_theorem: "isRationalInf_pairwise_add".to_string(),
-        layer: ProofFailureLayer::LeanElaboration,
-        kind: ProofFailureKind::Elab(LeanElabFailure::UnknownField),
-        raw_error: Some("no field 'greatest' in 'IsRationalInf'".to_string()),
+        target: "isRationalInf_pairwise_add".to_string(),
+        layer: FailureLayer::LeanElaboration,
+        kind: FailureKind::LeanElab(LeanElabFailure::UnknownField("greatest".to_string())),
+        raw_error: "no field 'greatest' in 'IsRationalInf'".to_string(),
         normalized_message: "UnknownField: greatest".to_string(),
         severity: FailureSeverity::UsefulNearMiss,
-        near_miss_class: Some(NearMissClass::CorrectLemmaWrongField),
+        retryable: true,
+        suggested_repairs: vec![RepairStrategy::SyntaxRepair],
+        blocks_publication: false,
     };
     
-    let suggested = suggest_next_strategies(&report);
     println!("  Failure: {}", report.normalized_message);
-    println!("  Suggested Repairs: {:?}", suggested);
+    println!("  Suggested Repairs: {:?}", report.suggested_repairs);
     println!();
 
     // 3. NPE-Rust proposes patch
@@ -176,11 +167,6 @@ fn main() {
         genesis_margin: 0,
         coherence_margin: 0,
         formation_accept: true,
-    };
-    
-    let _policy = PatchPolicy {
-        reject_policy: RejectPolicyMode::Strict,
-        ..Default::default()
     };
     
     let base_complexity = 5000;

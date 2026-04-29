@@ -11,6 +11,7 @@ use crate::types_v3::{
     MicroReceiptV3, MicroReceiptV3Wire, PolicyGovernance, SequenceGuard, TieredConfig,
     VerificationMode,
 };
+use crate::phaseloom::{calculate_read_cost, validate_anchor_transition};
 use std::collections::HashMap;
 
 /// V3 verification result
@@ -229,7 +230,47 @@ pub fn verify_micro_v3(
         };
     }
 
-    // Cryptographic integrity
+    // 8. PhaseLoom Ecology Check (Fusion Wedge)
+    // If this step accessed a projection, verify read cost and budget
+    let zero_hash = crate::types::Hash32([0; 32]);
+    if r.metrics.projection_hash != zero_hash {
+        let read_cost = calculate_read_cost(r.metrics.pl_tau, r.metrics.pl_tau, &r.metrics.pl_provenance);
+        if r.metrics.pl_budget < read_cost {
+            return VerifyMicroV3Result {
+                decision: Decision::Reject,
+                code: Some(RejectCode::PhaseLoomInsufficientBudget),
+                message: format!(
+                    "PhaseLoom budget exhausted: need {} for read, have {}",
+                    read_cost, r.metrics.pl_budget
+                ),
+                step_index: Some(r.step_index),
+                object_id: Some(r.object_id.clone()),
+                objective_checked: Some(r.objective_satisfied()),
+                sequence_checked: Some(r.sequence_valid),
+                override_applied: Some(false),
+            };
+        }
+    }
+
+    // Anchor Firewall: Ensure provenance does not degrade without a policy override
+    // Note: In real verify, we'd compare against prev_state's provenance if available.
+    // For now, we validate the internal consistency of the receipt.
+    if let Err(code) = validate_anchor_transition("EXT", &r.metrics.pl_provenance) {
+        if !r.override_applied {
+             return VerifyMicroV3Result {
+                decision: Decision::Reject,
+                code: Some(code),
+                message: format!("PhaseLoom Epistemic Violation: unlawful provenance transition to {}", r.metrics.pl_provenance),
+                step_index: Some(r.step_index),
+                object_id: Some(r.object_id.clone()),
+                objective_checked: Some(r.objective_satisfied()),
+                sequence_checked: Some(r.sequence_valid),
+                override_applied: Some(false),
+            };
+        }
+    }
+
+    // 9. Cryptographic integrity
     use crate::canon::{to_canonical_json_bytes, to_prehash_view};
     use crate::hash::compute_chain_digest;
 

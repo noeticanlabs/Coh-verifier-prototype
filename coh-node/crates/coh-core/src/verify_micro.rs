@@ -5,7 +5,7 @@ use crate::canon::{
 };
 use crate::hash::compute_chain_digest;
 use crate::math::CheckedMath;
-use crate::semantic::SemanticRegistry;
+use crate::semantic::PolicyEnvelopeRegistry;
 use crate::types::{
     AdmissionProfile, Decision, MicroReceipt, MicroReceiptWire, RejectCode, VerifyMicroResult,
 };
@@ -301,9 +301,9 @@ pub fn verify_micro_with_context(
                 };
             }
 
-            // 7.3 Semantic Envelope Check (delta_hat <= defect)
-            if let Err(e) = SemanticRegistry::verify_defect_bound(&r) {
-                let delta_hat_str = SemanticRegistry::delta_hat(&r.step_type)
+            // 7.3 Policy Envelope Check (ŵδ <= defect)
+            if let Err(e) = PolicyEnvelopeRegistry::verify_defect_bound(&r) {
+                let delta_hat_str = PolicyEnvelopeRegistry::delta_hat(&r.step_type)
                     .map(|(d, _)| d.to_string())
                     .unwrap_or_else(|_| "UNKNOWN".to_string());
 
@@ -321,7 +321,7 @@ pub fn verify_micro_with_context(
             }
 
             // 7.4 Identity Constraint: spend must be zero for identity steps
-            if SemanticRegistry::is_identity(&r.step_type) && r.metrics.spend != 0 {
+            if PolicyEnvelopeRegistry::is_identity(&r.step_type) && r.metrics.spend != 0 {
                 return VerifyMicroResult {
                     decision: Decision::Reject,
                     code: Some(RejectCode::SemanticEnvelopeViolation),

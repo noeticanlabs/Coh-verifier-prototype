@@ -45,4 +45,8 @@ pub enum RejectCode {
     ProjectionMismatch,
     SemanticEnvelopeMissing,
     SemanticEnvelopeViolation,
+    AuthorityExceeded,
+    // PhaseLoom Ecology failures
+    PhaseLoomInsufficientBudget,
+    PhaseLoomEpistemicViolation,
 }

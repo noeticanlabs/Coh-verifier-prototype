@@ -91,15 +91,22 @@ impl FormationResult {
 // Re-export modules for NPE Wildness Boundary Test
 pub mod candidate;
 pub mod code_patch;
-pub mod generator;
 pub mod failure_taxonomy;
+pub mod fusion_wedge;
+pub mod generator;
+pub mod lean_json_export;
 pub mod lean_proof;
+pub mod math_analytic_failure;
 pub mod mathlib_advisor;
+pub mod npe;
+pub mod npe_verifier_integration;
 pub mod phaseloom_lite;
+pub mod proof_receipt;
 pub mod report;
 pub mod sweep;
 
 // Re-export PhaseLoomLite types and functions
+pub use fusion_wedge::verify_governed_step;
 pub use phaseloom_lite::{
     phaseloom_circuit_broken, phaseloom_ingest, phaseloom_init, phaseloom_sample,
     phaseloom_serialize, BoundaryReceiptSummary, MathlibEffect, PhaseLoomConfig, PhaseLoomState,
@@ -175,11 +182,6 @@ mod tests {
     /// Test: Genesis boundary case - exactly at boundary
     #[test]
     fn test_genesis_boundary_case() {
-        let _prev_disorder = 1000;
-        let _next_disorder = 900;
-        let _cost = 100;
-        let _slack = 0;
-
         // 900 + 100 = 1000
         assert!(GenesisMetrics::is_genesis_admissible(1000, 900, 100, 0));
     }

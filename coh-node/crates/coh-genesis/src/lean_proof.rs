@@ -250,7 +250,7 @@ pub fn build_formation_result(
     candidate: &ProofCandidate,
     base_complexity: u128,
     report: &LeanVerificationReport,
-    mode: &ProofSelectorMode,
+    _mode: &ProofSelectorMode,
     alpha: f64,
 ) -> ProofFormationResult {
     let (m_after, cost, defect) = compute_genesis_metrics(candidate);
@@ -364,7 +364,7 @@ mod tests {
             novelty: 1.0,
         };
 
-        let (m_after, cost, defect) = compute_genesis_metrics(&candidate);
+        let (m_after, cost, _) = compute_genesis_metrics(&candidate);
         assert!(m_after > 0);
         assert!(cost > 0);
     }
@@ -399,7 +399,7 @@ mod tests {
             failure_report: None,
         };
 
-        let (accept, gen_m, coh_m) = is_formation_admissible(&candidate, 1000, &report);
+        let (accept, gen_m, _) = is_formation_admissible(&candidate, 1000, &report);
         assert!(accept);
         assert!(gen_m > 0);
     }

@@ -1,7 +1,7 @@
 use std::env;
 use std::path::PathBuf;
-use coh_genesis::mathlib_advisor::{MathlibLakeQuery, classify_lean_error, MathlibStrategy};
-use coh_genesis::lean_proof::{ProofCandidate, LeanVerificationReport, ProofFailureClass};
+use coh_genesis::mathlib_advisor::{MathlibLakeQuery, generate_failure_report};
+use coh_genesis::lean_proof::{ProofCandidate};
 use coh_genesis::phaseloom_lite::{PhaseLoomConfig, PhaseLoomState, BoundaryReceiptSummary};
 
 fn main() {
@@ -36,13 +36,6 @@ fn main() {
         .unwrap_or_else(|| "add_le_add".to_string());
 
     println!("Using lemma: {}", add_le_add);
-
-    // Propose proof
-    let proof_text = format!(
-        "  cases h1; cases h2\n  \
-           have h := {add_le_add} ‹obj.M g2 + obj.C p2 ≤ obj.M g1 + obj.D p1› ‹obj.M g3 + obj.C p2 ≤ obj.M g2 + obj.D p2›\n  \
-           sorry" // First attempt with sorry to check structure
-    );
 
     // Final proof
     let full_proof = "  unfold GenesisAdmissible at h1 h2\n  \
@@ -94,20 +87,30 @@ fn main() {
         println!("SUCCESS: Law of Genesis Composition fully produced and verified!");
         
         let receipt = BoundaryReceiptSummary {
+            domain: "LawOfGenesis".to_string(),
+            target: candidate.target_theorem.clone(),
             strategy_class: "MonotoneAdd".to_string(),
             accepted: true,
             novelty: candidate.novelty,
-            ..BoundaryReceiptSummary::default()
+            ..Default::default()
         };
         state.ingest(&receipt, &config);
-        
-        // Final update to the file
-        println!("\n[Finalizing] Updating LawOfGenesis.lean with the verified proof...");
     } else {
-        println!("FAILURE: Proof did not verify.");
-        println!("Error classification: {:?}", classify_lean_error(&combined));
-        println!("Full output:\n{}", combined);
+        println!("FAILED: Proof does not close or contains sorry.");
+        if let Some(report) = generate_failure_report(candidate.id.as_str(), candidate.target_theorem.as_str(), &combined) {
+            println!("Failure Report: {:?}", report.kind);
+            let receipt = BoundaryReceiptSummary {
+                domain: "LawOfGenesis".to_string(),
+                target: candidate.target_theorem.clone(),
+                strategy_class: "MonotoneAdd".to_string(),
+                accepted: false,
+                novelty: candidate.novelty,
+                failure_report: Some(report),
+                ..Default::default()
+            };
+            state.ingest(&receipt, &config);
+        }
     }
 
-    println!("\nDone.");
+    println!("\nFinal PhaseLoom Weights: {:?}", state.all_weights());
 }

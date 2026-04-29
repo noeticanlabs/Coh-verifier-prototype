@@ -10,6 +10,7 @@ pub mod hash;
 pub mod math;
 pub mod measurement;
 pub mod merkle;
+pub mod phaseloom;
 pub mod reject;
 pub mod semantic;
 pub mod trajectory_probability;

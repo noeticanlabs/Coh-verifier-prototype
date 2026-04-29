@@ -8,8 +8,65 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 
+// =============================================================================
+// AUTHORITY CAP RULE
+// =============================================================================
+// The authority term in the Coh inequality: v_post + spend <= v_pre + defect + authority
+// must be bounded. Without explicit caps, authority could become an unbounded escape channel.
+//
+// AUTHORITY RULE: authority(r) <= A_max(signer, scope, policy, t)
+//
+// For chains: Σ A_n <= A_max^chain
+//
+// This prevents: choose a valid signer → inflate authority → pass static delta_hat → produce
+// formally valid chain whose observable receipts do not bind tightly to hidden risk.
+
 pub const COHENC_V1_SIGNED_TRANSITION_TAG: &[u8] = b"COHENC_V1_SIGNED_TRANSITION";
 pub const DEFAULT_SCOPE: &str = "*";
+
+/// Maximum authority allowed per single receipt (preventing unbounded escape channel)
+pub const MAX_AUTHORITY_PER_RECEIPT: u128 = 1_000_000;
+
+/// Maximum cumulative authority allowed across a chain (preventing telescoping violations)
+pub const MAX_AUTHORITY_CHAIN: u128 = 10_000_000;
+
+/// Authority cap configuration for a specific authority scope
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AuthorityCap {
+    pub max_per_receipt: u128,
+    pub max_chain: u128,
+    pub scope: String,
+}
+
+impl Default for AuthorityCap {
+    fn default() -> Self {
+        Self {
+            max_per_receipt: MAX_AUTHORITY_PER_RECEIPT,
+            max_chain: MAX_AUTHORITY_CHAIN,
+            scope: DEFAULT_SCOPE.to_string(),
+        }
+    }
+}
+
+impl AuthorityCap {
+    /// Check if the authority value is within the per-receipt cap
+    pub fn check_authority(&self, authority: u128) -> Result<(), RejectCode> {
+        if authority > self.max_per_receipt {
+            Err(RejectCode::AuthorityExceeded)
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Check if cumulative authority is within the chain cap
+    pub fn check_chain_authority(&self, cumulative: u128) -> Result<(), RejectCode> {
+        if cumulative > self.max_chain {
+            Err(RejectCode::AuthorityExceeded)
+        } else {
+            Ok(())
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct SignedTransitionPayload {

@@ -109,7 +109,7 @@ fn run_sweep_one_level(
             if boundary_margin < min_boundary_margin {
                 min_boundary_margin = boundary_margin;
             }
-            if boundary_margin >= 0 && boundary_margin <= NEAR_BOUNDARY_EPSILON {
+            if (0..=NEAR_BOUNDARY_EPSILON).contains(&boundary_margin) {
                 near_boundary_count += 1;
             }
         }
@@ -200,7 +200,7 @@ pub fn find_boundary_seeker(
         let coh_margin = c.coherence_margin();
         let boundary_margin = gen_margin.min(coh_margin);
 
-        let score = c.novelty as f64 + alpha * boundary_margin as f64;
+        let score = c.novelty + alpha * boundary_margin as f64;
 
         match best {
             None => {
@@ -209,7 +209,7 @@ pub fn find_boundary_seeker(
                     wildness: c.wildness,
                     novelty: c.novelty,
                     genesis_margin: gen_margin,
-                    coh_margin: coh_margin,
+                    coh_margin,
                     boundary_margin,
                     score,
                 });
@@ -254,7 +254,7 @@ pub fn find_edge_seeker(
         let boundary_margin = gen_margin.min(coh_margin);
 
         // Edge-seeking: reward closeness to boundary (small margin)
-        let score = c.novelty as f64 - alpha * boundary_margin as f64;
+        let score = c.novelty - alpha * boundary_margin as f64;
 
         match best {
             None => {
@@ -263,7 +263,7 @@ pub fn find_edge_seeker(
                     wildness: c.wildness,
                     novelty: c.novelty,
                     genesis_margin: gen_margin,
-                    coh_margin: coh_margin,
+                    coh_margin,
                     boundary_margin,
                     score,
                 });
@@ -311,7 +311,7 @@ pub fn find_near_boundary_candidate(
             continue;
         }
 
-        let score = c.novelty as f64;
+        let score = c.novelty;
 
         match best {
             None => {
@@ -320,7 +320,7 @@ pub fn find_near_boundary_candidate(
                     wildness: c.wildness,
                     novelty: c.novelty,
                     genesis_margin: gen_margin,
-                    coh_margin: coh_margin,
+                    coh_margin,
                     boundary_margin,
                     score,
                 });

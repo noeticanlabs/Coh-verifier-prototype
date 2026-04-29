@@ -68,6 +68,7 @@ pub struct GenesisCandidate {
 }
 
 impl GenesisCandidate {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: String,
         wildness: f64,
@@ -216,6 +217,7 @@ pub struct WildnessResult {
 }
 
 impl WildnessResult {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         wildness: f64,
         total: usize,

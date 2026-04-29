@@ -1,7 +1,6 @@
 use std::env;
 use std::path::PathBuf;
 use coh_genesis::mathlib_advisor::MathlibLakeQuery;
-use coh_genesis::lean_proof::{ProofCandidate, ProofFailureClass};
 
 fn main() {
     println!("NPE Field Equation Full Production Loop");
@@ -11,13 +10,13 @@ fn main() {
     let root_dir = manifest_dir.parent().unwrap().parent().unwrap().parent().unwrap();
     let project_path = root_dir.join("coh-t-stack");
     
-    let mut query = MathlibLakeQuery::new(project_path.clone());
+    let query = MathlibLakeQuery::new(project_path.clone());
     
     // --- Step 1: Producing the Uniqueness Proof ---
     println!("\n[Task 1] Producing field_equation_unique proof...");
     
     // The proof uses the fact that g = (1-λ)⁻¹ κ T
-    let unique_proof = "
+    let _unique_proof = "
       funext μ ν
       have h1' := h1.holds μ ν
       have h2' := h2.holds μ ν
@@ -37,7 +36,7 @@ fn main() {
     
     // --- Step 2: Producing the Non-degeneracy Proof ---
     println!("\n[Task 2] Producing non-degeneracy proof...");
-    let non_deg_proof = "
+    let _non_deg_proof = "
       intros v hv
       -- Nondegeneracy proof: if g μ ν is the metric, it must be positive definite.
       -- In this field theory, g is defined by Ψ.

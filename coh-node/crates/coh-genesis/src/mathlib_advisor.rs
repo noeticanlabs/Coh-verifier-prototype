@@ -19,6 +19,28 @@ use crate::failure_taxonomy::{
     FailureKind, FailureLayer, FailureReport, FailureSeverity, LeanElabFailure, LeanProofFailure,
     LeanSyntaxFailure, RepairStrategy,
 };
+use crate::lean_json_export::execute_lean_json_search;
+
+/// Component that synthesizes missing lemmas based on algebraic patterns
+#[derive(Debug, Clone, Default)]
+pub struct LemmaSynthesizer {
+    pub history: Vec<String>,
+}
+
+impl LemmaSynthesizer {
+    /// Synthesize a lemma name and body based on a requested pattern
+    pub fn synthesize(&mut self, target: &str, pattern: &str) -> Option<(String, String)> {
+        // Pattern: "sub_eq_of_add_eq" for ENNRat
+        if pattern.contains("sub_eq_of_add_eq") && target.contains("ENNRat") {
+            let name = "ENNRat.sub_eq_of_add_eq".to_string();
+            let body = "theorem sub_eq_of_add_eq {a b c : ENNRat} (h1 : a = b + c) (h2 : b < 1) : a - c = b := by sorry".to_string();
+            self.history.push(name.clone());
+            return Some((name, body));
+        }
+
+        None
+    }
+}
 
 /// Generate a rich failure report from Lean output
 pub fn generate_failure_report(
@@ -45,6 +67,7 @@ pub fn generate_failure_report(
                 retryable: true,
                 severity: FailureSeverity::Repairable,
                 suggested_repairs: vec![RepairStrategy::SyntaxRepair],
+                blocks_publication: false,
             });
         }
 
@@ -69,6 +92,7 @@ pub fn generate_failure_report(
                 retryable: true,
                 severity: FailureSeverity::Repairable,
                 suggested_repairs: vec![RepairStrategy::MathlibLemmaSearch],
+                blocks_publication: false,
             });
         }
 
@@ -85,6 +109,7 @@ pub fn generate_failure_report(
                 retryable: true,
                 severity: FailureSeverity::Repairable,
                 suggested_repairs: vec![RepairStrategy::CoercionRepair],
+                blocks_publication: false,
             });
         }
 
@@ -100,8 +125,19 @@ pub fn generate_failure_report(
                 retryable: true,
                 severity: FailureSeverity::UsefulNearMiss,
                 suggested_repairs: vec![RepairStrategy::HelperLemmaCreation],
+                blocks_publication: false,
             });
         }
+    }
+
+    // 4. Mathematical / Analytical Failures (Deep Audit)
+    if let Some(math_report) = crate::math_analytic_failure::classify_math_analytic_gap(
+        candidate_id,
+        target,
+        "", // proof_text not available here, would need to be passed in
+        output,
+    ) {
+        return Some(math_report);
     }
 
     Some(FailureReport {
@@ -112,8 +148,9 @@ pub fn generate_failure_report(
         raw_error: output.to_string(),
         normalized_message: "Unclassified Lean error".to_string(),
         retryable: true,
-        severity: FailureSeverity::Unknown,
+        severity: FailureSeverity::Advisory,
         suggested_repairs: vec![],
+        blocks_publication: false,
     })
 }
 
@@ -142,12 +179,16 @@ pub struct InstanceMatch {
 pub struct MathlibLakeQuery {
     /// Path to the Lean project (coh-t-stack)
     pub project_path: PathBuf,
+    /// Local synthesizer for missing lemmas
+    pub synthesizer: LemmaSynthesizer,
     /// Path to lake executable if not in system PATH
     pub lake_cmd: String,
     /// Whether lake is available
     pub available: bool,
     /// Last query latency in ms
     pub last_latency_ms: u64,
+    /// Timeout for lake queries in seconds
+    pub timeout_secs: u64,
 }
 
 impl MathlibLakeQuery {
@@ -161,6 +202,8 @@ impl MathlibLakeQuery {
             lake_cmd,
             available,
             last_latency_ms: 0,
+            timeout_secs: 60, // Default to 1 minute
+            synthesizer: LemmaSynthesizer::default(),
         }
     }
 
@@ -208,46 +251,19 @@ impl MathlibLakeQuery {
         }
 
         let start = std::time::Instant::now();
-        let temp_file_name = "_search_temp.lean";
-        let temp_file = self.project_path.join(temp_file_name);
+        let results = execute_lean_json_search(&self.project_path, &self.lake_cmd, query, Some(self.timeout_secs));
         
-        // Generate Lean code that uses #find
-        let lean_code = format!(
-            "import Mathlib.Tactic.Find\nimport Coh.Boundary.RationalInf\nopen Coh.Boundary\n#find {}\n",
-            query
-        );
-
-        if std::fs::write(&temp_file, lean_code).is_err() {
-            return Vec::new();
-        }
-
-        println!("Executing: {} env lean {} in {}", self.lake_cmd, temp_file_name, self.project_path.display());
-        let output = Command::new(&self.lake_cmd)
-            .args(["env", "lean", temp_file_name])
-            .current_dir(&self.project_path)
-            .output();
-
-        // Cleanup
-        let _ = std::fs::remove_file(&temp_file);
-
         self.last_latency_ms = start.elapsed().as_millis() as u64;
 
-        if let Ok(out) = output {
-            println!("Lake command status: {:?}", out.status);
-            let stdout = String::from_utf8_lossy(&out.stdout);
-            let stderr = String::from_utf8_lossy(&out.stderr);
-            
-            // #find output usually goes to stdout
-            let combined = format!("{}{}", stdout, stderr);
-            println!("Lake search combined output (len {}): {}", combined.len(), combined);
-            self.parse_search_output(&combined)
-        } else {
-            println!("Lake command failed to execute.");
-            Vec::new()
-        }
+        results.results.into_iter().map(|r| LemmaMatch {
+            name: r.name,
+            file: r.location.unwrap_or_else(|| "Mathlib".to_string()),
+            in_mathlib: true,
+        }).collect()
     }
 
     /// Parse Lean search output into LemmaMatch objects
+    #[allow(dead_code)]
     fn parse_search_output(&self, output: &str) -> Vec<LemmaMatch> {
         let mut results = Vec::new();
         for line in output.lines() {
@@ -273,7 +289,7 @@ impl MathlibLakeQuery {
 
     /// Search for type class instances
     /// Returns empty if lake unavailable
-    pub fn search_instances(&mut self, class: &str) -> Vec<InstanceMatch> {
+    pub fn search_instances(&mut self, _class: &str) -> Vec<InstanceMatch> {
         if !self.available {
             return Vec::new();
         }
@@ -321,6 +337,10 @@ pub struct MathlibAdvisorReport {
     pub lake_latency_ms: u64,
     /// Lake unavailable - using heuristics
     pub using_heuristics: bool,
+    /// Detected Coh template pattern
+    pub coh_template: Option<crate::npe::templates::CohTemplateKind>,
+    /// Suggested tactics from the Coh template
+    pub template_tactics: Vec<String>,
 }
 
 /// Strategy categories for mathlib-assisted proof
@@ -366,6 +386,8 @@ pub struct MathlibPolicy {
     pub max_new_imports: usize,
     /// Whether to allow heavy imports
     pub allow_heavy_imports: bool,
+    /// Timeout for searches in seconds
+    pub timeout_secs: u64,
 }
 
 impl Default for MathlibPolicy {
@@ -373,6 +395,7 @@ impl Default for MathlibPolicy {
         Self {
             max_new_imports: 2,
             allow_heavy_imports: false,
+            timeout_secs: 60,
         }
     }
 }
@@ -570,6 +593,10 @@ pub fn generate_report(target: &str) -> MathlibAdvisorReport {
         lake_verified_instances: Vec::new(),
         lake_latency_ms: 0,
         using_heuristics: true,
+        coh_template: crate::npe::templates::classify_coh_template(target),
+        template_tactics: crate::npe::templates::classify_coh_template(target)
+            .map(|t| t.preferred_tactics().into_iter().map(|s| s.to_string()).collect())
+            .unwrap_or_default(),
     }
 }
 

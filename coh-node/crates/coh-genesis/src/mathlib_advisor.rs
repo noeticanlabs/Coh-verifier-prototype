@@ -15,6 +15,107 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::process::Command;
+use crate::failure_taxonomy::{
+    FailureKind, FailureLayer, FailureReport, FailureSeverity, LeanElabFailure, LeanProofFailure,
+    LeanSyntaxFailure, RepairStrategy,
+};
+
+/// Generate a rich failure report from Lean output
+pub fn generate_failure_report(
+    candidate_id: &str,
+    target: &str,
+    output: &str,
+) -> Option<FailureReport> {
+    if output.is_empty() {
+        return None;
+    }
+
+    for line in output.lines() {
+        let line = line.trim();
+
+        // 1. Lean Syntax Failures
+        if line.contains("unexpected token") {
+            return Some(FailureReport {
+                candidate_id: candidate_id.to_string(),
+                target: target.to_string(),
+                layer: FailureLayer::LeanSyntax,
+                kind: FailureKind::LeanSyntax(LeanSyntaxFailure::UnexpectedToken(line.to_string())),
+                raw_error: output.to_string(),
+                normalized_message: "Unexpected token in Lean syntax".to_string(),
+                retryable: true,
+                severity: FailureSeverity::Repairable,
+                suggested_repairs: vec![RepairStrategy::SyntaxRepair],
+            });
+        }
+
+        // 2. Lean Elaboration Failures
+        if line.contains("unknown identifier") {
+            let id = if let Some(start) = line.find('\'') {
+                if let Some(end) = line[start + 1..].find('\'') {
+                    line[start + 1..start + 1 + end].to_string()
+                } else {
+                    "unknown".to_string()
+                }
+            } else {
+                "unknown".to_string()
+            };
+            return Some(FailureReport {
+                candidate_id: candidate_id.to_string(),
+                target: target.to_string(),
+                layer: FailureLayer::LeanElaboration,
+                kind: FailureKind::LeanElab(LeanElabFailure::UnknownIdentifier(id)),
+                raw_error: output.to_string(),
+                normalized_message: "Unknown identifier".to_string(),
+                retryable: true,
+                severity: FailureSeverity::Repairable,
+                suggested_repairs: vec![RepairStrategy::MathlibLemmaSearch],
+            });
+        }
+
+        if line.contains("failed to synthesize instance") {
+            return Some(FailureReport {
+                candidate_id: candidate_id.to_string(),
+                target: target.to_string(),
+                layer: FailureLayer::LeanElaboration,
+                kind: FailureKind::LeanElab(LeanElabFailure::FailedToSynthesizeInstance(
+                    line.to_string(),
+                )),
+                raw_error: output.to_string(),
+                normalized_message: "Missing typeclass instance".to_string(),
+                retryable: true,
+                severity: FailureSeverity::Repairable,
+                suggested_repairs: vec![RepairStrategy::CoercionRepair],
+            });
+        }
+
+        // 3. Lean Proof Failures
+        if line.contains("unsolved goals") {
+            return Some(FailureReport {
+                candidate_id: candidate_id.to_string(),
+                target: target.to_string(),
+                layer: FailureLayer::LeanProof,
+                kind: FailureKind::LeanProof(LeanProofFailure::UnsolvedGoals),
+                raw_error: output.to_string(),
+                normalized_message: "Goals remaining".to_string(),
+                retryable: true,
+                severity: FailureSeverity::UsefulNearMiss,
+                suggested_repairs: vec![RepairStrategy::HelperLemmaCreation],
+            });
+        }
+    }
+
+    Some(FailureReport {
+        candidate_id: candidate_id.to_string(),
+        target: target.to_string(),
+        layer: FailureLayer::LeanProof,
+        kind: FailureKind::Other(output.to_string()),
+        raw_error: output.to_string(),
+        normalized_message: "Unclassified Lean error".to_string(),
+        retryable: true,
+        severity: FailureSeverity::Unknown,
+        suggested_repairs: vec![],
+    })
+}
 
 /// Result from a lake lemma search
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,6 +142,8 @@ pub struct InstanceMatch {
 pub struct MathlibLakeQuery {
     /// Path to the Lean project (coh-t-stack)
     pub project_path: PathBuf,
+    /// Path to lake executable if not in system PATH
+    pub lake_cmd: String,
     /// Whether lake is available
     pub available: bool,
     /// Last query latency in ms
@@ -50,28 +153,51 @@ pub struct MathlibLakeQuery {
 impl MathlibLakeQuery {
     /// Create a new lake query interface
     pub fn new(project_path: PathBuf) -> Self {
-        // Check if lake is available by running `lake --version`
-        let available = Self::check_lake_available(&project_path);
+        // Check if lake is available and find its command
+        let (available, lake_cmd) = Self::discover_lake(&project_path);
 
         Self {
             project_path,
+            lake_cmd,
             available,
             last_latency_ms: 0,
         }
     }
 
-    /// Check if lake is available
-    fn check_lake_available(project_path: &PathBuf) -> bool {
+    /// Discover lake command and availability
+    fn discover_lake(project_path: &PathBuf) -> (bool, String) {
         if !project_path.exists() {
-            return false;
+            return (false, "lake".to_string());
         }
 
-        Command::new("lake")
+        // 1. Try system PATH
+        if Command::new("lake")
             .arg("--version")
             .current_dir(project_path)
             .output()
             .map(|o| o.status.success())
             .unwrap_or(false)
+        {
+            return (true, "lake".to_string());
+        }
+
+        // 2. Try common elan path on Windows
+        if let Ok(home) = std::env::var("USERPROFILE") {
+            let elan_lake = PathBuf::from(home).join(".elan").join("bin").join("lake.exe");
+            if elan_lake.exists() {
+                let available = Command::new(&elan_lake)
+                    .arg("--version")
+                    .current_dir(project_path)
+                    .output()
+                    .map(|o| o.status.success())
+                    .unwrap_or(false);
+                if available {
+                    return (true, elan_lake.to_string_lossy().to_string());
+                }
+            }
+        }
+
+        (false, "lake".to_string())
     }
 
     /// Search for lemmas matching a term pattern
@@ -81,10 +207,68 @@ impl MathlibLakeQuery {
             return Vec::new();
         }
 
-        // Use `#find` tactic via lean if available
-        // For now, return empty - real implementation would parse lean output
-        // This is a placeholder that returns empty to indicate "fallback to heuristics"
-        Vec::new()
+        let start = std::time::Instant::now();
+        let temp_file_name = "_search_temp.lean";
+        let temp_file = self.project_path.join(temp_file_name);
+        
+        // Generate Lean code that uses #find
+        let lean_code = format!(
+            "import Mathlib.Tactic.Find\nimport Coh.Boundary.RationalInf\nopen Coh.Boundary\n#find {}\n",
+            query
+        );
+
+        if std::fs::write(&temp_file, lean_code).is_err() {
+            return Vec::new();
+        }
+
+        println!("Executing: {} env lean {} in {}", self.lake_cmd, temp_file_name, self.project_path.display());
+        let output = Command::new(&self.lake_cmd)
+            .args(["env", "lean", temp_file_name])
+            .current_dir(&self.project_path)
+            .output();
+
+        // Cleanup
+        let _ = std::fs::remove_file(&temp_file);
+
+        self.last_latency_ms = start.elapsed().as_millis() as u64;
+
+        if let Ok(out) = output {
+            println!("Lake command status: {:?}", out.status);
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            
+            // #find output usually goes to stdout
+            let combined = format!("{}{}", stdout, stderr);
+            println!("Lake search combined output (len {}): {}", combined.len(), combined);
+            self.parse_search_output(&combined)
+        } else {
+            println!("Lake command failed to execute.");
+            Vec::new()
+        }
+    }
+
+    /// Parse Lean search output into LemmaMatch objects
+    fn parse_search_output(&self, output: &str) -> Vec<LemmaMatch> {
+        let mut results = Vec::new();
+        for line in output.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with("import") || line.contains("Checking") {
+                continue;
+            }
+
+            // Look for patterns like "lemma_name : type"
+            if let Some(colon_idx) = line.find(':') {
+                let name = line[..colon_idx].trim().to_string();
+                if !name.is_empty() && !name.contains(' ') {
+                    results.push(LemmaMatch {
+                        name,
+                        file: "Mathlib".to_string(), // Simplified
+                        in_mathlib: true,
+                    });
+                }
+            }
+        }
+        results
     }
 
     /// Search for type class instances
@@ -104,8 +288,8 @@ impl MathlibLakeQuery {
             return false;
         }
 
-        // Placeholder for real implementation
-        false
+        let matches = self.search_lemmas(lemma);
+        matches.iter().any(|m| m.name == lemma)
     }
 }
 
@@ -485,5 +669,26 @@ mod tests {
             "Mathlib.Data.Set.Basic".to_string(),
         ];
         assert!(!check_policy(&imports, policy));
+    }
+    #[test]
+    fn test_lake_search() {
+        let project_path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+            .parent().unwrap().parent().unwrap().parent().unwrap()
+            .join("coh-t-stack");
+        
+        if !project_path.exists() {
+            println!("Skipping lake search test: coh-t-stack not found at {:?}", project_path);
+            return;
+        }
+
+        let mut query = MathlibLakeQuery::new(project_path);
+        if !query.available {
+            println!("Skipping lake search test: lake not available");
+            return;
+        }
+
+        let results = query.search_lemmas("NNRat → ENNRat");
+        // We expect at least some results or at least no crash
+        println!("Lake search found {} results in {}ms", results.len(), query.last_latency_ms);
     }
 }

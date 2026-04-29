@@ -21,6 +21,7 @@
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use crate::failure_taxonomy::FailureReport;
 
 /// Configuration for PhaseLoom initialization
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -299,8 +300,15 @@ impl PhaseLoomState {
         let reward = if receipt.accepted {
             config.learning_rate * receipt.novelty.max(0.1)
         } else {
-            0.0
+            // Use taxonomy-driven reward signal if available
+            receipt
+                .failure_report
+                .as_ref()
+                .map(|r| r.severity.reward_signal())
+                .unwrap_or(0.0)
+                * config.learning_rate
         };
+
         let penalty = if !receipt.accepted {
             let failure_count = self.failure_counts.get(class).copied().unwrap_or(1) as f64;
             config.curvature_penalty * failure_count.min(0.5)
@@ -374,11 +382,8 @@ pub struct BoundaryReceiptSummary {
     pub mathlib_imports_used: bool,
     /// What mathlib effect was observed
     pub mathlib_effect: MathlibEffect,
-    // ==== Failure Taxonomy fields ====
-    /// Failure layer (if rejected)
-    pub failure_layer: Option<String>,
-    /// Detailed failure kind (if rejected)
-    pub failure_kind: Option<String>,
+    /// Detailed failure report (if rejected)
+    pub failure_report: Option<crate::failure_taxonomy::FailureReport>,
 }
 
 /// Effect of mathlib on the proof attempt
@@ -417,8 +422,7 @@ impl Default for BoundaryReceiptSummary {
             mathlib_import_risk: None,
             mathlib_imports_used: false,
             mathlib_effect: MathlibEffect::None,
-            failure_layer: None,
-            failure_kind: None,
+            failure_report: None,
         }
     }
 }
@@ -445,8 +449,7 @@ impl BoundaryReceiptSummary {
             mathlib_import_risk: None,
             mathlib_imports_used: false,
             mathlib_effect: MathlibEffect::None,
-            failure_layer: None,
-            failure_kind: None,
+            failure_report: None,
         }
     }
 
@@ -470,8 +473,17 @@ impl BoundaryReceiptSummary {
             mathlib_import_risk: None,
             mathlib_imports_used: false,
             mathlib_effect: MathlibEffect::None,
-            failure_layer: Some("Genesis".to_string()),
-            failure_kind: Some("NegativeMargin".to_string()),
+            failure_report: Some(crate::failure_taxonomy::FailureReport {
+                candidate_id: "test".to_string(),
+                target: "test_fn".to_string(),
+                layer: crate::failure_taxonomy::FailureLayer::CohPost,
+                kind: crate::failure_taxonomy::FailureKind::Governance(crate::failure_taxonomy::GovernanceFailure::ProofCostTooHigh),
+                raw_error: "test error".to_string(),
+                normalized_message: "test error".to_string(),
+                retryable: false,
+                severity: crate::failure_taxonomy::FailureSeverity::HardReject,
+                suggested_repairs: vec![],
+            }),
         }
     }
 }

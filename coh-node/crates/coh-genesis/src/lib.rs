@@ -92,7 +92,7 @@ impl FormationResult {
 pub mod candidate;
 pub mod code_patch;
 pub mod generator;
-pub mod lean_failure_taxonomy;
+pub mod failure_taxonomy;
 pub mod lean_proof;
 pub mod mathlib_advisor;
 pub mod phaseloom_lite;

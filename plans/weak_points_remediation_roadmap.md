@@ -27,7 +27,13 @@ Multi-phase plan addressing five systemic weak points.
 - ✅ Conditional scope documented in [`DyadicBKMBridge.lean`](coh-t-stack/Coh/Boundary/DyadicBKMBridge.lean:15)
 - ✅ Added `Remark` explaining conditional approximation
 - ✅ Added `STATUS` and `NOT_GLOBAL_REGULARITY` flags
-| Phase 4 | Integration - Real proofs in generator pipeline | 2-3 sprints |
+| **Phase 4** | Integration - Real proofs in generator pipeline | 2-3 sprints | **✓ COMPLETE** |
+
+**Phase 4 Status:**
+- ✅ Robust Lake discovery in [`mathlib_advisor.rs`](coh-node/crates/coh-genesis/src/mathlib_advisor.rs)
+- ✅ Real Mathlib lemma search via `#find`
+- ✅ End-to-end loop in [`npe_lean_closure_v0_3.rs`](coh-node/crates/coh-genesis/examples/npe_lean_closure_v0_3.rs)
+- ✅ Real verification via `lake env lean`
 
 ---
 

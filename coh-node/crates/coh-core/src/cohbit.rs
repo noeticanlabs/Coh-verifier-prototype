@@ -2,6 +2,7 @@ use crate::types::{Decision, Hash32};
 use serde::{Deserialize, Serialize};
 use num_rational::Rational64;
 use num_traits::ToPrimitive;
+use sha2::Digest;
 
 /// CohBit State Space
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -81,11 +82,23 @@ impl CohBit {
             return None;
         }
         
+        // Composite projection hash: H(Pi_a || Pi_b)
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(self.projection_hash.0);
+        hasher.update(other.projection_hash.0);
+        let projection_hash = Hash32(hasher.finalize().into());
+
+        // Composite receipt hash: H(Rec_a || Rec_b)
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(self.receipt_hash.0);
+        hasher.update(other.receipt_hash.0);
+        let receipt_hash = Hash32(hasher.finalize().into());
+
         Some(Self {
             from_state: self.from_state,
             to_state: other.to_state,
             transition_id: format!("{}:{}", self.transition_id, other.transition_id),
-            projection_hash: self.projection_hash, // Simplified: should be composite
+            projection_hash,
             valuation_pre: self.valuation_pre,
             valuation_post: other.valuation_post,
             spend: self.spend + other.spend,
@@ -99,18 +112,29 @@ impl CohBit {
             } else {
                 Decision::Reject
             },
-            receipt_hash: self.receipt_hash, // Simplified
+            receipt_hash,
             state: CohBitState::Superposed,
         })
     }
 
     /// Parallel Composition: \mathfrak b_a \otimes \mathfrak b_b
     pub fn parallel_compose(&self, other: &Self) -> Self {
+        // Composite state hash: H(State_a || State_b)
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(self.from_state.0);
+        hasher.update(other.from_state.0);
+        let from_state = Hash32(hasher.finalize().into());
+
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(self.to_state.0);
+        hasher.update(other.to_state.0);
+        let to_state = Hash32(hasher.finalize().into());
+
         Self {
-            from_state: self.from_state, // Composite state hash should ideally be computed
-            to_state: self.to_state,
+            from_state,
+            to_state,
             transition_id: format!("{}+{}", self.transition_id, other.transition_id),
-            projection_hash: self.projection_hash,
+            projection_hash: self.projection_hash, // Simplified
             valuation_pre: self.valuation_pre + other.valuation_pre,
             valuation_post: self.valuation_post + other.valuation_post,
             spend: self.spend + other.spend,
@@ -156,7 +180,7 @@ impl CohBitLaw {
 
     /// Hard Execution Law: p_i^{exec}(x) = (e^{u_i/\tau} * 1_{m_i>=0} * 1_{RV=ACCEPT}) / Z_exec
     pub fn compute_exec_probabilities(bits: &mut [CohBit], tau: f64) {
-        let weights: Vec<f64> = bits.iter().map(|b| {
+        let mut weights: Vec<f64> = bits.iter().map(|b| {
             if b.is_executable() {
                 (b.utility / tau).exp()
             } else {
@@ -164,13 +188,23 @@ impl CohBitLaw {
             }
         }).collect();
 
-        let sum: f64 = weights.iter().sum();
+        let mut sum: f64 = weights.iter().sum();
+        
+        // Identity Fallback: If no bits are executable, fallback to identity if present
+        if sum < 1e-15 {
+            for (i, b) in bits.iter().enumerate() {
+                if b.transition_id == "identity" {
+                    weights[i] = 1.0;
+                    sum = 1.0;
+                    break;
+                }
+            }
+        }
+
         if sum > 0.0 {
             for (i, b) in bits.iter_mut().enumerate() {
                 b.probability_exec = weights[i] / sum;
             }
-        } else {
-            // Identity fallback should be handled by the caller/engine
         }
     }
 }

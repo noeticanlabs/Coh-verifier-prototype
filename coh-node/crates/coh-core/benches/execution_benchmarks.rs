@@ -143,11 +143,10 @@ fn bench_verify_before_execute(c: &mut Criterion) {
 fn bench_physics_hierarchy(c: &mut Criterion) {
     let mut group = c.benchmark_group("physics_hierarchy");
     
-    use coh_core::cohbit::{CohBit, CohBitLaw, CohBitState};
+    use coh_core::cohbit::{CohBit, CohBitState};
     use coh_core::atom::{CohAtom, AtomGeometry, AtomMetabolism};
     use coh_physics::CohSpinor;
     use coh_physics::current::CoherenceCurrent;
-    use coh_physics::gauge::YangMillsCurvature;
     use coh_core::types::{Hash32, Decision};
     use num_rational::Rational64;
     use num_complex::Complex64;
@@ -173,10 +172,11 @@ fn bench_physics_hierarchy(c: &mut Criterion) {
 
     // 1. Bit Admissibility (1,000 operations)
     group.bench_function("bit_admissibility_x1000", |b| {
+        let bit = criterion::black_box(bit);
         b.iter(|| {
             for _ in 0..1000 {
-                let _ = bit.margin();
-                let _ = bit.is_executable();
+                let _ = criterion::black_box(bit.margin());
+                let _ = criterion::black_box(bit.is_executable());
             }
         });
     });
@@ -198,8 +198,9 @@ fn bench_physics_hierarchy(c: &mut Criterion) {
         receipt_chain: vec![],
     };
     group.bench_function("atom_selection_1000_candidates", |b| {
+        let atom = criterion::black_box(atom);
         b.iter(|| {
-            let _ = atom.select_optimal_bit(1.0, 5.0);
+            let _ = criterion::black_box(atom.select_optimal_bit(1.0, 5.0));
         });
     });
 
@@ -211,9 +212,10 @@ fn bench_physics_hierarchy(c: &mut Criterion) {
         Complex64::new(0.1, 0.0),
     );
     group.bench_function("spinor_current_x1000", |b| {
+        let psi = criterion::black_box(psi);
         b.iter(|| {
             for _ in 0..1000 {
-                let _ = CoherenceCurrent::compute(&psi);
+                let _ = criterion::black_box(CoherenceCurrent::compute(&psi));
             }
         });
     });
@@ -222,9 +224,11 @@ fn bench_physics_hierarchy(c: &mut Criterion) {
     let current = CoherenceCurrent::compute(&psi);
     let g_base = [[1.0, 0.0, 0.0, 0.0], [0.0, -1.0, 0.0, 0.0], [0.0, 0.0, -1.0, 0.0], [0.0, 0.0, 0.0, -1.0]];
     group.bench_function("metric_coupling_x1000", |b| {
+        let current = criterion::black_box(current);
+        let g_base = criterion::black_box(g_base);
         b.iter(|| {
             for _ in 0..1000 {
-                let _ = current.effective_metric_coupling(g_base, 0.1, 0.05, 0.02);
+                let _ = criterion::black_box(current.effective_metric_coupling(g_base, 0.1, 0.05, 0.02));
             }
         });
     });

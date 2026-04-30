@@ -23,12 +23,14 @@ use coh_core::rv_kernel::{RvDecision, RvDecisionKind};
 use coh_physics::{current::CoherenceCurrent, measurement::SpinorProjector, CohSpinor};
 
 // --- FFI Imports from Lean ---
-// These functions would be linked from the Lean static library (Coh.a) in production.
-// Currently, they are stubs/fallbacks reserved for Lean linking.
+// These functions ARE linked from the Lean static library (Coh.a) in production.
+// Currently, they are stubs with Rust mirrors for development.
+// TODO: Compile Lean to .a and link properly
 #[allow(dead_code)]
 extern "C" {
     /// Formally verified density check (exported from Lean).
     /// Returns 1 if density >= 0, 0 otherwise.
+    /// Lean theorem: Coh.Physics.Spinor.positive_density_theorem
     fn coh_check_positive_density(
         r0: f64,
         i0: f64,

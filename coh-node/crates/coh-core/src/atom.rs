@@ -45,7 +45,7 @@ impl CohAtom {
         let r_coh = ricci + gauge_curvature;
         let u_refresh = self.metabolism.refresh.to_f64().unwrap_or(0.0);
         
-        delta_hat + f_exec + (lambda * r_coh) - u_refresh
+        delta_hat - f_exec + (lambda * r_coh) - u_refresh
     }
 
     /// Optimal Executable CohBit: \pi^*(x) = arg min_{e \in A_x} J(e)

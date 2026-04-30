@@ -10,6 +10,7 @@ pub mod gamma;
 pub mod current;
 pub mod measurement;
 pub mod gauge;
+pub mod field;
 pub mod proofs;
 
 /// Coh Spinor: (\Psi, \Lambda)

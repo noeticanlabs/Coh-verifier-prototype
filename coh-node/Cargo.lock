@@ -553,6 +553,7 @@ dependencies = [
  "coh-core",
  "num-complex",
  "num-rational",
+ "num-traits",
  "serde",
 ]
 

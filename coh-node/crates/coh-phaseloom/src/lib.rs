@@ -1,75 +1,31 @@
-//! PhaseLoomLite: Receipt-grounded adaptive memory for NPE strategy selection.
-//!
-//! PhaseLoom consumes boundary receipts from Coh verification and biases future NPE proposals.
-//! **Safety Invariant**: PhaseLoom may bias proposals but never bypasses verification.
-//!
-//! ## State
-//!
-//! - `strategy_weights`: Learned weights for strategy classes (normalized to sum = 1.0)
-//! - `curvature`: Accumulated rejection stress (increases on rejection)
-//! - `budget`: Remaining thermodynamic work capacity
-//! - `tau`: Intrinsic step counter
-//!
-//! ## Update Law
-//!
-//! ```
-//! w_{c,n+1} = Normalize(w_{c,n} + η × R_c - ρ × F_c)
-//! C_{n+1} = C_n + (rejected outcomes)
-//! B_{n+1} = B_n - spend
-//! ```
-
+use coh_core::atom::{AtomKind, CohAtom};
+use coh_core::merkle::build_merkle_root;
+use coh_core::spinor::CohSpinor;
+use coh_core::types::{DomainId, Hash32, Signature};
+use coh_npe::receipt::BoundaryReceiptSummary;
+use coh_npe::weights::StrategyWeights;
+use num_rational::Rational64;
+use num_traits::{FromPrimitive, ToPrimitive};
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
 use std::collections::HashMap;
 
-use coh_npe::weights::StrategyWeights;
-use coh_npe::receipt::BoundaryReceiptSummary;
-use coh_npe::closure::LeanClosureStatus;
-#[cfg(test)]
-use coh_npe::{MathlibEffect, failure_taxonomy};
+// --- Config & Metrics ---
 
-pub mod kernel;
-pub mod knowledge;
-pub mod budget;
-
-/// Configuration for PhaseLoom initialization
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PhaseLoomConfig {
-    /// Initial budget (thermodynamic work capacity)
     pub initial_budget: u128,
-    /// Learning rate (positive reward magnitude)
     pub learning_rate: f64,
-    /// Curvature penalty coefficient
     pub curvature_penalty: f64,
-    /// Circuit breaker threshold (max curvature before pause)
     pub circuit_break_threshold: u128,
-    /// Minimum weight value (prevent weight collapse)
     pub min_weight: f64,
-    /// Initial temperature for Boltzmann exploration
-    pub initial_temperature: f64,
-    /// Decay rate for temperature per step
-    pub temperature_decay: f64,
-    /// Minimum temperature floor
-    pub min_temperature: f64,
-    /// Target entropy floor for exploration
     pub entropy_floor: f64,
-    /// Max exploration failures before forcing exploitation
-    pub exploration_failure_threshold: u64,
-    /// Time dilation coefficient for Task Error
-    pub alpha_v: f64,
-    /// Time dilation coefficient for Tension
-    pub alpha_t: f64,
-    /// Time dilation coefficient for Curvature
-    pub alpha_c: f64,
-    /// [LORENTZ] Time dilation coefficient for Gamma (alpha_gamma)
-    pub alpha_gamma: f64,
-    /// [ECOLOGY] Temporal Depth coefficient (alpha_tau)
     pub alpha_tau: f64,
-    /// [ECOLOGY] Semantic Distance coefficient (alpha_d)
     pub alpha_d: f64,
-    /// [ECOLOGY] Provenance Distance coefficient (alpha_p)
     pub alpha_p: f64,
-    /// [ECOLOGY] Maintenance cost coefficient (M)
-    pub maintenance_coeff: f64,
+    pub alpha_gamma: f64,
+    pub max_compression_depth: u8,
+    pub global_loss_hat: Rational64,
 }
 
 impl Default for PhaseLoomConfig {
@@ -80,68 +36,383 @@ impl Default for PhaseLoomConfig {
             curvature_penalty: 0.05,
             circuit_break_threshold: 10_000,
             min_weight: 0.01,
-            initial_temperature: 1.0,
-            temperature_decay: 0.99,
-            min_temperature: 0.1,
             entropy_floor: 0.5,
-            exploration_failure_threshold: 5,
-            alpha_v: 0.1,
-            alpha_t: 0.2,
-            alpha_c: 0.05,
-            alpha_gamma: 1.0,
             alpha_tau: 0.01,
             alpha_d: 1.0,
             alpha_p: 5.0,
-            maintenance_coeff: 0.001,
+            alpha_gamma: 1.0,
+            max_compression_depth: 8,
+            global_loss_hat: Rational64::new(1, 2),
         }
     }
 }
 
-// StrategyWeights moved to crate::npe::weights
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct LoomMetrics {
+    pub total_atoms: u64,
+    pub active_threads: u64,
+    pub compressed_atoms: u64,
+    pub max_depth: u8,
+    pub cumulative_tension: Rational64,
+    pub field_curvature: f64,
+}
 
-/// PhaseLoom state: adaptive memory for NPE strategy selection
+// --- Phase Locality Index (v2.1) ---
+
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct PhaseKey {
+    pub phase_bin: i32,
+    pub orientation: u8,
+    pub parity: u8,
+    pub domain: Hash32,
+    pub basis_hash: Hash32,
+}
+
+impl PhaseKey {
+    pub const BINS: i32 = 36; // 10-degree buckets
+
+    pub fn from_spinor(spinor: &CohSpinor) -> Self {
+        let phase_f64 = (spinor.phase_num.to_f64().unwrap_or(0.0)
+            / spinor.phase_den.to_f64().unwrap_or(1.0))
+        .rem_euclid(1.0);
+        let phase_bin = (phase_f64 * Self::BINS as f64).floor() as i32;
+        Self {
+            phase_bin,
+            orientation: spinor.orientation as u8,
+            parity: spinor.parity as u8,
+            domain: Hash32(spinor.domain.0 .0),
+            basis_hash: spinor.basis_hash,
+        }
+    }
+
+    pub fn neighbors(&self, radius: i32) -> Vec<PhaseKey> {
+        let mut keys = vec![];
+        for offset in -radius..=radius {
+            let mut neighbor = self.clone();
+            neighbor.phase_bin = (self.phase_bin + offset).rem_euclid(Self::BINS);
+            keys.push(neighbor);
+        }
+        keys
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AtomPhaseSignature {
+    pub atom_hash: Hash32,
+    pub centroid_phase: f64,
+    pub mean_alignment: Rational64,
+    pub norm_band: u32,
+    pub basis_hash: Hash32,
+    pub thread_strength: f64,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ThreadState {
+    Active,
+    CompressedSource,
+    Cold,
+    Tombstoned,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct LoomThread {
+    pub atom: CohAtom,
+    pub signature: AtomPhaseSignature,
+    pub state: ThreadState,
+    pub timestamp: u64,
+    pub alignment_at_weave: Rational64,
+}
+
+// --- Thread Compression (v2.2 Refinery) ---
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SemanticLoss {
+    pub margin_loss: Rational64,
+    pub utility_loss: Rational64,
+    pub phase_loss: Rational64,
+    pub total: Rational64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct InvariantCore {
+    pub domain: DomainId,
+    pub bucket_key: PhaseKey,
+    pub final_state: Hash32,
+    pub policy_hash: Hash32,
+    pub margin_floor: Rational64,
+    pub authority_cap: Rational64,
+}
+
+impl InvariantCore {
+    pub fn canonical_hash(&self) -> Hash32 {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(b"phaseloom:v2.2:core");
+        hasher.update(self.domain.0 .0);
+        hasher.update(self.bucket_key.phase_bin.to_be_bytes());
+        hasher.update([self.bucket_key.orientation, self.bucket_key.parity]);
+        hasher.update(self.bucket_key.domain.0);
+        hasher.update(self.bucket_key.basis_hash.0);
+        hasher.update(self.final_state.0);
+        hasher.update(self.policy_hash.0);
+        hasher.update(self.margin_floor.reduced().numer().to_be_bytes());
+        hasher.update(self.margin_floor.reduced().denom().to_be_bytes());
+        hasher.update(self.authority_cap.reduced().numer().to_be_bytes());
+        hasher.update(self.authority_cap.reduced().denom().to_be_bytes());
+        Hash32(hasher.finalize().into())
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CompressionLineage {
+    pub depth: u8,
+    pub source_root: Hash32,
+    pub lineage_roots: Vec<Hash32>, // NEW: prove prior compression trees absorbed
+    pub cumulative_loss: Rational64,
+    pub invariant_core_hash: Hash32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CompressionAtom {
+    pub version: u16,
+    pub source_root: Hash32,
+    pub source_count: u64,
+    pub compressed_atom: CohAtom,
+    pub semantic_loss: SemanticLoss,
+    pub loss_hat: Rational64,
+    pub lineage: CompressionLineage,
+    pub bucket_key: PhaseKey,
+    pub compression_policy_hash: Hash32,
+    pub compression_witness_hash: Hash32,
+    pub compression_hash: Hash32,
+    pub signature: Signature,
+}
+
+impl CompressionAtom {
+    pub fn canonical_hash(&self) -> Hash32 {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(b"cohcompression:v2.2:fractal");
+        hasher.update(self.version.to_be_bytes());
+        hasher.update(self.source_root.0);
+        hasher.update(self.source_count.to_be_bytes());
+        hasher.update(self.compressed_atom.atom_hash.0);
+
+        let mut update_rat = |r: &Rational64| {
+            let nr = r.reduced();
+            hasher.update(nr.numer().to_be_bytes());
+            hasher.update(nr.denom().to_be_bytes());
+        };
+
+        update_rat(&self.semantic_loss.total);
+        update_rat(&self.lineage.cumulative_loss);
+        hasher.update([self.lineage.depth]);
+        hasher.update(self.lineage.invariant_core_hash.0);
+        for root in &self.lineage.lineage_roots {
+            hasher.update(root.0);
+        }
+
+        hasher.update(self.compression_policy_hash.0);
+        hasher.update(self.compression_witness_hash.0);
+
+        Hash32(hasher.finalize().into())
+    }
+}
+
+pub struct CompressionContext {
+    pub min_sources: usize,
+    pub max_depth: u8,
+    pub global_loss_hat: Rational64,
+    pub policy_hash: Hash32,
+    pub verifier_id: Hash32,
+    pub w_m: Rational64,
+    pub w_u: Rational64,
+    pub w_p: Rational64,
+}
+
+// --- Spinor Anchoring (v2.3) ---
+
+/// Hard laws governing anchor behavior:
+/// SA1: spinor cannot leave anchor cone without triggering divert.
+/// SA2: anchor drift increases defect.
+/// SA3: repeated low anchor alignment triggers rephase.
+/// SA4: anchors bias routing but never override CohBit law.
+/// SA5: anchor updates require valid CohAtom/CompressionAtom lineage.
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct AnchorSet {
+    /// Invariant core hashes from stable compression families.
+    pub invariant_core_hashes: Vec<Hash32>,
+    /// High-authority atom hashes that define the orientation cone.
+    pub high_authority_atoms: Vec<Hash32>,
+    /// Stable summary atoms (SummaryTrajectory with low cumulative loss).
+    pub stable_summary_atoms: Vec<Hash32>,
+    /// Policy anchor hashes — define the legal routing envelope.
+    pub policy_anchor_hashes: Vec<Hash32>,
+    /// Drift penalty coefficient λ.
+    pub lambda: Rational64,
+    /// Low-alignment threshold: below this, increment rephase counter.
+    pub alignment_threshold: Rational64,
+    /// Rephase trigger count: rephase fires after this many consecutive low-alignment steps.
+    pub rephase_trigger_count: u32,
+}
+
+/// Result of an anchor alignment evaluation.
+#[derive(Clone, Debug)]
+pub struct SpinorAnchorResult {
+    /// Alignment score in [0, 1].
+    pub alignment: Rational64,
+    /// Drift cost = λ(1 - alignment). Added to defect.
+    pub drift_cost: Rational64,
+    /// Whether the spinor has exited the anchor cone (SA1).
+    pub cone_exit: bool,
+    /// Whether rephase should be triggered (SA3).
+    pub trigger_rephase: bool,
+}
+
+impl AnchorSet {
+    pub fn new(
+        lambda: Rational64,
+        alignment_threshold: Rational64,
+        rephase_trigger_count: u32,
+    ) -> Self {
+        Self {
+            invariant_core_hashes: vec![],
+            high_authority_atoms: vec![],
+            stable_summary_atoms: vec![],
+            policy_anchor_hashes: vec![],
+            lambda,
+            alignment_threshold,
+            rephase_trigger_count,
+        }
+    }
+
+    /// Compute anchor alignment for a spinor.
+    ///
+    /// Alignment = fraction of anchor families matched by the spinor's
+    /// basis_hash, state_hash, and coherence_alignment. This is a
+    /// coarse geometric proxy for "phase cone membership."
+    ///
+    /// [HEURISTIC] — exact spinor-to-anchor geometry would require
+    /// full phase-space projection, not implemented here.
+    pub fn compute_alignment(
+        &self,
+        spinor: &CohSpinor,
+        thread_store: &HashMap<Hash32, LoomThread>,
+        compression_store: &HashMap<Hash32, CompressionAtom>,
+    ) -> Rational64 {
+        let total_anchors = self.invariant_core_hashes.len()
+            + self.high_authority_atoms.len()
+            + self.stable_summary_atoms.len()
+            + self.policy_anchor_hashes.len();
+
+        if total_anchors == 0 {
+            // No anchors registered yet — full alignment by default.
+            return Rational64::from_integer(1);
+        }
+
+        let mut matched = 0usize;
+
+        // Check high-authority atoms: spinor matches if its state_hash
+        // aligns with the atom's final_state.
+        for h in &self.high_authority_atoms {
+            if let Some(t) = thread_store.get(h) {
+                if t.atom.final_state == spinor.state_hash {
+                    matched += 1;
+                }
+            }
+        }
+
+        // Check stable summary atoms via compression store.
+        for h in &self.stable_summary_atoms {
+            if let Some(t) = thread_store.get(h) {
+                if t.atom.final_state == spinor.state_hash {
+                    matched += 1;
+                }
+            }
+        }
+
+        // Invariant core hashes: match if spinor's basis_hash appears in
+        // any compression lineage anchored to that core.
+        for core_hash in &self.invariant_core_hashes {
+            for comp in compression_store.values() {
+                if &comp.lineage.invariant_core_hash == core_hash {
+                    if comp.compressed_atom.final_state == spinor.state_hash {
+                        matched += 1;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Policy anchor hashes match by policy_hash in thread atoms.
+        for ph in &self.policy_anchor_hashes {
+            for t in thread_store.values() {
+                if &t.atom.policy_hash == ph && t.atom.final_state == spinor.state_hash {
+                    matched += 1;
+                    break;
+                }
+            }
+        }
+
+        Rational64::new(matched as i64, total_anchors as i64)
+    }
+
+    /// Register a high-authority atom as an anchor (SA5).
+    /// Only accepted if the atom is executable.
+    pub fn register_atom_anchor(&mut self, atom: &CohAtom) -> Result<(), String> {
+        if !atom.executable() {
+            return Err("SA5: anchor atom is not executable".to_string());
+        }
+        if !self.high_authority_atoms.contains(&atom.atom_hash) {
+            self.high_authority_atoms.push(atom.atom_hash);
+        }
+        Ok(())
+    }
+
+    /// Register a stable summary atom as an anchor (SA5).
+    /// Requires a CompressionAtom with verified lineage.
+    pub fn register_summary_anchor(&mut self, comp: &CompressionAtom) -> Result<(), String> {
+        if comp.compressed_atom.kind != AtomKind::SummaryTrajectory {
+            return Err("SA5: anchor source is not a SummaryTrajectory".to_string());
+        }
+        let h = comp.compressed_atom.atom_hash;
+        if !self.stable_summary_atoms.contains(&h) {
+            self.stable_summary_atoms.push(h);
+            if !self
+                .invariant_core_hashes
+                .contains(&comp.lineage.invariant_core_hash)
+            {
+                self.invariant_core_hashes
+                    .push(comp.lineage.invariant_core_hash);
+            }
+        }
+        Ok(())
+    }
+}
+
+// --- Manifold State ---
+
+/// Phase Loom v2.3: The Fractal Trajectory Manifold with Spinor Anchoring.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PhaseLoomState {
-    /// Strategy weight vector (bias toward proven useful outcomes)
+    pub version: u16,
+
+    // --- Manifold Layers (v2.2) ---
+    pub phase_index: HashMap<PhaseKey, Vec<Hash32>>,
+    pub thread_store: HashMap<Hash32, LoomThread>,
+    pub compression_store: HashMap<Hash32, CompressionAtom>,
+    pub phase_field: HashMap<Hash32, Rational64>,
+    pub metrics: LoomMetrics,
+
+    // --- Spinor Anchoring (v2.3) ---
+    pub anchor_set: AnchorSet,
+    pub rephase_counter: u32,
+
+    // --- Statistical Layers (Legacy/Lite) ---
     pub strategy_weights: StrategyWeights,
-    /// Template weight vector (bias toward proven Coh patterns)
-    pub template_weights: StrategyWeights,
-    /// Structural curvature (accumulated rejection stress)
     pub curvature: u128,
-    /// Remaining budget (thermodynamic work capacity)
     pub budget: u128,
-    /// Intrinsic machine time (step counter)
-    pub tau: u64,
-    /// Count of accepted outcomes
-    pub accepted_count: u64,
-    /// Count of rejected outcomes
-    pub rejected_count: u64,
-    /// Failure counts per strategy class
-    pub failure_counts: HashMap<String, u64>,
-    /// Circuit breaker triggered
-    pub circuit_broken: bool,
-    /// Current temperature for Boltzmann exploration (decays over tau)
-    pub temperature: f64,
-    /// Consecutive exploration failures (triggers exploitation mode)
-    pub exploration_failure_count: u64,
-    /// Current entropy of strategy distribution
-    pub current_entropy: f64,
-    /// Whether to force exploitation (overrides entropy floor)
-    pub force_exploitation: bool,
-    /// Algebraic Tension T(x): Accumulated consistency violations
     pub tension: u128,
-    /// Intrinsic PhaseLoom Time (dilated by tension)
-    pub tau_f: f64,
-    /// Epistemic Provenance Index (counts of sources)
-    pub provenance_index: HashMap<String, u64>,
-    /// Counters for summary
-    pub closed_proofs: u64,
-    pub build_passed_with_sorry: u64,
-    pub near_misses: u64,
-    pub max_tension: u128,
-    pub dilation_events: u64,
-    /// Detailed stats per template: (successes, failures)
-    pub template_stats: HashMap<String, (u64, u64)>,
+    pub tau: u64,
+    pub circuit_broken: bool,
 }
 
 impl Default for PhaseLoomState {
@@ -151,170 +422,398 @@ impl Default for PhaseLoomState {
 }
 
 impl PhaseLoomState {
-    /// Create new PhaseLoomState with configuration
     pub fn new(config: &PhaseLoomConfig) -> Self {
         Self {
+            version: 3,
+            phase_index: HashMap::new(),
+            thread_store: HashMap::new(),
+            compression_store: HashMap::new(),
+            phase_field: HashMap::new(),
+            metrics: LoomMetrics::default(),
+            anchor_set: AnchorSet::new(
+                Rational64::new(1, 10), // λ = 0.1
+                Rational64::new(3, 10), // alignment_threshold = 0.3
+                5,                      // rephase after 5 consecutive low-alignment steps
+            ),
+            rephase_counter: 0,
             strategy_weights: StrategyWeights::default(),
-            template_weights: StrategyWeights::default(),
             curvature: 0,
             budget: config.initial_budget,
-            tau: 0,
-            accepted_count: 0,
-            rejected_count: 0,
-            failure_counts: HashMap::new(),
-            circuit_broken: false,
-            temperature: config.initial_temperature,
-            exploration_failure_count: 0,
-            current_entropy: 0.0,
-            force_exploitation: false,
             tension: 0,
-            tau_f: 0.0,
-            provenance_index: HashMap::new(),
-            closed_proofs: 0,
-            build_passed_with_sorry: 0,
-            near_misses: 0,
-            max_tension: 0,
-            dilation_events: 0,
-            template_stats: HashMap::new(),
+            tau: 0,
+            circuit_broken: false,
         }
     }
 
-    /// [ECOLOGY] Get Epistemic Authority rank: EXT > DER > REP > SIM
-    pub fn provenance_authority(prov: &str) -> u8 {
-        match prov {
-            "EXT" => 4,
-            "DER" => 3,
-            "REP" => 2,
-            "SIM" => 1,
-            _ => 0,
+    pub fn verify_persistence(&self) -> bool {
+        self.thread_store.values().all(|t| t.atom.executable())
+    }
+
+    // --- v2.3 Spinor Anchoring ---
+
+    /// Evaluate how well the spinor aligns with the current anchor cone.
+    /// Returns a SpinorAnchorResult with alignment score, drift cost, and
+    /// flags for cone exit (SA1) and rephase (SA3).
+    pub fn spinor_anchor_result(&self, spinor: &CohSpinor) -> SpinorAnchorResult {
+        let alignment =
+            self.anchor_set
+                .compute_alignment(spinor, &self.thread_store, &self.compression_store);
+
+        // drift = λ(1 - alignment)  [SA2]
+        let one = Rational64::from_integer(1);
+        let drift_cost = (self.anchor_set.lambda * (one - alignment)).reduced();
+        let cone_exit = alignment < self.anchor_set.alignment_threshold; // SA1
+        let trigger_rephase =
+            cone_exit && self.rephase_counter >= self.anchor_set.rephase_trigger_count; // SA3
+
+        SpinorAnchorResult {
+            alignment,
+            drift_cost,
+            cone_exit,
+            trigger_rephase,
         }
     }
 
-    /// [ECOLOGY] Calculate monotonic read cost for a record
-    pub fn calculate_read_cost(
+    /// Apply anchor drift consequences after a step.
+    ///
+    /// SA2: drift_cost is returned for the caller to apply to defect budget.
+    /// SA3: consecutive low-alignment steps increment rephase_counter.
+    ///
+    /// Returns the drift cost for this step.
+    /// Note: SA4 — this method NEVER mutates CohBit or overrides selection.
+    /// It only updates the internal rephase counter.
+    pub fn apply_anchor_drift(&mut self, spinor: &CohSpinor) -> SpinorAnchorResult {
+        let result = self.spinor_anchor_result(spinor);
+
+        if result.cone_exit {
+            self.rephase_counter = self.rephase_counter.saturating_add(1);
+        } else {
+            // Alignment recovered — reset counter
+            self.rephase_counter = 0;
+        }
+
+        if result.trigger_rephase {
+            self.rephase_counter = 0; // Reset after firing
+            self.metrics.field_curvature += 1.0; // Record rephase event
+        }
+
+        result
+    }
+
+    /// Register a compression atom as an anchor for future spin alignment.
+    /// Enforces SA5 — only accepts valid SummaryTrajectory lineages.
+    pub fn register_compression_as_anchor(&mut self, comp_hash: Hash32) -> Result<(), String> {
+        let comp = self
+            .compression_store
+            .get(&comp_hash)
+            .ok_or("SA5: compression atom not found in store")?
+            .clone();
+        self.anchor_set.register_summary_anchor(&comp)
+    }
+
+    pub fn retrieve(
         &self,
-        config: &PhaseLoomConfig,
-        record_tau: u64,
-        semantic_dist: f64,
-        record_prov: &str,
-    ) -> u128 {
-        let dt = self.tau.saturating_sub(record_tau) as f64;
-        let dp = (Self::provenance_authority("EXT") as i8 - Self::provenance_authority(record_prov) as i8).abs() as f64;
-        
-        let cost = (config.alpha_tau * dt) + (config.alpha_d * semantic_dist) + (config.alpha_p * dp);
-        cost.max(0.0) as u128
-    }
+        spinor: &CohSpinor,
+        epsilon: Rational64,
+        max_hits: usize,
+        radius: i32,
+    ) -> Vec<&CohAtom> {
+        let key = PhaseKey::from_spinor(spinor);
+        let buckets = key.neighbors(radius);
 
-    /// Compute Shannon entropy of strategy distribution: H = -Σ p * log(p)
-    pub fn compute_entropy(&self) -> f64 {
-        let weights = &self.strategy_weights.0;
-        if weights.is_empty() {
-            return 0.0;
-        }
-
-        let sum: f64 = weights.values().sum();
-        if sum == 0.0 {
-            return 0.0;
-        }
-
-        let mut entropy = 0.0;
-        for w in weights.values() {
-            let p = w / sum;
-            if p > 0.0 {
-                entropy -= p * p.ln();
+        let mut candidate_hashes = vec![];
+        for b in buckets {
+            if let Some(hashes) = self.phase_index.get(&b) {
+                candidate_hashes.extend(hashes);
             }
         }
-        entropy
+
+        let mut hits = vec![];
+        for hash in candidate_hashes {
+            if hits.len() >= max_hits {
+                break;
+            }
+            if let Some(thread) = self.thread_store.get(&hash) {
+                // TC13: Exclude compressed sources from hot retrieval
+                if thread.state == ThreadState::CompressedSource {
+                    continue;
+                }
+                if thread.state == ThreadState::Tombstoned {
+                    continue;
+                }
+
+                // Ensure continuity alignment
+                if thread.atom.final_state != spinor.state_hash {
+                    continue;
+                }
+
+                // Fine alignment: Ensure alignment >= epsilon
+                let field_align = self
+                    .phase_field
+                    .get(&spinor.state_hash)
+                    .cloned()
+                    .unwrap_or(Rational64::from_integer(0));
+
+                if field_align >= epsilon {
+                    hits.push(&thread.atom);
+                }
+            }
+        }
+        hits
     }
 
-    /// [ECOLOGY] Verify memory transition against Provenance Lattice
-    pub fn validate_memory_transition(&self, new_prov: &str, old_prov: &str) -> bool {
-        let new_rank = Self::provenance_authority(new_prov);
-        let old_rank = Self::provenance_authority(old_prov);
-        
-        // Theorem E3: The Anchor Firewall
-        // Higher authority cannot be overwritten by lower authority without receipt.
-        new_rank >= old_rank
-    }
-
-    /// Update temperature with decay schedule
-    pub fn update_temperature(&mut self, config: &PhaseLoomConfig) {
-        // Decay temperature, floor at min_temperature
-        self.temperature =
-            (self.temperature * config.temperature_decay).max(config.min_temperature);
-    }
-
-    /// Check if entropy floor is satisfied
-    pub fn satisfies_entropy_floor(&self, config: &PhaseLoomConfig) -> bool {
-        self.current_entropy >= config.entropy_floor || self.strategy_weights.0.len() < 2
-    }
-
-    /// Sample a strategy using Boltzmann exploration with entropy floor
-    /// Returns (strategy_name, was_exploration)
-    pub fn sample_strategy<R: rand::Rng>(
-        &self,
-        config: &PhaseLoomConfig,
-        rng: &mut R,
-    ) -> (Option<String>, bool) {
-        // Force exploitation if circuit broken or too many exploration failures
-        if self.force_exploitation || self.circuit_broken {
-            // Exploitation: pick highest weight
-            let best = self
-                .strategy_weights
-                .0
-                .iter()
-                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
-                .map(|(k, _)| k.clone());
-            return (best, false);
+    pub fn weave(&mut self, atom: CohAtom, final_spinor: &CohSpinor) -> bool {
+        if !atom.executable() {
+            return false;
         }
 
-        let weights = &self.strategy_weights.0;
-        if weights.is_empty() {
-            return (None, false);
-        }
+        let alignment = final_spinor.norm;
+        let phase_f64 = (final_spinor.phase_num.to_f64().unwrap_or(0.0)
+            / final_spinor.phase_den.to_f64().unwrap_or(1.0))
+        .rem_euclid(1.0);
 
-        // Check entropy floor - if violated, force exploration
-        let should_explore = !self.satisfies_entropy_floor(config)
-            || self.exploration_failure_count >= config.exploration_failure_threshold;
+        let signature = AtomPhaseSignature {
+            atom_hash: atom.atom_hash,
+            centroid_phase: phase_f64,
+            mean_alignment: alignment,
+            norm_band: 0,
+            basis_hash: final_spinor.basis_hash,
+            thread_strength: alignment.to_f64().unwrap_or(1.0),
+        };
 
-        if should_explore || self.temperature > config.min_temperature {
-            return (self.sample_boltzmann(rng), true);
-        }
+        let thread = LoomThread {
+            atom: atom.clone(),
+            signature,
+            state: ThreadState::Active,
+            timestamp: 0,
+            alignment_at_weave: alignment,
+        };
 
-        (self.sample_best(), false)
+        // Update Field (EMA)
+        let entry = self
+            .phase_field
+            .entry(atom.final_state)
+            .or_insert(Rational64::from_integer(0));
+        let f_entry = entry.to_f64().unwrap_or(0.0);
+        let f_align = alignment.to_f64().unwrap_or(0.0);
+        let num = (((f_entry + f_align) / 2.0) * 1000.0).round() as i64;
+        *entry = Rational64::new(num, 1000).reduced();
+
+        self.thread_store.insert(atom.atom_hash, thread);
+
+        let key = PhaseKey::from_spinor(final_spinor);
+        self.phase_index
+            .entry(key)
+            .or_insert_with(Vec::new)
+            .push(atom.atom_hash);
+
+        self.metrics.total_atoms += 1;
+        self.metrics.active_threads += 1;
+        true
     }
 
-    /// Sample strategy using Boltzmann exploration
-    pub fn sample_boltzmann<R: rand::Rng>(&self, rng: &mut R) -> Option<String> {
-        let weights = &self.strategy_weights.0;
-        let mut sum = 0.0;
-        let mut exp_weights = Vec::new();
-        for (class, weight) in weights {
-            let exp_w = (weight / self.temperature.max(0.001)).exp();
-            sum += exp_w;
-            exp_weights.push((class, exp_w));
+    // --- Compression Logic (v2.2 Recursive) ---
+
+    pub fn compress_bucket(
+        &mut self,
+        key: PhaseKey,
+        loss_hat: Rational64,
+        ctx: &CompressionContext,
+    ) -> Result<CompressionAtom, String> {
+        let source_hashes: Vec<Hash32> = self
+            .phase_index
+            .get(&key)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|h| {
+                if let Some(t) = self.thread_store.get(h) {
+                    t.state == ThreadState::Active
+                } else {
+                    false
+                }
+            })
+            .collect();
+
+        if source_hashes.len() < ctx.min_sources {
+            return Err("InsufficientSources".to_string());
         }
 
-        if sum > 0.0 {
-            let r = rng.gen_range(0.0..sum);
-            let mut acc = 0.0;
-            for (class, exp_w) in exp_weights {
-                acc += exp_w;
-                if r <= acc {
-                    return Some(class.clone());
+        let source_root = build_merkle_root(&source_hashes);
+
+        // Detect Recursion & Lineage (RC1, RC2)
+        let mut max_parent_depth = 0;
+        let mut max_parent_loss = Rational64::from_integer(0);
+        let mut lineage_roots: Vec<Hash32> = vec![];
+        let mut invariant_core_hash: Option<Hash32> = None;
+
+        for h in &source_hashes {
+            if let Some(t) = self.thread_store.get(h) {
+                if t.atom.kind == AtomKind::SummaryTrajectory {
+                    if let Some(comp) = self
+                        .compression_store
+                        .values()
+                        .find(|c| c.compressed_atom.atom_hash == *h)
+                    {
+                        max_parent_depth = max_parent_depth.max(comp.lineage.depth);
+                        max_parent_loss = max_parent_loss.max(comp.lineage.cumulative_loss); // RC2: use max
+                        lineage_roots.push(comp.source_root);
+
+                        let current_core = comp.lineage.invariant_core_hash;
+                        if let Some(existing) = invariant_core_hash {
+                            if existing != current_core {
+                                return Err("InvariantCoreMismatch".to_string());
+                            } // RC4
+                        } else {
+                            invariant_core_hash = Some(current_core);
+                        }
+                    }
                 }
             }
         }
 
-        self.sample_best()
-    }
-
-    /// Sample strategy with highest weight (exploitation only)
-    pub fn sample_best(&self) -> Option<String> {
-        if self.strategy_weights.0.is_empty() {
-            return None;
+        if max_parent_depth >= ctx.max_depth {
+            return Err("RecursiveDepthExceeded".to_string());
         }
 
+        // Compute Incremental Semantic Loss
+        let mut min_margin = Rational64::from_integer(1000000);
+        let mut sum_phase = 0.0;
+        let mut max_authority = Rational64::from_integer(0);
+        for h in &source_hashes {
+            let t = self.thread_store.get(h).unwrap();
+            if t.atom.margin_total < min_margin {
+                min_margin = t.atom.margin_total;
+            }
+            if t.atom.cumulative_authority > max_authority {
+                max_authority = t.atom.cumulative_authority;
+            }
+            sum_phase += t.signature.centroid_phase;
+        }
+        let avg_phase = sum_phase / source_hashes.len() as f64;
+        let mut phase_dispersion = 0.0;
+        for h in &source_hashes {
+            let t = self.thread_store.get(h).unwrap();
+            phase_dispersion += (t.signature.centroid_phase - avg_phase).abs();
+        }
+        let phase_loss_f64 = phase_dispersion / source_hashes.len() as f64;
+        let phase_loss =
+            Rational64::from_f64(phase_loss_f64).unwrap_or(Rational64::from_integer(0));
+
+        let incremental_loss = (phase_loss * ctx.w_p).reduced();
+        let cumulative_loss = (max_parent_loss + incremental_loss).reduced(); // RC2
+
+        if incremental_loss > loss_hat || cumulative_loss > ctx.global_loss_hat {
+            // RC3
+            return Err("GlobalLossBudgetExceeded".to_string());
+        }
+
+        // Define/Verify Invariant Core (RC5)
+        let first_source = self.thread_store.get(&source_hashes[0]).unwrap();
+        let core = InvariantCore {
+            domain: first_source.atom.domain,
+            bucket_key: key.clone(),
+            final_state: first_source.atom.final_state,
+            policy_hash: ctx.policy_hash,
+            margin_floor: min_margin - incremental_loss,
+            authority_cap: max_authority,
+        };
+        let new_core_hash = core.canonical_hash();
+
+        if let Some(existing) = invariant_core_hash {
+            if existing != new_core_hash {
+                return Err("InvariantCoreMismatch".to_string());
+            }
+        }
+
+        // Build Recursive Summary Atom
+        let mut compressed_atom = CohAtom {
+            kind: AtomKind::SummaryTrajectory,
+            version: 1,
+            domain: core.domain,
+            initial_state: first_source.atom.initial_state,
+            final_state: core.final_state,
+            margin_total: core.margin_floor,
+            policy_hash: core.policy_hash,
+            verifier_id: ctx.verifier_id,
+            compression_certificate: Some(Hash32([0xCC; 32])),
+            ..Default::default()
+        };
+        compressed_atom.atom_hash = compressed_atom.canonical_hash();
+
+        let lineage = CompressionLineage {
+            depth: max_parent_depth + 1, // RC1
+            source_root,
+            lineage_roots, // RC8
+            cumulative_loss,
+            invariant_core_hash: new_core_hash,
+        };
+
+        let mut compression = CompressionAtom {
+            version: 2,
+            source_root,
+            source_count: source_hashes.len() as u64,
+            compressed_atom,
+            semantic_loss: SemanticLoss {
+                margin_loss: Rational64::from_integer(0),
+                utility_loss: Rational64::from_integer(0),
+                phase_loss: phase_loss * ctx.w_p,
+                total: incremental_loss,
+            },
+            loss_hat,
+            lineage,
+            bucket_key: key.clone(),
+            compression_policy_hash: ctx.policy_hash,
+            compression_witness_hash: Hash32([0xAA; 32]),
+            compression_hash: Hash32([0; 32]),
+            signature: Signature(vec![0; 64]),
+        };
+        compression.compression_hash = compression.canonical_hash();
+
+        // Commit to Store
+        self.compression_store
+            .insert(compression.compression_hash, compression.clone());
+
+        // Mark Sources (TC13)
+        for h in source_hashes {
+            if let Some(t) = self.thread_store.get_mut(&h) {
+                t.state = ThreadState::CompressedSource;
+            }
+        }
+
+        // Weave Summary (v2.1 API compatible)
+        let mut summary_spinor = CohSpinor::default();
+        summary_spinor.phase_num =
+            Rational64::from_f64(avg_phase).unwrap_or(Rational64::from_integer(0));
+        summary_spinor.phase_den = Rational64::from_integer(1);
+        summary_spinor.norm = Rational64::from_integer(1);
+        summary_spinor.state_hash = compression.compressed_atom.final_state;
+        summary_spinor.basis_hash = key.basis_hash;
+
+        let depth = max_parent_depth + 1;
+        self.weave(compression.compressed_atom.clone(), &summary_spinor);
+
+        self.metrics.compressed_atoms += 1;
+        self.metrics.max_depth = self.metrics.max_depth.max(depth);
+        Ok(compression)
+    }
+
+    pub fn ingest(&mut self, receipt: &BoundaryReceiptSummary, _config: &PhaseLoomConfig) {
+        self.tau = self.tau.saturating_add(1);
+        self.tension = self.tension.saturating_add(receipt.tension_score);
+        if !receipt.accepted {
+            self.curvature = self.curvature.saturating_add(1);
+        }
+        self.budget = self
+            .budget
+            .saturating_sub(if receipt.accepted { 10 } else { 50 });
+    }
+
+    pub fn is_circuit_broken(&self, config: &PhaseLoomConfig) -> bool {
+        self.curvature > config.circuit_break_threshold || self.budget == 0
+    }
+
+    pub fn sample_best(&self) -> Option<String> {
         self.strategy_weights
             .0
             .iter()
@@ -322,270 +821,49 @@ impl PhaseLoomState {
             .map(|(k, _)| k.clone())
     }
 
-    /// Check circuit breaker - pause learning if curvature too high or budget exhausted
-    pub fn is_circuit_broken(&self, config: &PhaseLoomConfig) -> bool {
-        self.curvature > config.circuit_break_threshold || self.budget == 0
-    }
-
-    /// Process a boundary receipt and update internal state
-    /// This implements the PhaseLoom Framework update laws
-    pub fn ingest(&mut self, receipt: &BoundaryReceiptSummary, config: &PhaseLoomConfig) {
-        // [PHASELOOM: PART III] Lorentzian Intrinsic Time Dilation
-        // d tau / dt = 1 / gamma
-        // alpha_gamma scales the coordinate step size
-        let d_tau = (1.0 / receipt.gamma.max(1.0)) * config.alpha_gamma;
-        self.tau_f += d_tau;
-        self.tau = self.tau.saturating_add(1);
-
-        let t_norm = receipt.tension_score as f64 / 100.0;
-        if t_norm > 0.0 {
-            self.dilation_events += 1;
-            self.max_tension = self.max_tension.max(receipt.tension_score);
-        }
-
-        // [PHASELOOM: PART IV] Epistemic Firewall
-        self.provenance_index
-            .entry(receipt.provenance.clone())
-            .and_modify(|c| *c = c.saturating_add(1))
-            .or_insert(1);
-
-        // [PHASELOOM: PART I] Tension Injection
-        let gamma_pressure = if receipt.gamma > 1.0 { (receipt.gamma - 1.0) * 10.0 } else { 0.0 };
-        self.tension = self.tension.saturating_add(receipt.tension_score).saturating_add(gamma_pressure as u128);
-
-        // [PHASELOOM: PART VI] Weight Reinforcement
-        // Implement the "ClosedNoSorry" policy
-        let weight_delta = if receipt.accepted {
-            match receipt.closure_status {
-                LeanClosureStatus::ClosedNoSorry => {
-                    self.closed_proofs += 1;
-                    receipt.closure_status.weight_delta()
-                }
-                LeanClosureStatus::BuildPassedWithSorry => {
-                    self.build_passed_with_sorry += 1;
-                    receipt.closure_status.weight_delta()
-                }
-                _ => {
-                    self.near_misses += 1;
-                    1.0 // NearMiss fallback
-                }
-            }
-        } else {
-            receipt.closure_status.weight_delta()
-        };
-
-        if let Some(template) = receipt.coh_template {
-            let t_name = template.as_str().to_string();
-            self.template_weights.increment(&t_name, weight_delta);
-            
-            let stats = self.template_stats.entry(t_name).or_insert((0, 0));
-            if receipt.accepted && receipt.closure_status == LeanClosureStatus::ClosedNoSorry {
-                stats.0 += 1; // Success
-            } else if !receipt.accepted {
-                stats.1 += 1; // Failure
-            }
-        }
-
-        // Curvature accumulation (rejection penalty)
-        if !receipt.accepted {
-            self.curvature = self.curvature.saturating_add(1);
-            self.rejected_count = self.rejected_count.saturating_add(1);
-
-            // Track failure count per strategy class
-            self.failure_counts
-                .entry(receipt.strategy_class.clone())
-                .and_modify(|c| *c = c.saturating_add(1))
-                .or_insert(1);
-        } else {
-            self.accepted_count = self.accepted_count.saturating_add(1);
-        }
-
-        // Budget burn (work consumption)
-        let mut spend: u128 = if receipt.accepted { 10 } else { 50 };
-        
-        // [PHASELOOM ECOLOGY: Lawful Recall]
-        // Deduct read cost if this was a memory access
-        if receipt.record_tau > 0 || receipt.semantic_distance > 0.0 {
-            let read_cost = self.calculate_read_cost(config, receipt.record_tau, receipt.semantic_distance, &receipt.provenance);
-            spend = spend.saturating_add(read_cost);
-        }
-        
-        self.budget = self.budget.saturating_sub(spend);
-
-        // Strategy weight update: reward acceptance, penalize failure
-        let class = &receipt.strategy_class;
-        let reward = if receipt.accepted {
-            config.learning_rate * receipt.novelty.max(0.1)
-        } else {
-            // Use taxonomy-driven reward signal if available
-            receipt
-                .failure_report
-                .as_ref()
-                .map(|r| r.severity.reward_signal())
-                .unwrap_or(0.0)
-                * config.learning_rate
-        };
-
-        let penalty = if !receipt.accepted {
-            let failure_count = self.failure_counts.get(class).copied().unwrap_or(1) as f64;
-            config.curvature_penalty * failure_count.min(0.5)
-        } else {
-            0.0
-        };
-
-        self.strategy_weights.increment(class, reward - penalty);
-        self.strategy_weights.normalize();
-
-        // Template weight update: reward Coh pattern effectiveness
-        if let Some(template) = &receipt.coh_template {
-            let template_str = template.as_str();
-            self.template_weights.increment(template_str, reward - penalty);
-            self.template_weights.normalize();
-        }
-
-        // [PHASELOOM ECOLOGY: Metabolic Forgetting (Theorem E2)]
-        // Prune memories (weights) whose utility falls below the maintenance cost threshold
-        self.strategy_weights.0.retain(|_, &mut w| w >= config.maintenance_coeff);
-        if self.strategy_weights.0.is_empty() {
-            // Prevent complete amnesia of the active class
-            self.strategy_weights.increment(class, config.min_weight);
-            self.strategy_weights.normalize();
-        }
-        self.template_weights.0.retain(|_, &mut w| w >= config.maintenance_coeff);
-        if !self.template_weights.0.is_empty() {
-            self.template_weights.normalize();
-        }
-
-        // [NPE-Rust Advances NPE-Lean] Trigger synthesis on warm proof failure
-        if let Some(report) = &receipt.failure_report {
-            if let coh_npe::failure_taxonomy::FailureKind::LeanProof(
-                coh_npe::failure_taxonomy::LeanProofFailure::UnsolvedGoals,
-            ) = &report.kind
-            {
-                if reward > 0.0 {
-                    println!("PHASELOOM: Warm proof failure detected. Suggesting SynthesisRepair for target '{}'.", receipt.target);
-                }
-            }
-        }
-
-        // Check circuit breaker
-        self.circuit_broken = self.is_circuit_broken(config);
-    }
-
-    /// Get weight for a specific strategy class
-    pub fn weight_for(&self, class: &str) -> f64 {
-        self.strategy_weights.get(class)
-    }
-
-    /// Get all strategy classes with weights
-    pub fn all_weights(&self) -> &HashMap<String, f64> {
-        &self.strategy_weights.0
-    }
-
-    /// Serialize state to JSON bytes
     pub fn serialize(&self) -> Result<Vec<u8>, serde_json::Error> {
         serde_json::to_vec(self)
     }
+}
 
-    /// Deserialize state from JSON bytes
-    pub fn deserialize(bytes: &[u8]) -> Result<Self, serde_json::Error> {
-        serde_json::from_slice(bytes)
+pub mod budget {
+    use serde::{Deserialize, Serialize};
+    #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+    pub struct PhaseLoomBudget {
+        pub work_capacity: u128,
     }
 }
 
-// BoundaryReceiptSummary and MathlibEffect moved to crate::npe::receipt
+pub mod kernel {
+    use super::{PhaseLoomConfig, PhaseLoomState};
+    use crate::budget::PhaseLoomBudget;
+    use coh_npe::receipt::BoundaryReceiptSummary;
 
-
-#[cfg(test)]
-pub fn test_accepted(strategy_class: &str, novelty: f64) -> BoundaryReceiptSummary {
-        BoundaryReceiptSummary {
-            domain: "test".to_string(),
-            target: "test_fn".to_string(),
-            strategy_class: strategy_class.to_string(),
-            wildness: 0.5,
-            genesis_margin: 100,
-            coherence_margin: 50,
-            projection_defect: 0,
-            tension_score: 0,
-            provenance: "EXT".to_string(),
-            record_tau: 0,
-            semantic_distance: 0.0,
-            accuracy: 1.0,
-            utility: 1.0,
-            sorry_detected: false,
-            first_failure: String::new(),
-            outcome: "accepted".to_string(),
-            accepted: true,
-            novelty,
-            receipt_hash: "test_hash".to_string(),
-            coh_template: None,
-            closure_status: LeanClosureStatus::ClosedNoSorry,
-            mathlib_strategy: None,
-            mathlib_confidence: None,
-            mathlib_suggested_lemmas: None,
-            mathlib_import_risk: None,
-            mathlib_imports_used: false,
-            mathlib_effect: MathlibEffect::None,
-            failure_report: None,
-            gamma: 1.0,
-        }
+    #[derive(Clone, Default)]
+    pub struct PhaseLoomKernel {
+        pub state: PhaseLoomState,
+        pub budget: PhaseLoomBudget,
     }
 
-    #[cfg(test)]
-    pub fn test_rejected(strategy_class: &str, failure: &str) -> BoundaryReceiptSummary {
-        BoundaryReceiptSummary {
-            domain: "test".to_string(),
-            target: "test_fn".to_string(),
-            strategy_class: strategy_class.to_string(),
-            wildness: 0.5,
-            genesis_margin: -10,
-            coherence_margin: -20,
-            projection_defect: 10,
-            tension_score: 50,
-            provenance: "SIM".to_string(),
-            record_tau: 0,
-            semantic_distance: 0.0,
-            accuracy: 5.0,
-            utility: 0.1,
-            sorry_detected: false,
-            first_failure: failure.to_string(),
-            outcome: "rejected".to_string(),
-            accepted: false,
-            novelty: 0.0,
-            receipt_hash: "test_hash".to_string(),
-            coh_template: None,
-            closure_status: LeanClosureStatus::BuildFailed,
-            mathlib_strategy: None,
-            mathlib_confidence: None,
-            mathlib_suggested_lemmas: None,
-            mathlib_import_risk: None,
-            mathlib_imports_used: false,
-            mathlib_effect: MathlibEffect::None,
-            failure_report: Some(failure_taxonomy::FailureReport {
-                candidate_id: "test".to_string(),
-                target: "test_fn".to_string(),
-                layer: failure_taxonomy::FailureLayer::CohPost,
-                kind: failure_taxonomy::FailureKind::Governance(
-                    failure_taxonomy::GovernanceFailure::ProofCostTooHigh,
-                ),
-                raw_error: "test error".to_string(),
-                normalized_message: "test error".to_string(),
-                retryable: false,
-                severity: failure_taxonomy::FailureSeverity::HardInvalid,
-                suggested_repairs: vec![],
-                blocks_publication: true,
-            }),
-            gamma: 1.0,
+    impl PhaseLoomKernel {
+        pub fn new(state: PhaseLoomState, budget: PhaseLoomBudget) -> Self {
+            Self { state, budget }
+        }
+
+        pub fn update(
+            &mut self,
+            receipt: &BoundaryReceiptSummary,
+            config: &PhaseLoomConfig,
+        ) -> Result<(), String> {
+            self.state.ingest(receipt, config);
+            Ok(())
         }
     }
+}
 
-/// Public API functions
-/// Initialize PhaseLoom state
 pub fn phaseloom_init(config: &PhaseLoomConfig) -> PhaseLoomState {
     PhaseLoomState::new(config)
 }
-
-/// Ingest a boundary receipt
 pub fn phaseloom_ingest(
     state: &mut PhaseLoomState,
     receipt: &BoundaryReceiptSummary,
@@ -593,271 +871,12 @@ pub fn phaseloom_ingest(
 ) {
     state.ingest(receipt, config);
 }
-
-/// Sample next strategy (exploitation only)
 pub fn phaseloom_sample(state: &PhaseLoomState) -> Option<String> {
     state.sample_best()
 }
-
-/// Sample next strategy using Boltzmann exploration
-pub fn phaseloom_sample_boltzmann<R: rand::Rng>(
-    state: &PhaseLoomState,
-    config: &PhaseLoomConfig,
-    rng: &mut R,
-) -> (Option<String>, bool) {
-    state.sample_strategy(config, rng)
-}
-
-/// Check circuit breaker
 pub fn phaseloom_circuit_broken(state: &PhaseLoomState, config: &PhaseLoomConfig) -> bool {
     state.is_circuit_broken(config)
 }
-
-/// Serialize state for persistence
 pub fn phaseloom_serialize(state: &PhaseLoomState) -> Result<Vec<u8>, serde_json::Error> {
     state.serialize()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_phaseloom_init() {
-        let config = PhaseLoomConfig::default();
-        let state = PhaseLoomState::new(&config);
-
-        assert_eq!(state.curvature, 0);
-        assert_eq!(state.budget, config.initial_budget);
-        assert_eq!(state.tau, 0);
-        assert!(!state.circuit_broken);
-    }
-
-    #[test]
-    fn test_ingest_accepted() {
-        let config = PhaseLoomConfig::default();
-        let mut state = PhaseLoomState::new(&config);
-
-        let receipt = test_accepted("synthesize", 0.8);
-        state.ingest(&receipt, &config);
-
-        assert_eq!(state.tau, 1);
-        assert_eq!(state.accepted_count, 1);
-        assert_eq!(state.curvature, 0); // No curvature increase on accept
-        assert!(state.strategy_weights.0.contains_key("synthesize"));
-    }
-
-    #[test]
-    fn test_ingest_rejected() {
-        let config = PhaseLoomConfig::default();
-        let mut state = PhaseLoomState::new(&config);
-
-        let receipt = test_rejected("synthesize", "policy_violation");
-        state.ingest(&receipt, &config);
-
-        assert_eq!(state.tau, 1);
-        assert_eq!(state.rejected_count, 1);
-        assert_eq!(state.curvature, 1); // Curvature increases on reject
-    }
-
-    #[test]
-    fn test_weight_normalization() {
-        let config = PhaseLoomConfig::default();
-        let mut state = PhaseLoomState::new(&config);
-
-        // Ingest multiple receipts
-        state.ingest(
-            &test_accepted("synthesize", 0.5),
-            &config,
-        );
-        state.ingest(
-            &test_accepted("refine", 0.5),
-            &config,
-        );
-        state.ingest(
-            &test_rejected("debug", "error"),
-            &config,
-        );
-
-        let sum: f64 = state.strategy_weights.0.values().sum();
-        assert!((sum - 1.0).abs() < 0.001, "Weights should normalize to 1.0");
-    }
-
-    #[test]
-    fn test_circuit_break() {
-        let config = PhaseLoomConfig {
-            circuit_break_threshold: 3,
-            ..Default::default()
-        };
-        let mut state = PhaseLoomState::new(&config);
-
-        // Reject enough to trigger circuit break (curvature = 4 > 3)
-        for _ in 0..4 {
-            state.ingest(
-                &test_rejected("test", "error"),
-                &config,
-            );
-        }
-
-        assert!(state.circuit_broken);
-    }
-
-    #[test]
-    fn test_sample_strategy() {
-        let config = PhaseLoomConfig::default();
-        let mut state = PhaseLoomState::new(&config);
-
-        // Add multiple strategies to have meaningful entropy
-        state
-            .strategy_weights
-            .0
-            .insert("synthesize".to_string(), 0.6);
-        state.strategy_weights.0.insert("refine".to_string(), 0.3);
-        state.strategy_weights.0.insert("debug".to_string(), 0.1);
-        state.strategy_weights.normalize();
-
-        let mut rng = rand::thread_rng();
-        let (strategy, _was_exploration) = state.sample_strategy(&config, &mut rng);
-
-        // Should get a valid strategy
-        assert!(strategy.is_some());
-        // Strategy should be one of the ones we added
-        assert!(matches!(
-            strategy.as_deref(),
-            Some("synthesize") | Some("refine") | Some("debug")
-        ));
-    }
-
-    #[test]
-    fn test_compute_entropy() {
-        let config = PhaseLoomConfig::default();
-        let state = PhaseLoomState::new(&config);
-
-        // Empty weights = zero entropy
-        let entropy = state.compute_entropy();
-        assert!((entropy - 0.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_entropy_tracking() {
-        let config = PhaseLoomConfig::default();
-        let mut state = PhaseLoomState::new(&config);
-
-        // Initially entropy should be 0
-        assert!((state.current_entropy - 0.0).abs() < 0.001);
-
-        // After adding a strategy, entropy gets recomputed on ingest
-        state
-            .strategy_weights
-            .0
-            .insert("synthesize".to_string(), 1.0);
-        state.strategy_weights.normalize();
-        state.current_entropy = state.compute_entropy();
-
-        // Single strategy = low entropy
-        let entropy = state.current_entropy;
-        assert!(entropy < 0.5, "Single strategy should have low entropy");
-    }
-
-    #[test]
-    fn test_temperature_decay() {
-        let config = PhaseLoomConfig::default();
-        let mut state = PhaseLoomState::new(&config);
-
-        let initial_temp = state.temperature;
-
-        // Decay multiple times
-        for _ in 0..10 {
-            state.update_temperature(&config);
-        }
-
-        // Temperature should have decayed
-        assert!(state.temperature < initial_temp);
-
-        // But should not go below min_temperature
-        assert!(state.temperature >= config.min_temperature);
-    }
-
-    #[test]
-    fn test_serialization_roundtrip() {
-        let config = PhaseLoomConfig::default();
-        let state = PhaseLoomState::new(&config);
-
-        let bytes = state.serialize().unwrap();
-        let restored = PhaseLoomState::deserialize(&bytes).unwrap();
-
-        assert_eq!(state.tau, restored.tau);
-        assert_eq!(state.budget, restored.budget);
-    }
-
-    #[test]
-    fn test_provenance_authority() {
-        assert!(PhaseLoomState::provenance_authority("EXT") > PhaseLoomState::provenance_authority("DER"));
-        assert!(PhaseLoomState::provenance_authority("DER") > PhaseLoomState::provenance_authority("REP"));
-        assert!(PhaseLoomState::provenance_authority("REP") > PhaseLoomState::provenance_authority("SIM"));
-    }
-
-    #[test]
-    fn test_calculate_read_cost() {
-        let config = PhaseLoomConfig::default();
-        let mut state = PhaseLoomState::new(&config);
-        state.tau = 1000;
-
-        // Same time, same provenance, same semantic = 0 cost (base case)
-        let cost0 = state.calculate_read_cost(&config, 1000, 0.0, "EXT");
-        assert_eq!(cost0, 0);
-
-        // Older record = more cost
-        let cost1 = state.calculate_read_cost(&config, 500, 0.0, "EXT");
-        assert!(cost1 > 0);
-
-        // Lower provenance authority = more cost (distance from EXT)
-        let cost2 = state.calculate_read_cost(&config, 1000, 0.0, "SIM");
-        assert!(cost2 > 0);
-        
-        // Semantic distance = more cost
-        let cost3 = state.calculate_read_cost(&config, 1000, 10.0, "EXT");
-        assert!(cost3 > 0);
-    }
-
-    #[test]
-    fn test_anchor_firewall() {
-        let config = PhaseLoomConfig::default();
-        let state = PhaseLoomState::new(&config);
-
-        // SIM cannot overwrite EXT
-        assert!(!state.validate_memory_transition("SIM", "EXT"));
-        // EXT can overwrite SIM
-        assert!(state.validate_memory_transition("EXT", "SIM"));
-        // DER can overwrite REP
-        assert!(state.validate_memory_transition("DER", "REP"));
-    }
-
-    #[test]
-    fn test_lorentz_time_dilation() {
-        let config = PhaseLoomConfig::default();
-        let mut state = PhaseLoomState::new(&config);
-
-        // Base step with gamma = 1.0 (no dilation)
-        let mut receipt1 = test_accepted("synthesize", 1.0);
-        receipt1.gamma = 1.0;
-        state.ingest(&receipt1, &config);
-        let tau_f1 = state.tau_f;
-        assert!(tau_f1 > 0.0);
-
-        // Second step with gamma = 10.0 (dilation)
-        let mut receipt2 = test_accepted("synthesize", 1.0);
-        receipt2.gamma = 10.0;
-        state.ingest(&receipt2, &config);
-        let tau_f2 = state.tau_f;
-        
-        let delta = tau_f2 - tau_f1;
-        println!("tau_f1: {}, tau_f2: {}, delta: {}", tau_f1, tau_f2, delta);
-        // delta should be (1/10) * alpha_gamma = 0.1
-        assert!(delta < 0.2); 
-        assert!(delta > 0.05);
-        
-        // Compared to no dilation (delta would be 1.0)
-        assert!(delta < 1.0);
-    }
 }

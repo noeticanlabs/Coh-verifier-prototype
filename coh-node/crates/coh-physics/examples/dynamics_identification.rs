@@ -1,6 +1,6 @@
 use coh_core::cohbit::{CohBit, CohBitLaw};
-use coh_core::atom::{CohAtom};
-use coh_core::types::{Decision};
+use coh_core::atom::{CohGovernor};
+
 use serde_json::json;
 use std::time::Instant;
 
@@ -16,11 +16,11 @@ fn main() {
         let mut bits = vec![];
         for i in 0..10 {
             bits.push(CohBit {
-                utility: i as f64,
+                utility: num_rational::Rational64::new(i as i64, 1),
                 valuation_pre: num_rational::Rational64::new(100, 1),
                 valuation_post: num_rational::Rational64::new(95, 1),
                 spend: num_rational::Rational64::new(10, 1), // Margin -5 (Inexecutable)
-                rv_status: Decision::Accept,
+                rv_status: coh_core::types::RvStatus::Accept,
                 ..Default::default()
             });
         }
@@ -52,7 +52,7 @@ fn main() {
         gauge.connection[0][2] = 0.03;
         
         let bit = CohBit {
-            rv_status: Decision::Accept,
+            rv_status: coh_core::types::RvStatus::Accept,
             ..Default::default()
         };
         let history = coh_core::trajectory::path_integral::CohHistory {
@@ -75,7 +75,7 @@ fn main() {
     // 3. Rigorous Memory Footprint (Stack Size)
     let memory_metadata = json!({
         "cohbit_stack_bytes": std::mem::size_of::<CohBit>(),
-        "cohatom_stack_bytes": std::mem::size_of::<CohAtom>(),
+        "cohgovernor_stack_bytes": std::mem::size_of::<CohGovernor>(),
     });
 
     let report = json!({

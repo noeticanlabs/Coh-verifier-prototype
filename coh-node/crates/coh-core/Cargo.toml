@@ -14,7 +14,7 @@ thiserror.workspace = true
 colored.workspace = true
 ed25519-dalek = "2.1"
 serde_jcs = "0.1"
-num-rational = "0.4"
+num-rational = { version = "0.4", features = ["serde"] }
 num-traits = "0.2"
 rand = "0.8"
 

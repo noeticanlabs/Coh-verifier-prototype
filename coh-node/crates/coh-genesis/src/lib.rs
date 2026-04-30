@@ -103,6 +103,7 @@ pub mod verifier_tools;
 pub mod atom;
 pub use atom::GmiAtom;
 pub mod kernel_invariants;
+pub mod vm_runtime;
 
 // Re-export PhaseLoomLite types and functions
 pub use fusion_wedge::verify_governed_step;
@@ -236,7 +237,7 @@ impl GmiGovernor {
             system,
             rv: rv.budget.clone(),
             npe: npe.budget.clone(),
-            phaseloom: phaseloom.budget.clone(),
+            phaseloom: PhaseLoomBudget { work_capacity: phaseloom.state.budget },
         };
         Self { 
             atom: atom::GmiAtom::new(npe, rv, phaseloom, budgets, carrier)

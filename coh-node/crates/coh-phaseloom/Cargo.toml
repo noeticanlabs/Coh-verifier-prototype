@@ -4,7 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+coh-core = { path = "../coh-core" }
+coh-npe = { path = "../coh-npe" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 rand = "0.8"
-coh-npe = { path = "../coh-npe" }
+num-rational = "0.4"
+num-traits = "0.2"
+sha2 = "0.10"

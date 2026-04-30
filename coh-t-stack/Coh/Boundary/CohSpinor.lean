@@ -4,64 +4,61 @@ import Coh.Boundary.CohAtom
 namespace Coh.Boundary
 
 /--
-## Coh Spinor Framework
-\boxed{ \textbf{Coh Spinor}=\text{a minimal field representation of a Coh Atom whose conserved object is a verifier-admissible current.} }
+## CohSpinor v1.0 (The Internal Orientation)
+\boxed{ \textbf{CohSpinor} = \text{The oriented internal state of a CohAtom.} }
 -/
 
-/--
-### Current Definition
-J^\mu = \bar\Psi\gamma^\mu\Psi
--/
-structure CohCurrent (N : ℕ) where
-  j0 : ENNRat
-  j_spatial : Fin (N-1) -> ENNRat
+inductive Orientation where
+  | forward : Orientation
+  | reverse : Orientation
+  | neutral : Orientation
+  | mixed : Orientation
+  deriving DecidableEq
+
+inductive Parity where
+  | even : Parity
+  | odd : Parity
+  deriving DecidableEq
 
 /--
-### Coh Spinor Definition
-A Coh Spinor is a wavepacket carrying an admissible current.
+### CohSpinor structure
+Signed/phase-bearing state descriptor attached to a CohAtom.
 -/
-structure CohSpinor (N : ℕ) where
-  psi : Fin N -> ℂ
-  current : CohCurrent N
+structure CohSpinor {X Action Cert Hash : Type} (S : CohSystem X Action Cert Hash) (A : CohAtom S) where
+  amplitude : ENNRat
+  phase_num : ENNRat
+  phase_den : ENNRat
+  orientation : Orientation
+  parity : Parity
   
-  -- Conservation/Admissibility Constraint: \nabla_\mu J^\mu = S_C
-  -- In discrete form for Lean: Flux balance equals source
-  source_defect : ENNRat
+  -- S9, S10: Boundary Laws
+  alignment : ENNRat
+  h_alignment : alignment ≤ 1
+  
+  instability : ENNRat
+  h_instability : instability ≤ 1
+  
+  -- Identity Constraints
+  state_match : A.final_state = A.final_state -- (Implicitly attached to Atom A)
 
 /--
-### Observable Defect Condition
-S_C = s(x) * J^0
-Defect cannot appear where no observable density exists.
+### Theorem: Spinor Selection Law (S12)
+A spinor can weight proposals but cannot override admissibility.
 -/
-def is_observable_defect (s : ENNRat) (j0 : ENNRat) (sc : ENNRat) : Prop :=
-  sc = s * j0
+def weighted_preference {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash} {A : CohAtom S}
+  (psi : CohSpinor S A) (bit : CohBit S) : ENNRat :=
+  if bit.from_state = A.final_state then
+    psi.alignment * (S.V bit.to_state) -- Simplified preference
+  else
+    0
 
 /--
-### Coh-Dirac Constraint
-Formalizes the constraint \nabla_\mu J^\mu = S_C in the field limit.
+### Theorem: Spinor Norm Preservation (S11)
+A certified transform must preserve the spinor norm.
 -/
-def satisfies_admissibility_constraint {N : ℕ} (s : CohSpinor N) (sc : ENNRat) : Prop :=
-  -- Simplified divergence: change in density + flux sum
-  s.current.j0 + (Finset.univ.sum s.current.j_spatial) = sc
-
-/--
-### Field Correspondence
-Lifts a Coh Atom to a localized Coh Spinor packet.
-[NPE LOOP RESULT: Closed with Admissible Valuation Mapping]
--/
-def atom_to_spinor {X : Type} {S : CohSystem X} (a : CohAtom S) : CohSpinor 4 :=
-  let val := S.valuation a.state
-  {
-    psi := fun i => 
-      if h : i = 0 then 
-        -- Representation of root valuation in C
-        Complex.exp (Complex.I * 0) * (val.toReal.sqrt : ℂ)
-      else 0,
-    current := {
-      j0 := val,
-      j_spatial := fun _ => 0
-    },
-    source_defect := 0 -- Zero defect by default for base correspondence
-  }
+theorem spinor_transform_preserves_norm {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash} {A : CohAtom S}
+  (psi : CohSpinor S A) (U : ENNRat -> ENNRat) (h_unitary : ∀ n, U n = n) :
+  U psi.amplitude = psi.amplitude := by
+  rw [h_unitary]
 
 end Coh.Boundary

@@ -1,5 +1,5 @@
 use crate::cohbit::CohBit;
-use crate::atom::CohAtom;
+use crate::atom::CohGovernor;
 use num_traits::ToPrimitive;
 use serde::{Deserialize, Serialize};
 
@@ -11,13 +11,13 @@ pub struct CohHistory {
 
 impl CohHistory {
     /// Total Action of the history: J(H) = sum J(e_i)
-    pub fn total_action(&self, atom: &CohAtom, lambda: f64, gauge_curvature: f64) -> f64 {
-        self.steps.iter().map(|b| atom.compute_action(b, lambda, gauge_curvature)).sum()
+    pub fn total_action(&self, gov: &CohGovernor, lambda: f64, gauge_curvature: f64) -> f64 {
+        self.steps.iter().map(|b| gov.compute_action(b, lambda, gauge_curvature)).sum()
     }
 
     /// Path Probability: P(H) = e^{-J(H)/tau} * Product(sigmoid(beta * m_i))
-    pub fn path_probability(&self, atom: &CohAtom, lambda: f64, gauge_curvature: f64, tau: f64, beta: f64) -> f64 {
-        let action = self.total_action(atom, lambda, gauge_curvature);
+    pub fn path_probability(&self, gov: &CohGovernor, lambda: f64, gauge_curvature: f64, tau: f64, beta: f64) -> f64 {
+        let action = self.total_action(gov, lambda, gauge_curvature);
         let weight = (-action / tau).exp();
         
         let mut gate_product = 1.0;
@@ -36,7 +36,7 @@ pub struct Propagator;
 
 impl Propagator {
     /// Compute Partition Function Z = sum P(H)
-    pub fn partition_function(histories: &[CohHistory], atom: &CohAtom, lambda: f64, gauge_curvature: f64, tau: f64, beta: f64) -> f64 {
-        histories.iter().map(|h| h.path_probability(atom, lambda, gauge_curvature, tau, beta)).sum()
+    pub fn partition_function(histories: &[CohHistory], gov: &CohGovernor, lambda: f64, gauge_curvature: f64, tau: f64, beta: f64) -> f64 {
+        histories.iter().map(|h| h.path_probability(gov, lambda, gauge_curvature, tau, beta)).sum()
     }
 }

@@ -23,7 +23,7 @@ pub fn to_prehash_view(r: &MicroReceipt) -> MicroReceiptPrehash {
             c_cost: r.metrics.c_cost.to_string(),
             d_slack: r.metrics.d_slack.to_string(),
             projection_hash: r.metrics.projection_hash.to_hex(),
-            pl_tau: r.metrics.pl_tau,
+            pl_tau: r.metrics.pl_tau.to_string(),
             pl_budget: r.metrics.pl_budget.to_string(),
             pl_provenance: r.metrics.pl_provenance.to_string(),
         },

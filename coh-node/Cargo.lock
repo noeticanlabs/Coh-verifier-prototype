@@ -540,10 +540,14 @@ dependencies = [
 name = "coh-phaseloom"
 version = "0.1.0"
 dependencies = [
+ "coh-core",
  "coh-npe",
+ "num-rational",
+ "num-traits",
  "rand 0.8.6",
  "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -551,9 +555,13 @@ name = "coh-physics"
 version = "0.1.0"
 dependencies = [
  "coh-core",
+ "coh-genesis",
+ "coh-npe",
+ "coh-phaseloom",
  "num-complex",
  "num-rational",
  "num-traits",
+ "rand 0.8.6",
  "serde",
  "serde_json",
 ]

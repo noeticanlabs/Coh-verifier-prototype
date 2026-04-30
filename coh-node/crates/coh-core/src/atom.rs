@@ -1,10 +1,273 @@
-use crate::cohbit::CohBit;
-use crate::types::Hash32;
+use crate::cohbit::{CohBit, CohBitReject};
+use crate::types::{Hash32, DomainId, Signature};
 use serde::{Deserialize, Serialize};
 use num_rational::Rational64;
 use num_traits::ToPrimitive;
+use sha2::Digest;
+use thiserror::Error;
 
-/// Coh Atom Geometry Metrics
+#[derive(Debug, Error, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+pub enum CohAtomReject {
+    #[error("Non-canonical encoding")]
+    NonCanonicalEncoding,
+    #[error("Bad atom hash")]
+    BadAtomHash,
+    #[error("Bad signature")]
+    BadSignature,
+    #[error("Empty bits")]
+    EmptyBits,
+    #[error("Bit rejected")]
+    BitRejected(CohBitReject),
+    #[error("Initial state mismatch")]
+    InitialStateMismatch,
+    #[error("Final state mismatch")]
+    FinalStateMismatch,
+    #[error("State continuity break")]
+    StateContinuityBreak,
+    #[error("Receipt continuity break")]
+    ReceiptContinuityBreak,
+    #[error("Chain digest break")]
+    ChainDigestBreak,
+    #[error("Step index break")]
+    StepIndexBreak,
+    #[error("Domain mismatch")]
+    DomainMismatch,
+    #[error("Policy mismatch")]
+    PolicyMismatch,
+    #[error("Verifier mismatch")]
+    VerifierMismatch,
+    #[error("Cumulative spend mismatch")]
+    CumulativeSpendMismatch,
+    #[error("Cumulative defect mismatch")]
+    CumulativeDefectMismatch,
+    #[error("Cumulative delta-hat mismatch")]
+    CumulativeDeltaHatMismatch,
+    #[error("Cumulative authority mismatch")]
+    CumulativeAuthorityMismatch,
+    #[error("Defect envelope exceeded")]
+    DefectEnvelopeExceeded,
+    #[error("Negative total margin")]
+    NegativeTotalMargin,
+    #[error("Authority cap exceeded")]
+    AuthorityCapExceeded,
+    #[error("Authority double-spend")]
+    AuthorityDoubleSpend,
+    #[error("Execution replay mismatch")]
+    ExecutionReplayMismatch,
+    #[error("Parallel conflict")]
+    ParallelConflict,
+    #[error("Unsupported version")]
+    UnsupportedVersion,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CouplingWitness {
+    pub independence_hash: Hash32,
+    pub conflict_set_hash: Hash32,
+    pub coupling_defect: Rational64,
+    pub coupling_spend: Rational64,
+}
+
+impl CouplingWitness {
+    pub fn hash(&self) -> Hash32 {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(self.independence_hash.0);
+        hasher.update(self.conflict_set_hash.0);
+        hasher.update(self.coupling_defect.reduced().numer().to_be_bytes());
+        hasher.update(self.coupling_defect.reduced().denom().to_be_bytes());
+        hasher.update(self.coupling_spend.reduced().numer().to_be_bytes());
+        hasher.update(self.coupling_spend.reduced().denom().to_be_bytes());
+        Hash32(hasher.finalize().into())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub enum AtomKind {
+    ExecutableTrajectory,
+    SummaryTrajectory,
+    Identity,
+}
+
+/// The CohAtom v1.1: A closed, self-consistent transition complex.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CohAtom {
+    pub version: u16,
+    pub kind: AtomKind, // NEW
+    pub domain: DomainId,
+    pub atom_id: Hash32,
+
+    pub initial_state: Hash32,
+    pub final_state: Hash32,
+
+    pub bits: Vec<CohBit>,
+
+    pub cumulative_spend: Rational64,
+    pub cumulative_defect: Rational64,
+    pub cumulative_delta_hat: Rational64,
+    pub cumulative_authority: Rational64,
+
+    pub margin_total: Rational64,
+
+    pub policy_hash: Hash32,
+    pub verifier_id: Hash32,
+
+    pub atom_digest_pre: Hash32,
+    pub atom_digest_post: Hash32,
+
+    pub atom_hash: Hash32,
+    pub signature: Signature,
+    pub compression_certificate: Option<Hash32>, // NEW
+}
+
+impl Default for CohAtom {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            kind: AtomKind::ExecutableTrajectory,
+            domain: DomainId(Hash32([0; 32])),
+            atom_id: Hash32([0; 32]),
+            initial_state: Hash32([0; 32]),
+            final_state: Hash32([0; 32]),
+            bits: vec![],
+            cumulative_spend: Rational64::from_integer(0),
+            cumulative_defect: Rational64::from_integer(0),
+            cumulative_delta_hat: Rational64::from_integer(0),
+            cumulative_authority: Rational64::from_integer(0),
+            margin_total: Rational64::from_integer(0),
+            policy_hash: Hash32([0; 32]),
+            verifier_id: Hash32([0; 32]),
+            atom_digest_pre: Hash32([0; 32]),
+            atom_digest_post: Hash32([0; 32]),
+            atom_hash: Hash32([0; 32]),
+            signature: Signature(vec![0; 64]),
+            compression_certificate: None,
+        }
+    }
+}
+
+impl CohAtom {
+    pub fn canonical_hash(&self) -> Hash32 {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(b"cohatom:v1:receipt");
+        
+        hasher.update(self.version.to_be_bytes());
+        hasher.update([self.kind as u8]);
+        hasher.update(self.domain.0.0);
+        hasher.update(self.atom_id.0);
+        hasher.update(self.initial_state.0);
+        hasher.update(self.final_state.0);
+
+        for bit in &self.bits {
+            hasher.update(bit.receipt_hash.0);
+        }
+
+        let mut update_rat = |r: &Rational64| {
+            let nr = r.reduced();
+            hasher.update(nr.numer().to_be_bytes());
+            hasher.update(nr.denom().to_be_bytes());
+        };
+        
+        update_rat(&self.cumulative_spend);
+        update_rat(&self.cumulative_defect);
+        update_rat(&self.cumulative_delta_hat);
+        update_rat(&self.cumulative_authority);
+        update_rat(&self.margin_total);
+
+        hasher.update(self.policy_hash.0);
+        hasher.update(self.verifier_id.0);
+        hasher.update(self.atom_digest_pre.0);
+        hasher.update(self.atom_digest_post.0);
+        
+        if let Some(ref cert) = self.compression_certificate {
+            hasher.update([1]);
+            hasher.update(cert.0);
+        } else {
+            hasher.update([0]);
+        }
+
+        Hash32(hasher.finalize().into())
+    }
+
+    pub fn hash_valid(&self) -> bool {
+        self.atom_hash == self.canonical_hash()
+    }
+
+    pub fn continuity_valid(&self) -> Result<(), CohAtomReject> {
+        if self.bits.is_empty() {
+            return if self.initial_state == self.final_state { Ok(()) } else { Err(CohAtomReject::EmptyBits) };
+        }
+
+        if self.bits[0].from_state != self.initial_state { return Err(CohAtomReject::InitialStateMismatch); }
+        if self.bits.last().unwrap().to_state != self.final_state { return Err(CohAtomReject::FinalStateMismatch); }
+
+        for i in 0..self.bits.len() {
+            let b = &self.bits[i];
+            if !b.executable() { return Err(CohAtomReject::BitRejected(CohBitReject::CertificateRejected)); }
+            if i > 0 {
+                let prev = &self.bits[i-1];
+                if b.from_state != prev.to_state { return Err(CohAtomReject::StateContinuityBreak); }
+                if b.prev_receipt_hash != Some(prev.receipt_hash) { return Err(CohAtomReject::ReceiptContinuityBreak); }
+                if b.step_index != prev.step_index + 1 { return Err(CohAtomReject::StepIndexBreak); }
+                if b.chain_digest_pre != prev.chain_digest_post { return Err(CohAtomReject::ChainDigestBreak); }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn metrics_valid(&self) -> Result<(), CohAtomReject> {
+        let mut spend = Rational64::from_integer(0);
+        let mut defect = Rational64::from_integer(0);
+        let mut delta_hat = Rational64::from_integer(0);
+        let mut authority = Rational64::from_integer(0);
+
+        for b in &self.bits {
+            spend += b.spend;
+            defect += b.defect;
+            delta_hat += b.delta_hat;
+            authority += b.authority;
+        }
+
+        if spend != self.cumulative_spend { return Err(CohAtomReject::CumulativeSpendMismatch); }
+        if defect != self.cumulative_defect { return Err(CohAtomReject::CumulativeDefectMismatch); }
+        if delta_hat != self.cumulative_delta_hat { return Err(CohAtomReject::CumulativeDeltaHatMismatch); }
+        if authority != self.cumulative_authority { return Err(CohAtomReject::CumulativeAuthorityMismatch); }
+        if defect > delta_hat { return Err(CohAtomReject::DefectEnvelopeExceeded); }
+        Ok(())
+    }
+
+    pub fn budget_valid(&self, v_pre: Rational64, v_post: Rational64) -> Result<(), CohAtomReject> {
+        let expected_margin = v_pre + self.cumulative_defect + self.cumulative_authority - v_post - self.cumulative_spend;
+        if expected_margin != self.margin_total || self.margin_total < Rational64::from_integer(0) {
+            return Err(CohAtomReject::NegativeTotalMargin);
+        }
+        Ok(())
+    }
+
+    pub fn executable(&self) -> bool {
+        let structural_valid = self.hash_valid() && self.continuity_valid().is_ok() && self.metrics_valid().is_ok();
+        if !structural_valid { return false; }
+
+        match self.kind {
+            AtomKind::ExecutableTrajectory | AtomKind::Identity => true,
+            AtomKind::SummaryTrajectory => self.compression_certificate.is_some(),
+        }
+    }
+
+    pub fn identity(state: Hash32, valuation: Rational64, domain: DomainId) -> Self {
+        let id_bit = CohBit::identity(state, valuation, domain);
+        let mut atom = Self {
+            kind: AtomKind::Identity,
+            initial_state: state,
+            final_state: state,
+            bits: vec![id_bit],
+            ..Default::default()
+        };
+        atom.atom_hash = atom.canonical_hash();
+        atom
+    }
+}
+
+/// Coh Atom Geometry Metrics (The Lab Coat)
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct AtomGeometry {
     pub distance: Rational64,
@@ -19,41 +282,28 @@ pub struct AtomMetabolism {
     pub refresh: Rational64,
 }
 
-/// The Coh Atom: Verifier-governed unit of state evolution.
-/// 
-/// \boxed{\mathcal A(x) = (x, \mathcal B_x, \mathcal A_x, \mathcal P_x, \mathcal G_x, \mathcal M_x, \mathcal R_x)}
+/// The Coh Governor: The runtime engine that manages state evolution.
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
-pub struct CohAtom {
+pub struct CohGovernor {
     pub state_hash: Hash32,
     pub valuation: Rational64,
-    
-    pub admissible_bits: Vec<CohBit>,
-    
     pub geometry: AtomGeometry,
     pub metabolism: AtomMetabolism,
-    pub receipt_chain: Vec<Hash32>,
 }
 
-impl CohAtom {
-    /// Action Functional: J(e) = delta_hat(e) + F_exec(x') + lambda * R_coh(x') - U_refresh(x', t)
-    /// Now includes gauge curvature (constraint conflict metric).
+impl CohGovernor {
     pub fn compute_action(&self, bit: &CohBit, lambda: f64, gauge_curvature: f64) -> f64 {
         let delta_hat = bit.delta_hat.to_f64().unwrap_or(0.0);
-        let f_exec = bit.utility; // Simplified: utility as a proxy for free energy contribution
+        let f_exec = bit.utility.to_f64().unwrap_or(0.0);
         let ricci = self.geometry.ricci_scalar;
-        
         let r_coh = ricci + gauge_curvature;
         let u_refresh = self.metabolism.refresh.to_f64().unwrap_or(0.0);
-        let ym_energy = bit.ym_energy;
-        
-        delta_hat - f_exec + (lambda * r_coh) + ym_energy - u_refresh
+        delta_hat - f_exec + (lambda * r_coh) - u_refresh
     }
 
-    /// Optimal Executable CohBit: \pi^*(x) = arg min_{e \in A_x} J(e)
-    pub fn select_optimal_bit(&self, lambda: f64, gauge_curvature: f64) -> Option<&CohBit> {
-        self.admissible_bits
-            .iter()
-            .filter(|b| b.is_executable())
+    pub fn select_optimal_bit<'a>(&self, bits: &'a [CohBit], lambda: f64, gauge_curvature: f64) -> Option<&'a CohBit> {
+        bits.iter()
+            .filter(|b| b.executable())
             .min_by(|a, b| {
                 let ja = self.compute_action(a, lambda, gauge_curvature);
                 let jb = self.compute_action(b, lambda, gauge_curvature);
@@ -61,34 +311,18 @@ impl CohAtom {
             })
     }
 
-    /// Metabolic Law: B_{t+1} = B_t + A_t - Spend(e_t)
     pub fn update_metabolism(&mut self, bit: &CohBit) {
         self.metabolism.budget = self.metabolism.budget + self.metabolism.refresh - bit.spend;
     }
 
-    /// Atom Evolution: A(x) -> A(x') via bit b_i
-    pub fn evolve(&mut self, bit: &CohBit, _lambda: f64, _gauge_curvature: f64) -> bool {
-        if !bit.is_executable() {
-            return false;
-        }
-        
-        // V(x_{t+1}) + Spend(e_t) <= V(x_t) + Defect(e_t) + A_t
+    pub fn evolve(&mut self, bit: &CohBit) -> bool {
+        if !bit.executable() { return false; }
         let lhs = bit.valuation_post + bit.spend;
         let rhs = self.valuation + bit.defect + self.metabolism.refresh;
-        
-        if lhs > rhs {
-            return false; // Metabolic rejection
-        }
-
-        // Apply transition
+        if lhs > rhs { return false; }
         self.state_hash = bit.to_state;
         self.valuation = bit.valuation_post;
-        self.receipt_chain.push(bit.receipt_hash);
         self.update_metabolism(bit);
-        
-        // Reset admissible bits for new state (to be populated by NPE)
-        self.admissible_bits.clear();
-        
         true
     }
 }

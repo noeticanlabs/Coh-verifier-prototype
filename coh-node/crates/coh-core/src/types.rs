@@ -1,5 +1,6 @@
 pub use crate::reject::RejectCode;
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
 use std::convert::TryFrom;
 
 #[derive(
@@ -28,8 +29,77 @@ impl Hash32 {
         arr.copy_from_slice(&slice[..32]);
         Hash32(arr)
     }
+
+    pub fn combine(&self, other: &Self) -> Self {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(self.0);
+        hasher.update(other.0);
+        Hash32(hasher.finalize().into())
+    }
+
+    pub fn combine_tagged(&self, tag: &str, other: &Self) -> Self {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(tag.as_bytes());
+        hasher.update(self.0);
+        hasher.update(other.0);
+        Hash32(hasher.finalize().into())
+    }
 }
 
+// v1.0 Types
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Signature(pub Vec<u8>);
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct DomainId(pub Hash32);
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SignerId(pub Hash32);
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ScopeId(pub Hash32);
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Timestamp(pub u64);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum RvStatus {
+    #[default]
+    Unknown = 0,
+    Accept = 1,
+    Reject = 2,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum StateKind {
+    Semantic,
+    Memory,
+    Control,
+    Physical,
+    Composite,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StateCommitment {
+    pub kind: StateKind,
+    pub schema_hash: Hash32,
+    pub content_hash: Hash32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ActionKind {
+    SemanticStep,
+    MemoryInject,
+    MemoryCompress,
+    ToolCall,
+    ExternalWrite,
+    PolicyUpdate,
+    ControlActuation,
+    RejectDivert,
+    Identity,
+}
+
+// Legacy Types (Required for v3 stack compatibility)
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ResourceCost {
     pub cpu_ms: u128,
@@ -39,10 +109,8 @@ pub struct ResourceCost {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ToolAuthorityMode {
-    /// Exploratory mode: results are advisory, heuristics allowed.
     #[default]
     Exploratory,
-    /// Certification mode: results are deterministic, must be auditable.
     Certification,
 }
 
@@ -105,7 +173,6 @@ pub struct MetricsWire {
     pub defect: String,
     #[serde(default = "default_authority")]
     pub authority: String,
-    // Genesis Metrics (Forward Generation)
     #[serde(default)]
     pub m_pre: String,
     #[serde(default)]
@@ -116,7 +183,6 @@ pub struct MetricsWire {
     pub d_slack: String,
     #[serde(default)]
     pub projection_hash: String,
-    // PhaseLoom Ecology
     #[serde(default)]
     pub pl_tau: String,
     #[serde(default)]
@@ -221,13 +287,11 @@ pub struct Metrics {
     pub spend: u128,
     pub defect: u128,
     pub authority: u128,
-    // Genesis Metrics (Forward Generation)
     pub m_pre: u128,
     pub m_post: u128,
     pub c_cost: u128,
     pub d_slack: u128,
     pub projection_hash: Hash32,
-    // PhaseLoom Ecology
     pub pl_tau: u64,
     pub pl_budget: u128,
     pub pl_provenance: String,
@@ -253,16 +317,25 @@ impl Default for Metrics {
     }
 }
 
-/// A Certified Morphism in the Coh Category.
-/// Mirrors the Slack2Cell and CertifiedMorphism structures in Lean.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// A CertifiedMorphism represents a verified state transition with budget flow.
+///
+/// This is the atomic unit of trace composition in Coh accounting:
+/// - `v_pre` - Value entering this step
+/// - `v_post` - Value exiting this step  
+/// - `spend` - Budget consumed in this step
+/// - `defect` - Budget lost to entropy in this step
+/// - `authority` - Additional budget injected in this step
+/// - `m_pre` - Memory entering
+/// - `m_post` - Memory exiting
+/// - `c_cost` - Computation cost
+/// - `d_slack` - Delta slack
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CertifiedMorphism {
     pub v_pre: u128,
     pub v_post: u128,
     pub spend: u128,
     pub defect: u128,
     pub authority: u128,
-    // Genesis Metrics
     pub m_pre: u128,
     pub m_post: u128,
     pub c_cost: u128,
@@ -270,7 +343,6 @@ pub struct CertifiedMorphism {
 }
 
 impl CertifiedMorphism {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         v_pre: u128,
         v_post: u128,
@@ -295,58 +367,14 @@ impl CertifiedMorphism {
         }
     }
 
-    /// The fundamental Coherence inequality: V_post + spend <= V_pre + defect + authority
+    /// Check if this morphism satisfies the certification condition:
+    /// v_post + spend <= v_pre + defect + authority
     pub fn is_certified(&self) -> bool {
-        let lhs = self.v_post.saturating_add(self.spend);
-        let rhs = self
-            .v_pre
-            .saturating_add(self.defect)
-            .saturating_add(self.authority);
-        lhs <= rhs
-    }
-
-    /// The Law of Genesis: M(g') + C(p) <= M(g) + D(p)
-    pub fn is_genesis_admissible(&self) -> bool {
-        let lhs = self.m_post.checked_add(self.c_cost);
-        let rhs = self.m_pre.checked_add(self.d_slack);
-        match (lhs, rhs) {
-            (Some(l), Some(r)) => l <= r,
-            _ => false, // Overflow rejects
-        }
-    }
-
-    /// Intersection of Genesis and Coherence
-    pub fn is_formation_admissible(&self) -> bool {
-        self.is_certified() && self.is_genesis_admissible()
-    }
-
-    /// Compose with another certified morphism (f ; g)
-    /// Cost additivity: spend = spend_f + spend_g, defect = defect_f + defect_g
-    pub fn compose(&self, other: &Self) -> Option<Self> {
-        // v_post of first must match v_pre of second (simplified object match)
-        if self.v_post != other.v_pre {
-            return None;
-        }
-
-        let total_spend = self.spend.checked_add(other.spend)?;
-        let total_defect = self.defect.checked_add(other.defect)?;
-        let total_authority = self.authority.checked_add(other.authority)?;
-
-        // Genesis composition (Additivity assumption for V1)
-        let total_cost = self.c_cost.checked_add(other.c_cost)?;
-        let total_slack = self.d_slack.checked_add(other.d_slack)?;
-
-        Some(Self {
-            v_pre: self.v_pre,
-            v_post: other.v_post,
-            spend: total_spend,
-            defect: total_defect,
-            authority: total_authority,
-            m_pre: self.m_pre,
-            m_post: other.m_post,
-            c_cost: total_cost,
-            d_slack: total_slack,
-        })
+        self.v_post.saturating_add(self.spend)
+            <= self
+                .v_pre
+                .saturating_add(self.defect)
+                .saturating_add(self.authority)
     }
 }
 
@@ -390,39 +418,6 @@ pub struct SlabReceipt {
     pub state_hash_last: Hash32,
     pub merkle_root: Hash32,
     pub summary: SlabSummary,
-}
-
-#[derive(Serialize)]
-pub struct MetricsPrehash {
-    pub authority: String,
-    pub defect: String,
-    pub spend: String,
-    pub m_pre: String,
-    pub m_post: String,
-    pub v_post: String,
-    pub v_pre: String,
-    pub c_cost: String,
-    pub d_slack: String,
-    pub projection_hash: String,
-    pub pl_tau: u64,
-    pub pl_budget: String,
-    pub pl_provenance: String,
-}
-
-#[derive(Serialize)]
-pub struct MicroReceiptPrehash {
-    pub canon_profile_hash: String,
-    pub chain_digest_prev: String,
-    pub metrics: MetricsPrehash,
-    pub object_id: String,
-    pub policy_hash: String,
-    pub profile: String,
-    pub schema_id: String,
-    pub state_hash_next: String,
-    pub state_hash_prev: String,
-    pub step_index: u64,
-    pub step_type: Option<String>,
-    pub version: String,
 }
 
 #[derive(Serialize, Debug)]
@@ -486,6 +481,39 @@ pub struct VerifySlabResult {
     pub merkle_root: Option<String>,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct MetricsPrehash {
+    pub authority: String,
+    pub defect: String,
+    pub spend: String,
+    pub m_pre: String,
+    pub m_post: String,
+    pub v_post: String,
+    pub v_pre: String,
+    pub c_cost: String,
+    pub d_slack: String,
+    pub projection_hash: String,
+    pub pl_tau: String,
+    pub pl_budget: String,
+    pub pl_provenance: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct MicroReceiptPrehash {
+    pub canon_profile_hash: String,
+    pub chain_digest_prev: String,
+    pub metrics: MetricsPrehash,
+    pub object_id: String,
+    pub policy_hash: String,
+    pub profile: String,
+    pub schema_id: String,
+    pub state_hash_next: String,
+    pub state_hash_prev: String,
+    pub step_index: u64,
+    pub step_type: Option<String>,
+    pub version: String,
+}
+
 fn parse_u128(s: &str) -> Result<u128, RejectCode> {
     s.parse::<u128>()
         .map_err(|_| RejectCode::RejectNumericParse)
@@ -505,7 +533,10 @@ impl TryFrom<MetricsWire> for Metrics {
             c_cost: parse_u128(&w.c_cost)?,
             d_slack: parse_u128(&w.d_slack)?,
             projection_hash: Hash32::from_hex(&w.projection_hash)?,
-            pl_tau: w.pl_tau.parse::<u64>().map_err(|_| RejectCode::RejectNumericParse)?,
+            pl_tau: w
+                .pl_tau
+                .parse::<u64>()
+                .map_err(|_| RejectCode::RejectNumericParse)?,
             pl_budget: parse_u128(&w.pl_budget)?,
             pl_provenance: w.pl_provenance,
         })

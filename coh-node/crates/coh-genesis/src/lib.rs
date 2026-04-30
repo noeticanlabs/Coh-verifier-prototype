@@ -102,6 +102,7 @@ pub mod ledger;
 pub mod verifier_tools;
 pub mod atom;
 pub use atom::GmiAtom;
+pub mod kernel_invariants;
 
 // Re-export PhaseLoomLite types and functions
 pub use fusion_wedge::verify_governed_step;

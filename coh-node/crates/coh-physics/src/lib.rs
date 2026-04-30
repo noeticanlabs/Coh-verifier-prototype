@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 pub mod gamma;
 pub mod current;
 pub mod measurement;
+pub mod proofs;
 
 /// Coh Spinor: 4-component complex state vector
 #[derive(Clone, Debug, Serialize, Deserialize)]

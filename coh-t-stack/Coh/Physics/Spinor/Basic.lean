@@ -2,6 +2,7 @@ import Mathlib.Analysis.Complex.Basic
 import Mathlib.Data.Vector
 import Mathlib.Analysis.InnerProductSpace.Basic
 import Mathlib.Data.Matrix.Basic
+import Coh.Physics.Spinor.Proofs
 
 namespace Coh.Physics.Spinor
 

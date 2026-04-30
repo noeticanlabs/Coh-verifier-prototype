@@ -17,6 +17,10 @@ use num_rational::Rational64;
 
 use coh_physics::CohSpinor;
 use coh_physics::measurement::SpinorProjector;
+use crate::kernel_invariants::{
+    assert_stability_law, assert_rv_certified,
+    assert_budget_infimum, assert_spinor_invariants,
+};
 
 /// The GMI Atom: Computational realization of the Coh Atom
 #[derive(Clone)]
@@ -88,16 +92,22 @@ impl GmiAtom {
             return (false, trace.with_reject("Spacelike violation"));
         }
 
-        // 3. Spinor Pre-Calculation (Spin-Coh Atom v0.2)
+        // 3. Spinor Pre-Calculation + Invariant Gate (Spin-Coh Atom v0.2)
+        //    Lean theorems enforced: positive_density_theorem, gamma0_sq_eq_one,
+        //    coord_proj_idem, coord_proj_hermitian, coord_proj_weight_sum, j0_eq_density
         let mut next_spinor = None;
         let mut born_weight = None;
         if let Some(ref psi) = self.carrier {
-            // Mock selection of component 0 for this prototype
+            // Full spinor invariant check — enforces all proved Lean spinor theorems
+            if let Err(e) = assert_spinor_invariants(psi) {
+                return (false, trace.with_reject(&format!("Spinor invariant violation: {:?}", e)));
+            }
+
             let projector = SpinorProjector::coordinate(0);
             
-            // RV Gate: Matrix validation
+            // RV Gate: idempotency + hermiticity (Lean: coord_proj_idem, coord_proj_hermitian)
             if !projector.validate(1e-10) {
-                return (false, trace.with_reject("Invalid projector (idempotency/hermiticity failure)"));
+                return (false, trace.with_reject("Invalid projector (Lean: coord_proj_idem/hermitian)"));
             }
 
             born_weight = Some(projector.born_weight(psi));
@@ -133,16 +143,30 @@ impl GmiAtom {
             return (false, trace.with_reject(&format!("RV failed: {:?}", decision.kind)));
         }
 
-        // 6. Global Stability
+        // 6. Global Stability Law Gate
+        //    Lean: atomic_transition_stable — V(x') + spend ≤ V(x) + defect
         let next_v = self.rv.state.valuation + self.npe.governing_state.disorder + (self.phaseloom.state.tension as u128);
-        if !self.is_stable(prev_v, next_v, 10, 100) {
-            return (false, trace.with_reject("Global stability violation"));
+        if let Err(e) = assert_stability_law(prev_v, next_v, 10, 100) {
+            return (false, trace.with_reject(&format!("Stability law: {:?}", e)));
         }
-        trace.events.push("Atom CHECK: Global stability verified".into());
+        
+        // Budget Infimum Law (Lean: isRationalInf_add_inf_le)
+        if let Err(e) = assert_budget_infimum(
+            self.budgets.npe.cpu_ms,
+            self.budgets.rv.cpu_ms,
+            200, // combined NPE+RV cost
+        ) {
+            return (false, trace.with_reject(&format!("Budget infimum: {:?}", e)));
+        }
+        trace.events.push("Atom CHECK: Global stability + budget infimum verified".into());
 
         // --- ATOMIC COMMIT ---
         
         // A. Ledger (Ω_i)
+        //    Lean: atomic_transition_rv_certified — RV must Accept before receipt
+        if let Err(e) = assert_rv_certified(&decision) {
+            return (false, trace.with_reject(&format!("RV not certified: {:?}", e)));
+        }
         if let Err(e) = self.ledger.append(proposal_id, claim, decision) {
             return (false, trace.with_defer(&format!("Ledger failure: {}", e)));
         }

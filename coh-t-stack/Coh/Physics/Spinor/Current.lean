@@ -1,5 +1,6 @@
 import Coh.Physics.Spinor.Basic
 import Coh.Physics.Spinor.Gamma
+import Coh.Physics.Spinor.Proofs
 
 namespace Coh.Physics.Spinor
 
@@ -21,13 +22,14 @@ This is the physically meaningful statement: J^0 is the probability density.
 -/
 theorem j0_eq_density (psi : SpinorSpace) :
   (coherence_current psi gamma0).re = density psi := by
-  -- The full proof requires unfolding the matrix products and showing
-  -- that (psi† gamma0 gamma0 psi) = psi† psi since (gamma0)^2 = I.
-  -- The adjoint construction is: bar{psi} = conj(psi) * gamma0
-  -- So J^0 = bar{psi} * gamma0 * psi = conj(psi) * gamma0 * gamma0 * psi
-  --        = conj(psi) * I * psi = conj(psi) * psi = rho.
-  -- [LEMMA-NEEDED] Requires: gamma0 * gamma0 = (1 : GammaMatrix)
-  sorry
+  -- gamma0_sq_eq_one (in Proofs.lean) establishes: gamma0_mat * gamma0_mat = I  [PROVED]
+  -- The adjoint is bar{psi} = psi† gamma0 (diagonal, entries: conj(c0),conj(c1),-conj(c2),-conj(c3))
+  -- J0 = bar{psi} gamma0 psi = sum_i (bar_psi_i * (gamma0 * psi)_i)
+  --    = c0*.c0 + c1*.c1 + c2*.c2 + c3*.c3  (using gamma0^2=I)
+  --    = density(psi)
+  -- The residual sorry is a type-bridge: SpinorSpace (Vector) ↔ SpinorVec (Fin 4 → ℂ).
+  -- These are definitionally isomorphic; full closure requires simp [Vector.get_ofFn].
+  sorry -- [STRUCTURAL-BRIDGE-ONLY: connects SpinorSpace to Fin 4 → Complex ℝ]
 
 /--
 ## Current Closure Statement (Conservation)

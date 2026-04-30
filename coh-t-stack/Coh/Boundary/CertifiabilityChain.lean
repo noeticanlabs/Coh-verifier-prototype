@@ -25,18 +25,19 @@ theorem gradient_descent_terminates
   (g₀ : ℕ) :
   ∃ n, M (g₀ + n) = 0 :=
 by
-  let m := M g₀
+  generalize hm : M g₀ = m
   induction m using Nat.strong_induction_on generalizing g₀
   case h m ih =>
     by_cases h0 : M g₀ = 0
     · use 0; exact h0
     · have h_next := h_strict_decrease g₀
       rcases h_next with h_dec | h_zero
-      · have h_lt : M (g₀ + 1) < M g₀ := h_dec
-        rcases ih (M (g₀ + 1)) (by rw [← (show M g₀ = m from rfl)]; exact h_lt) (g₀ + 1) with ⟨n, hn⟩
+      · have h_lt : M (g₀ + 1) < m := by rw [← hm]; exact h_dec
+        rcases ih (M (g₀ + 1)) h_lt (g₀ + 1) rfl with ⟨n, hn⟩
         use n + 1
-        rw [Nat.add_assoc]
+        have h_eq : g₀ + (n + 1) = g₀ + 1 + n := by omega
+        rw [h_eq]
         exact hn
-      · use 1; exact h_zero
+      · contradiction
 
 end Coh.Boundary

@@ -488,10 +488,12 @@ dependencies = [
 name = "coh-genesis"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "coh-core",
  "coh-npe",
  "coh-phaseloom",
  "coh-physics",
+ "ed25519-dalek",
  "egg",
  "hex",
  "nalgebra",

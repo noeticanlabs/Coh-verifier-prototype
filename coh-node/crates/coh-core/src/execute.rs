@@ -116,7 +116,7 @@ impl ExecutionEngine {
         mode: ExecutionMode,
     ) -> ExecuteResponse {
         // Step 1: Verify the receipt
-        let verify_result = crate::verify_micro(receipt.clone());
+        let verify_result = crate::verify_micro::verify_micro_dev_fixture(receipt.clone());
 
         if verify_result.decision != Decision::Accept {
             return ExecuteResponse {

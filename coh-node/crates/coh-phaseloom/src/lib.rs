@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use std::collections::HashMap;
 
-// --- Memory Access Governance (v3.0) ---
+// --- Memory Access Governance (v3.1) ---
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum MemoryTier {
@@ -37,6 +37,15 @@ pub enum ComponentRole {
     Operator,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum MemoryView {
+    TransitionView,
+    AdmissionRiskView,
+    ProposalContextView,
+    AuditTraceView,
+    GovernanceView,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AccessDecision {
     Allow,
@@ -48,40 +57,21 @@ pub struct MemoryAccessPolicy;
 impl MemoryAccessPolicy {
     pub fn check(
         role: ComponentRole,
-        tier: MemoryTier,
+        view: MemoryView,
         op: MemoryOp,
     ) -> AccessDecision {
         use AccessDecision::*;
         use ComponentRole::*;
         use MemoryOp::*;
-        use MemoryTier::*;
+        use MemoryView::*;
 
-        match (role, tier, op) {
-            // Verifier (RV): hot-path micro read only.
-            (Verifier, Micro, Read) => Allow,
-
-            // Admission Gate (GCCP): reads micro and policy-level summaries.
-            (AdmissionGate, Micro, Read) => Allow,
-            (AdmissionGate, Meso, Read) => Allow,
-            (AdmissionGate, Macro, Read) => Allow,
-
-            // Generator (NPE): reads memory to improve proposals.
-            (Generator, Micro, Read) => Allow,
-            (Generator, Meso, Read) => Allow,
-            (Generator, Macro, Read) => Allow,
-
-            // Memory Manager (PhaseLoom): full orchestration.
-            (MemoryManager, Micro, Read | Write | Summarize) => Allow,
-            (MemoryManager, Meso, Read | Write | Summarize) => Allow,
-            (MemoryManager, Macro, Read | Summarize) => Allow,
-
-            // Auditor: read-only full history.
-            (Auditor, Micro | Meso | Macro, Read) => Allow,
-
-            // Operator: can approve macro invariant updates.
-            (Operator, Macro, Read | Approve) => Allow,
-            (Operator, Micro | Meso, Read) => Allow,
-
+        match (role, view, op) {
+            (Verifier, TransitionView, Read) => Allow,
+            (AdmissionGate, AdmissionRiskView, Read) => Allow,
+            (Generator, ProposalContextView, Read) => Allow,
+            (Auditor, AuditTraceView, Read) => Allow,
+            (Operator, GovernanceView, Read | Approve) => Allow,
+            (MemoryManager, _, _) => Allow, // Internal manager
             _ => Deny,
         }
     }
@@ -97,6 +87,36 @@ pub struct TransitionView {
     pub spend: Rational64,
     pub defect: Rational64,
     pub active_policy_hash: Hash32,
+    pub schema_hash: Hash32,
+    /// [BINDING] H(source || TransitionView || Verifier || Policy || Schema || Payload)
+    pub view_binding_hash: Hash32,
+}
+
+impl TransitionView {
+    pub fn compute_payload_hash(&self) -> Hash32 {
+        let mut hasher = sha2::Sha256::default();
+        hasher.update(self.prev_receipt_hash.as_bytes());
+        hasher.update(self.current_state_hash.as_bytes());
+        hasher.update(self.next_state_hash.as_bytes());
+        hasher.update(&self.spend.to_string().as_bytes());
+        hasher.update(&self.defect.to_string().as_bytes());
+        hasher.update(self.active_policy_hash.as_bytes());
+        hasher.update(self.schema_hash.as_bytes());
+        Hash32(hasher.finalize().into())
+    }
+
+    pub fn verify(&self, source_hash: &Hash32, role: ComponentRole, policy_hash: &Hash32) -> bool {
+        let payload_hash = self.compute_payload_hash();
+        let mut hasher = sha2::Sha256::default();
+        hasher.update(source_hash.as_bytes());
+        hasher.update(&[MemoryView::TransitionView as u8]);
+        hasher.update(&[role as u8]);
+        hasher.update(policy_hash.as_bytes());
+        hasher.update(self.schema_hash.as_bytes());
+        hasher.update(payload_hash.as_bytes());
+        let expected = Hash32(hasher.finalize().into());
+        self.view_binding_hash == expected
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -106,6 +126,35 @@ pub struct AdmissionRiskView {
     pub active_policy_hash: Hash32,
     pub envelope_pressure: f64,
     pub spend_upper_bound: Rational64,
+    pub schema_hash: Hash32,
+    /// [BINDING] H(source || AdmissionRiskView || AdmissionGate || Policy || Schema || Payload)
+    pub view_binding_hash: Hash32,
+}
+
+impl AdmissionRiskView {
+    pub fn compute_payload_hash(&self) -> Hash32 {
+        let mut hasher = sha2::Sha256::default();
+        hasher.update(&self.recent_rejection_rate.to_be_bytes());
+        hasher.update(&self.rolling_debt_score.to_string().as_bytes());
+        hasher.update(self.active_policy_hash.as_bytes());
+        hasher.update(&self.envelope_pressure.to_be_bytes());
+        hasher.update(&self.spend_upper_bound.to_string().as_bytes());
+        hasher.update(self.schema_hash.as_bytes());
+        Hash32(hasher.finalize().into())
+    }
+
+    pub fn verify(&self, source_hash: &Hash32, role: ComponentRole, policy_hash: &Hash32) -> bool {
+        let payload_hash = self.compute_payload_hash();
+        let mut hasher = sha2::Sha256::default();
+        hasher.update(source_hash.as_bytes());
+        hasher.update(&[MemoryView::AdmissionRiskView as u8]);
+        hasher.update(&[role as u8]);
+        hasher.update(policy_hash.as_bytes());
+        hasher.update(self.schema_hash.as_bytes());
+        hasher.update(payload_hash.as_bytes());
+        let expected = Hash32(hasher.finalize().into());
+        self.view_binding_hash == expected
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -114,6 +163,34 @@ pub struct ProposalContextView {
     pub known_failure_hashes: Vec<Hash32>,
     pub approved_stable_cores: Vec<Hash32>,
     pub macro_guidance_hash: Hash32,
+    pub schema_hash: Hash32,
+    /// [BINDING] H(source || ProposalContextView || Generator || Policy || Schema || Payload)
+    pub view_binding_hash: Hash32,
+}
+
+impl ProposalContextView {
+    pub fn compute_payload_hash(&self) -> Hash32 {
+        let mut hasher = sha2::Sha256::default();
+        for h in &self.recent_success_hashes { hasher.update(h.as_bytes()); }
+        for h in &self.known_failure_hashes { hasher.update(h.as_bytes()); }
+        for h in &self.approved_stable_cores { hasher.update(h.as_bytes()); }
+        hasher.update(self.macro_guidance_hash.as_bytes());
+        hasher.update(self.schema_hash.as_bytes());
+        Hash32(hasher.finalize().into())
+    }
+
+    pub fn verify(&self, source_hash: &Hash32, role: ComponentRole, policy_hash: &Hash32) -> bool {
+        let payload_hash = self.compute_payload_hash();
+        let mut hasher = sha2::Sha256::default();
+        hasher.update(source_hash.as_bytes());
+        hasher.update(&[MemoryView::ProposalContextView as u8]);
+        hasher.update(&[role as u8]);
+        hasher.update(policy_hash.as_bytes());
+        hasher.update(self.schema_hash.as_bytes());
+        hasher.update(payload_hash.as_bytes());
+        let expected = Hash32(hasher.finalize().into());
+        self.view_binding_hash == expected
+    }
 }
 
 // --- Config & Metrics ---
@@ -637,7 +714,7 @@ impl PhaseLoomState {
         radius: i32,
     ) -> Vec<&CohAtom> {
         // Access Policy Check (Generator needs Read permission on Meso)
-        if MemoryAccessPolicy::check(ComponentRole::Generator, MemoryTier::Meso, MemoryOp::Read) == AccessDecision::Deny {
+        if MemoryAccessPolicy::check(ComponentRole::Generator, MemoryView::ProposalContextView, MemoryOp::Read) == AccessDecision::Deny {
             return vec![];
         }
 
@@ -935,8 +1012,13 @@ impl PhaseLoomState {
 
     /// RV View: High Context Loss, Zero Field Loss (Security)
     pub fn project_rv_view(&self, current_receipt: &BoundaryReceiptSummary) -> TransitionView {
-        // [SECURITY ENFORCEMENT] RV can only read Micro tier.
-        if MemoryAccessPolicy::check(ComponentRole::Verifier, MemoryTier::Micro, MemoryOp::Read) == AccessDecision::Deny {
+        let role = ComponentRole::Verifier;
+        let view_kind = MemoryView::TransitionView;
+        let policy_hash = self.anchor_set.policy_anchor_hashes.get(0).cloned().unwrap_or(Hash32([0; 32]));
+        let schema_hash = Hash32::tagged_hash("TransitionView", &[ [0x01; 32] ]); // v1 schema
+
+        // [SECURITY ENFORCEMENT] RV can only read TransitionView.
+        if MemoryAccessPolicy::check(role, view_kind, MemoryOp::Read) == AccessDecision::Deny {
             return TransitionView {
                 prev_receipt_hash: Hash32([0; 32]),
                 current_state_hash: Hash32([0; 32]),
@@ -944,65 +1026,123 @@ impl PhaseLoomState {
                 spend: Rational64::from_integer(0),
                 defect: Rational64::from_integer(0),
                 active_policy_hash: Hash32([0; 32]),
+                schema_hash: Hash32([0xFF; 32]),
+                view_binding_hash: Hash32([0xFF; 32]),
             };
         }
 
-        TransitionView {
-            prev_receipt_hash: Hash32([0; 32]),
+        let mut view = TransitionView {
+            prev_receipt_hash: Hash32::from_hex(&current_receipt.receipt_hash).unwrap_or(Hash32([0; 32])),
             current_state_hash: Hash32([0; 32]),
             next_state_hash: Hash32([0; 32]),
             spend: Rational64::from_integer(current_receipt.genesis_margin.abs() as i64),
             defect: Rational64::from_integer(current_receipt.coherence_margin.abs() as i64),
-            active_policy_hash: self.anchor_set.policy_anchor_hashes.get(0).cloned().unwrap_or(Hash32([0; 32])),
-        }
+            active_policy_hash: policy_hash,
+            schema_hash,
+            view_binding_hash: Hash32([0; 32]), // Placeholder
+        };
+
+        // [BINDING] H = SHA256(source || view || role || policy || schema || payload)
+        let payload_hash = view.compute_payload_hash();
+        let mut hasher = sha2::Sha256::default();
+        let source_hash = Hash32::from_hex(&current_receipt.receipt_hash).unwrap_or(Hash32([0; 32]));
+        hasher.update(source_hash.as_bytes());
+        hasher.update(&[view_kind as u8]);
+        hasher.update(&[role as u8]);
+        hasher.update(policy_hash.as_bytes());
+        hasher.update(schema_hash.as_bytes());
+        hasher.update(payload_hash.as_bytes());
+        view.view_binding_hash = Hash32(hasher.finalize().into());
+
+        view
     }
 
     /// GCCP View: High History Loss, Keeps Risk Signal (Compression)
     pub fn project_gccp_view(&self) -> AdmissionRiskView {
-        // [SECURITY ENFORCEMENT] GCCP needs Read on Micro/Meso/Macro for different summaries.
+        let role = ComponentRole::AdmissionGate;
+        let view_kind = MemoryView::AdmissionRiskView;
+        let policy_hash = self.anchor_set.policy_anchor_hashes.get(0).cloned().unwrap_or(Hash32([0; 32]));
+        let schema_hash = Hash32::tagged_hash("AdmissionRiskView", &[ [0x01; 32] ]); // v1 schema
+
+        // [SECURITY ENFORCEMENT] GCCP needs Read on AdmissionRiskView.
+        if MemoryAccessPolicy::check(role, view_kind, MemoryOp::Read) == AccessDecision::Deny {
+            return AdmissionRiskView {
+                recent_rejection_rate: 0.0,
+                rolling_debt_score: Rational64::from_integer(0),
+                active_policy_hash: Hash32([0; 32]),
+                envelope_pressure: 0.0,
+                spend_upper_bound: Rational64::from_integer(0),
+                schema_hash: Hash32([0xFF; 32]),
+                view_binding_hash: Hash32([0xFF; 32]),
+            };
+        }
+
         let mut view = AdmissionRiskView {
-            recent_rejection_rate: 0.0,
-            rolling_debt_score: Rational64::from_integer(0),
-            active_policy_hash: Hash32([0; 32]),
-            envelope_pressure: 0.0,
-            spend_upper_bound: Rational64::from_integer(0),
+            recent_rejection_rate: self.metrics.active_threads as f64 / 100.0,
+            rolling_debt_score: self.metrics.cumulative_tension,
+            active_policy_hash: policy_hash,
+            envelope_pressure: self.metrics.field_curvature,
+            spend_upper_bound: Rational64::new(1000, 1),
+            schema_hash,
+            view_binding_hash: Hash32([0; 32]),
         };
 
-        if MemoryAccessPolicy::check(ComponentRole::AdmissionGate, MemoryTier::Meso, MemoryOp::Read) == AccessDecision::Allow {
-            view.recent_rejection_rate = self.metrics.active_threads as f64 / 100.0;
-            view.rolling_debt_score = self.metrics.cumulative_tension;
-        }
-
-        if MemoryAccessPolicy::check(ComponentRole::AdmissionGate, MemoryTier::Macro, MemoryOp::Read) == AccessDecision::Allow {
-            view.active_policy_hash = self.anchor_set.policy_anchor_hashes.get(0).cloned().unwrap_or(Hash32([0; 32]));
-            view.spend_upper_bound = Rational64::new(1000, 1);
-        }
-
-        if MemoryAccessPolicy::check(ComponentRole::AdmissionGate, MemoryTier::Micro, MemoryOp::Read) == AccessDecision::Allow {
-            view.envelope_pressure = self.metrics.field_curvature;
-        }
+        // [BINDING] H = SHA256(source || view || role || policy || schema || payload)
+        let payload_hash = view.compute_payload_hash();
+        let mut hasher = sha2::Sha256::default();
+        let source_hash = Hash32([0; 32]); // In GCCP, source is memory itself
+        hasher.update(source_hash.as_bytes());
+        hasher.update(&[view_kind as u8]);
+        hasher.update(&[role as u8]);
+        hasher.update(policy_hash.as_bytes());
+        hasher.update(schema_hash.as_bytes());
+        hasher.update(payload_hash.as_bytes());
+        view.view_binding_hash = Hash32(hasher.finalize().into());
 
         view
     }
 
     /// GMI View: Authority Loss, Keeps Pattern Context (Semantic)
     pub fn project_gmi_view(&self) -> ProposalContextView {
+        let role = ComponentRole::Generator;
+        let view_kind = MemoryView::ProposalContextView;
+        let policy_hash = self.anchor_set.policy_anchor_hashes.get(0).cloned().unwrap_or(Hash32([0; 32]));
+        let schema_hash = Hash32::tagged_hash("ProposalContextView", &[ [0x01; 32] ]); // v1 schema
+
         // [SECURITY ENFORCEMENT] GMI can read patterns but not execute.
-        if MemoryAccessPolicy::check(ComponentRole::Generator, MemoryTier::Meso, MemoryOp::Read) == AccessDecision::Deny {
+        if MemoryAccessPolicy::check(role, view_kind, MemoryOp::Read) == AccessDecision::Deny {
             return ProposalContextView {
                 recent_success_hashes: vec![],
                 known_failure_hashes: vec![],
                 approved_stable_cores: vec![],
                 macro_guidance_hash: Hash32([0; 32]),
+                schema_hash: Hash32([0xFF; 32]),
+                view_binding_hash: Hash32([0xFF; 32]),
             };
         }
 
-        ProposalContextView {
+        let mut view = ProposalContextView {
             recent_success_hashes: self.thread_store.keys().take(10).cloned().collect(),
             known_failure_hashes: vec![],
             approved_stable_cores: self.anchor_set.invariant_core_hashes.clone(),
             macro_guidance_hash: Hash32([0x6D; 32]), // G-macro placeholder
-        }
+            schema_hash,
+            view_binding_hash: Hash32([0; 32]),
+        };
+
+        // [BINDING] H = SHA256(source || view || role || policy || schema || payload)
+        let payload_hash = view.compute_payload_hash();
+        let mut hasher = sha2::Sha256::default();
+        let source_hash = Hash32([0; 32]);
+        hasher.update(source_hash.as_bytes());
+        hasher.update(&[view_kind as u8]);
+        hasher.update(&[role as u8]);
+        hasher.update(policy_hash.as_bytes());
+        hasher.update(schema_hash.as_bytes());
+        hasher.update(payload_hash.as_bytes());
+        view.view_binding_hash = Hash32(hasher.finalize().into());
+
+        view
     }
 
     // --- Compression Operators (κ) ---

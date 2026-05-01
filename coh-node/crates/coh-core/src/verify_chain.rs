@@ -1,6 +1,6 @@
 use crate::trajectory_probability::TrajectoryProbabilityVerifier;
 use crate::types::{Decision, MicroReceipt, MicroReceiptWire, RejectCode, VerifyChainResult};
-use crate::verify_micro::verify_micro;
+use crate::verify_micro::verify_micro_dev_fixture;
 use std::convert::TryFrom;
 
 /// Maximum allowed chain length to prevent state explosion
@@ -67,7 +67,7 @@ pub fn verify_chain(receipts: Vec<MicroReceiptWire>) -> VerifyChainResult {
         }
 
         // 1. Verify in isolation (LocalOK)
-        let res = verify_micro(wire.clone());
+        let res = verify_micro_dev_fixture(wire.clone());
         if res.decision == Decision::Reject {
             return VerifyChainResult {
                 decision: Decision::Reject,

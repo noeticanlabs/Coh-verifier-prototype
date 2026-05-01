@@ -363,8 +363,10 @@ pub fn compute_projection_hash(r: &MicroReceipt) -> crate::types::Hash32 {
 
 /// Legacy verifier entrypoint that uses default fixture context for backward compatibility.
 /// NOTE: Signature verification IS now enforced with the default context.
+/// WARNING: This should only be used in development/tests.
 #[must_use]
-pub fn verify_micro(wire: MicroReceiptWire) -> VerifyMicroResult {
+#[cfg(feature = "fixture-keys")]
+pub fn verify_micro_dev_fixture(wire: MicroReceiptWire) -> VerifyMicroResult {
     // Use default fixture context - signature verification is now enforced
     let ctx = VerifierContext::fixture_default();
     verify_micro_with_context(wire, ctx)

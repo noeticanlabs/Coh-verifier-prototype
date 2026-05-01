@@ -69,22 +69,11 @@ impl AuthorityCap {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub struct SignedTransitionPayload {
+pub struct SignedReceiptPayload {
     pub authority_id: String,
-    pub object_id: String,
-    pub policy_hash: String,
-    pub prev_chain_digest: String,
-    pub receipt_type: String,
     pub scope: String,
-    pub state_hash_post: String,
-    pub state_hash_pre: String,
-    pub step: u64,
-    pub v_post: String,
-    pub v_pre: String,
-    pub spend: String,
-    pub defect: String,
-    pub authority: String,
-    pub version: String,
+    pub receipt_type: String,
+    pub prehash: crate::types::MicroReceiptPrehash,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -133,6 +122,7 @@ pub struct VerifierContext {
 }
 
 impl VerifierContext {
+    #[cfg(feature = "fixture-keys")]
     pub fn fixture_default() -> Self {
         let mut trusted_signers = BTreeMap::new();
         for authority_id in [
@@ -170,25 +160,16 @@ pub fn canonical_signed_transition_bytes(
     scope: &str,
     receipt_type: &str,
 ) -> Result<Vec<u8>, RejectCode> {
-    let payload = SignedTransitionPayload {
+    let prehash = crate::canon::to_prehash_view(receipt);
+
+    let payload = SignedReceiptPayload {
         authority_id: authority_id.to_string(),
-        object_id: receipt.object_id.clone(),
-        policy_hash: receipt.policy_hash.to_hex(),
-        prev_chain_digest: receipt.chain_digest_prev.to_hex(),
-        receipt_type: receipt_type.to_string(),
         scope: scope.to_string(),
-        state_hash_post: receipt.state_hash_next.to_hex(),
-        state_hash_pre: receipt.state_hash_prev.to_hex(),
-        step: receipt.step_index,
-        v_post: receipt.metrics.v_post.to_string(),
-        v_pre: receipt.metrics.v_pre.to_string(),
-        spend: receipt.metrics.spend.to_string(),
-        defect: receipt.metrics.defect.to_string(),
-        authority: receipt.metrics.authority.to_string(),
-        version: receipt.version.clone(),
+        receipt_type: receipt_type.to_string(),
+        prehash,
     };
 
-    let canonical = to_canonical_json_bytes(&payload)?;
+    let canonical = crate::canon::to_canonical_json_bytes(&payload)?;
     let mut out = Vec::with_capacity(COHENC_V1_SIGNED_TRANSITION_TAG.len() + 1 + canonical.len());
     out.extend_from_slice(COHENC_V1_SIGNED_TRANSITION_TAG);
     out.extend_from_slice(b"|");

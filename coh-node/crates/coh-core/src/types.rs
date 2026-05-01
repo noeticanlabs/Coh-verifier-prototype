@@ -387,6 +387,7 @@ impl CertifiedMorphism {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MicroReceipt {
     pub schema_id: String,
     pub version: String,
@@ -404,6 +405,7 @@ pub struct MicroReceipt {
     pub metrics: Metrics,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SlabSummary {
     pub total_spend: u128,
     pub total_defect: u128,
@@ -412,6 +414,7 @@ pub struct SlabSummary {
     pub authority: u128,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SlabReceipt {
     pub schema_id: String,
     pub version: String,
@@ -490,7 +493,7 @@ pub struct VerifySlabResult {
     pub merkle_root: Option<String>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct MetricsPrehash {
     pub authority: String,
     pub defect: String,
@@ -507,7 +510,7 @@ pub struct MetricsPrehash {
     pub pl_provenance: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct MicroReceiptPrehash {
     pub canon_profile_hash: String,
     pub chain_digest_prev: String,

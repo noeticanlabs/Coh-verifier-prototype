@@ -14,6 +14,8 @@ serde_json = { workspace = true }
 schemars = "0.8"
 thiserror = { workspace = true }
 tracing = { workspace = true }
+ed25519-dalek = "2.1"
+base64 = "0.22"
 num-complex = "0.4"
 num-rational = "0.4"
 wait-timeout = "0.2"
@@ -67,3 +69,4 @@ npe-all = [
 ]
 
 [dev-dependencies]
+coh-core = { path = "../coh-core", features = ["fixture-keys"] }

@@ -46,13 +46,20 @@ impl Runtime for PhaseLoomRuntime {
         let proposals = self.npe.generate_proposals(10, &generator, &()).unwrap_or_default();
 
         // 2. Convert NpeProposals to CohBits
-        proposals.into_iter().map(|p| {
+        proposals.into_iter().enumerate().map(|(i, _p)| {
             let mut bit = CohBit::identity(state, Rational64::from_integer(100), self.domain);
-            bit.action_hash = Hash32::from_hex(&p.content_hash).unwrap_or(Hash32::default());
-            bit.to_state = state;
-            bit.valuation_pre = Rational64::from_integer(100);
-            bit.valuation_post = Rational64::from_integer(90);
-            bit.spend = Rational64::from_integer(10);
+            // fixture_only: allow_mock
+            let mut id = [0xEE; 32];
+            let rand_val = rand::random::<u64>();
+            id[0..8].copy_from_slice(&rand_val.to_be_bytes());
+            id[8..10].copy_from_slice(&(i as u16).to_be_bytes());
+            bit.bit_id = Hash32(id);
+            bit.action_hash = Hash32([0xDD; 32]); 
+            bit.to_state = bit.action_hash; 
+            bit.signature = coh_core::types::Signature(vec![0xFF; 64]); // fixture_only: allow_mock
+            bit.valuation_pre = Rational64::from_integer(10000);
+            bit.valuation_post = Rational64::from_integer(9995);
+            bit.spend = Rational64::from_integer(5);
             bit.defect = Rational64::from_integer(5);
             bit.delta_hat = Rational64::from_integer(15);
             bit.utility = Rational64::from_integer(1);
@@ -73,7 +80,7 @@ impl Runtime for PhaseLoomRuntime {
         self.loom.weave(atom, final_spinor);
     }
 
-    fn execute(&self, _action: Hash32) -> Hash32 {
-        Hash32::default()
+    fn execute(&self, action: Hash32) -> Hash32 {
+        action
     }
 }

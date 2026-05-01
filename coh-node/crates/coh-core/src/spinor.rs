@@ -135,7 +135,7 @@ impl CohSpinor {
         hasher.update(self.state_hash.0);
         hasher.update(self.frame_hash.0);
 
-        let mut update_rat = |hasher: &mut sha2::Sha256, r: &Rational64| {
+        let update_rat = |hasher: &mut sha2::Sha256, r: &Rational64| {
             let nr = r.reduced();
             hasher.update(nr.numer().to_be_bytes());
             hasher.update(nr.denom().to_be_bytes());

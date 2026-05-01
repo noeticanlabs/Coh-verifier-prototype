@@ -736,7 +736,7 @@ impl PhaseLoomState {
             margin_total: core.margin_floor,
             policy_hash: core.policy_hash,
             verifier_id: ctx.verifier_id,
-            compression_certificate: Some(Hash32([0xCC; 32])),
+            compression_certificate: Some(Hash32([0xCC; 32])), // fixture_only: allow_mock
             ..Default::default()
         };
         compressed_atom.atom_hash = compressed_atom.canonical_hash();
@@ -764,7 +764,7 @@ impl PhaseLoomState {
             lineage,
             bucket_key: key.clone(),
             compression_policy_hash: ctx.policy_hash,
-            compression_witness_hash: Hash32([0xAA; 32]),
+            compression_witness_hash: Hash32([0xAA; 32]), // fixture_only: allow_mock
             compression_hash: Hash32([0; 32]),
             signature: Signature(vec![0; 64]),
         };

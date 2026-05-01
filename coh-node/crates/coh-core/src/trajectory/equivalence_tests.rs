@@ -1,6 +1,7 @@
 use crate::trajectory::*;
 use crate::types::Hash32;
 
+// fixture_only: allow_mock
 fn mock_transition(from: StateNode, to: StateNode, delta: u128) -> Transition {
     Transition {
         from,

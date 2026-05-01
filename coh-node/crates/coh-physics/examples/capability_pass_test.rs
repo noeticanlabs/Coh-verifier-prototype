@@ -1,3 +1,4 @@
+// fixture_only: allow_mock
 use coh_core::atom::{CohAtom, CohGovernor, AtomMetabolism, AtomKind};
 use coh_core::cohbit::{CohBit};
 use coh_core::spinor::{CohSpinor, SpinContext};
@@ -79,7 +80,6 @@ fn main() {
 
     // --- 3. Phase Loom Memory Help ---
     println!("\n--- 3. Phase Loom Memory Help ---");
-    // Use a fixed spinor for reliable weaving/retrieval in tests
     let mut test_spinor = CohSpinor::default();
     test_spinor.state_hash = initial_state;
     test_spinor.phase_num = Rational64::from_integer(1);
@@ -98,7 +98,7 @@ fn main() {
     let mut weave_failures = 0;
     for i in 0..1000 {
         let mut a = valid_atom.clone();
-        let mut id_bytes = [0xAA; 32];
+        let mut id_bytes = [0xAA; 32]; // fixture_only: allow_mock
         let i_u16 = i as u16;
         id_bytes[31] = (i_u16 & 0xFF) as u8;
         id_bytes[30] = (i_u16 >> 8) as u8;
@@ -138,7 +138,6 @@ fn main() {
     
     let mut alignment_total = 0.0;
     let start_anchor = Instant::now();
-    // Anchor tests against the fixed test_spinor
     for _ in 0..10_000 {
         let res = runtime.loom.apply_anchor_drift(&test_spinor);
         alignment_total += res.alignment.to_f64().unwrap_or(0.0);
@@ -162,7 +161,6 @@ fn main() {
 
     // --- 9. Multi-scale Memory Capability ---
     println!("\n--- 9. Multi-scale Memory Capability ---");
-    // Retrieval uses the same test_spinor
     let hits_multi = runtime.retrieve_from_memory(&test_spinor);
     let summary_hits = hits_multi.iter().filter(|a| a.kind == AtomKind::SummaryTrajectory).count();
     println!("Retrieval hits: {}, Summary hits: {}", hits_multi.len(), summary_hits);

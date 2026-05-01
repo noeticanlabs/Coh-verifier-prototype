@@ -61,6 +61,16 @@ pub enum CohBitReject {
     ParallelConflict,
     #[error("Unsupported version")]
     UnsupportedVersion,
+    #[error("Mock certificate rejected")] // fixture_only: allow_mock
+    MockCertificateRejected, // fixture_only: allow_mock
+    #[error("Mock witness rejected")] // fixture_only: allow_mock
+    MockWitnessRejected, // fixture_only: allow_mock
+    #[error("Placeholder hash rejected")] // fixture_only: allow_mock
+    PlaceholderHashRejected, // fixture_only: allow_mock
+    #[error("Empty signature rejected")] // fixture_only: allow_mock
+    EmptySignatureRejected, // fixture_only: allow_mock
+    #[error("Fixture data in production")] // fixture_only: allow_mock
+    FixtureDataInProduction, // fixture_only: allow_mock
 }
 
 /// A Rejected Proposal Record (Instability Data)
@@ -217,11 +227,27 @@ impl CohBit {
         self.margin() >= Rational64::from_integer(0)
     }
 
-    pub fn executable(&self) -> bool {
+    pub fn structural_executable(&self) -> bool {
+        if self.bit_id.0 == [0; 32] || self.action_hash.0 == [0; 32] {
+            return false;
+        }
+        if self.certificate_hash.0 == [0xCC; 32] { // fixture_only: allow_mock
+            return false;
+        }
+        if self.action_hash.0 == [0xAA; 32] { // fixture_only: allow_mock
+            return false;
+        }
+        if self.signature.0.is_empty() || self.signature.0 == vec![0; 64] {
+            return false;
+        }
+
         self.hash_valid() 
             && self.defect_certified() 
-            && self.budget_admissible() 
             && self.rv_status == RvStatus::Accept
+    }
+
+    pub fn executable(&self) -> bool {
+        self.structural_executable() && self.budget_admissible()
     }
 
     pub fn identity(state_hash: Hash32, valuation: Rational64, domain: DomainId) -> Self {

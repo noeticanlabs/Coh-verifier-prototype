@@ -58,6 +58,12 @@ pub enum CohAtomReject {
     ParallelConflict,
     #[error("Unsupported version")]
     UnsupportedVersion,
+    #[error("Mock certificate rejected")] // fixture_only: allow_mock
+    MockCertificateRejected, // fixture_only: allow_mock
+    #[error("Placeholder hash rejected")] // fixture_only: allow_mock
+    PlaceholderHashRejected, // fixture_only: allow_mock
+    #[error("Fixture data in production")] // fixture_only: allow_mock
+    FixtureDataInProduction, // fixture_only: allow_mock
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -192,7 +198,7 @@ impl CohAtom {
         self.atom_hash == self.canonical_hash()
     }
 
-    pub fn continuity_valid(&self) -> Result<(), CohAtomReject> {
+    pub fn structural_continuity_valid(&self) -> Result<(), CohAtomReject> {
         if self.bits.is_empty() {
             return if self.initial_state == self.final_state { Ok(()) } else { Err(CohAtomReject::EmptyBits) };
         }
@@ -202,7 +208,7 @@ impl CohAtom {
 
         for i in 0..self.bits.len() {
             let b = &self.bits[i];
-            if !b.executable() { return Err(CohAtomReject::BitRejected(CohBitReject::CertificateRejected)); }
+            if !b.structural_executable() { return Err(CohAtomReject::BitRejected(CohBitReject::CertificateRejected)); }
             if i > 0 {
                 let prev = &self.bits[i-1];
                 if b.from_state != prev.to_state { return Err(CohAtomReject::StateContinuityBreak); }
@@ -210,6 +216,14 @@ impl CohAtom {
                 if b.step_index != prev.step_index + 1 { return Err(CohAtomReject::StepIndexBreak); }
                 if b.chain_digest_pre != prev.chain_digest_post { return Err(CohAtomReject::ChainDigestBreak); }
             }
+        }
+        Ok(())
+    }
+
+    pub fn continuity_valid(&self) -> Result<(), CohAtomReject> {
+        self.structural_continuity_valid()?;
+        for b in &self.bits {
+            if !b.executable() { return Err(CohAtomReject::BitRejected(CohBitReject::NegativeMargin)); }
         }
         Ok(())
     }
@@ -243,20 +257,40 @@ impl CohAtom {
         Ok(())
     }
 
-    pub fn executable(&self) -> bool {
-        let structural_valid = self.hash_valid() && self.continuity_valid().is_ok() && self.metrics_valid().is_ok();
-        if !structural_valid { return false; }
-
-        match self.kind {
-            AtomKind::ExecutableTrajectory | AtomKind::Identity => true,
-            AtomKind::SummaryTrajectory => self.compression_certificate.is_some(),
+    pub fn structural_executable(&self) -> bool {
+        if self.atom_id.0 == [0; 32] || self.atom_hash.0 == [0; 32] {
+            return false;
         }
+
+        if let Some(cert) = self.compression_certificate {
+            if cert.0 == [0xCC; 32] || cert.0 == [0xAA; 32] { // fixture_only: allow_mock
+                return false;
+            }
+        }
+
+        self.hash_valid() 
+            && self.structural_continuity_valid().is_ok() 
+            && self.metrics_valid().is_ok()
+    }
+
+    pub fn executable(&self) -> bool {
+        self.structural_executable() 
+            && self.continuity_valid().is_ok()
+    }
+
+    pub fn initial_valuation(&self) -> Rational64 {
+        self.bits.first().map(|b| b.valuation_pre).unwrap_or(Rational64::from_integer(0))
+    }
+
+    pub fn final_valuation(&self) -> Rational64 {
+        self.bits.last().map(|b| b.valuation_post).unwrap_or(Rational64::from_integer(0))
     }
 
     pub fn identity(state: Hash32, valuation: Rational64, domain: DomainId) -> Self {
         let id_bit = CohBit::identity(state, valuation, domain);
         let mut atom = Self {
             kind: AtomKind::Identity,
+            domain,
             initial_state: state,
             final_state: state,
             bits: vec![id_bit],

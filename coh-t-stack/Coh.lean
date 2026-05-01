@@ -5,4 +5,6 @@ import Coh.Boundary.DyadicBKMBridge
 import Coh.Boundary.FieldEquation
 import Coh.Boundary.LorentzGmi
 import Coh.Boundary.CertifiabilityChain
+import Coh.Boundary.CohEntanglement
+import Coh.Boundary.CohDecoherence
 import Coh.Extraction

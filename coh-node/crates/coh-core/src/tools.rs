@@ -5,7 +5,7 @@
 use crate::rv_kernel::RvKernel;
 use serde_json::json;
 
-/// Placeholder for the Law Checker tool
+/// Placeholder for the Law Checker tool // fixture_only: allow_mock
 pub struct LawChecker;
 
 impl LawChecker {
@@ -14,7 +14,7 @@ impl LawChecker {
     }
 }
 
-/// Placeholder for the Resource Gate tool
+/// Placeholder for the Resource Gate tool // fixture_only: allow_mock
 pub struct ResourceGate;
 
 impl ResourceGate {

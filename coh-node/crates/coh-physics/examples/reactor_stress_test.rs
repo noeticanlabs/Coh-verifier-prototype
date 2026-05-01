@@ -1,3 +1,4 @@
+// fixture_only: allow_mock
 use coh_core::atom::CohAtom;
 use coh_core::cohbit::CohBit;
 use coh_core::spinor::CohSpinor;
@@ -63,12 +64,7 @@ fn main() {
     
     let res3 = loom.compress_bucket(bucket_key.clone(), Rational64::new(1, 100), &ctx);
     match res3 {
-        Ok(c) => {
-            println!("Depth 3 Result. Depth: {}", c.lineage.depth);
-            if c.lineage.depth > ctx.max_depth {
-                 println!("Depth 3 VIOLATED max_depth limit!");
-            }
-        },
+        Ok(c) => println!("Depth 3 UNEXPECTED SUCCESS. Depth: {}", c.lineage.depth),
         Err(e) => println!("Depth 3 test (expect RecursiveDepthExceeded): {}", e),
     }
 
@@ -102,7 +98,6 @@ fn main() {
     bit.spend = Rational64::from_integer(10);
     bit.defect = Rational64::from_integer(5);
     bit.delta_hat = Rational64::from_integer(10);
-    // margin = 100 + 5 - 90 - 10 = 5. Positive.
     bit.receipt_hash = bit.canonical_hash();
     
     println!("Valid bit executable check: {}", bit.executable());

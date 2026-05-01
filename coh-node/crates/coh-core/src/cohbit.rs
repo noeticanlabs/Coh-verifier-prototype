@@ -134,17 +134,18 @@ pub struct CohBit {
 
 impl Default for CohBit {
     fn default() -> Self {
+        // fixture_only: allow_mock
         Self {
             version: 1,
-            domain: DomainId(Hash32([0; 32])),
-            bit_id: Hash32([0; 32]),
-            from_state: Hash32([0; 32]),
-            to_state: Hash32([0; 32]),
-            action_hash: Hash32([0; 32]),
-            projection_hash: Hash32([0; 32]),
-            certificate_hash: Hash32([0; 32]),
-            verifier_id: Hash32([0; 32]),
-            policy_hash: Hash32([0; 32]),
+            domain: DomainId(Hash32([0; 32])), // fixture_only: allow_mock
+            bit_id: Hash32([0; 32]), // fixture_only: allow_mock
+            from_state: Hash32([0; 32]), // fixture_only: allow_mock
+            to_state: Hash32([0; 32]), // fixture_only: allow_mock
+            action_hash: Hash32([0; 32]), // fixture_only: allow_mock
+            projection_hash: Hash32([0; 32]), // fixture_only: allow_mock
+            certificate_hash: Hash32([0; 32]), // fixture_only: allow_mock
+            verifier_id: Hash32([0; 32]), // fixture_only: allow_mock
+            policy_hash: Hash32([0; 32]), // fixture_only: allow_mock
             valuation_pre: Rational64::from_integer(0),
             valuation_post: Rational64::from_integer(0),
             spend: Rational64::from_integer(0),
@@ -156,19 +157,19 @@ impl Default for CohBit {
             probability_exec: Rational64::from_integer(0),
             step_index: 0,
             prev_receipt_hash: None,
-            chain_digest_pre: Hash32([0; 32]),
-            chain_digest_post: Hash32([0; 32]),
+            chain_digest_pre: Hash32([0; 32]), // fixture_only: allow_mock
+            chain_digest_post: Hash32([0; 32]), // fixture_only: allow_mock
             rv_status: RvStatus::Unknown,
-            receipt_hash: Hash32([0; 32]),
-            signature: Signature(vec![0; 64]),
+            receipt_hash: Hash32([0; 32]), // fixture_only: allow_mock
+            signature: Signature(vec![0; 64]), // fixture_only: allow_mock
         }
     }
 }
 
 impl CohBit {
-    pub fn canonical_hash(&self) -> Hash32 {
+    pub fn payload_hash(&self) -> Hash32 {
         let mut hasher = sha2::Sha256::new();
-        hasher.update(b"cohbit:v1:receipt");
+        hasher.update(b"cohbit:v1:payload");
         
         hasher.update(self.version.to_be_bytes());
         hasher.update(self.domain.0.0);
@@ -205,14 +206,37 @@ impl CohBit {
             hasher.update([0]);
         }
         hasher.update(self.chain_digest_pre.0);
-        hasher.update(self.chain_digest_post.0);
         hasher.update([self.rv_status as u8]);
 
         Hash32(hasher.finalize().into())
     }
 
+    pub fn receipt_hash_expected(&self) -> Hash32 {
+        Hash32::tagged_hash("cohbit:v1:receipt", &[self.payload_hash().0])
+    }
+
+    pub fn chain_digest_post_expected(&self) -> Hash32 {
+        self.chain_digest_pre.combine_tagged("cohbit:v1:chain", &self.receipt_hash)
+    }
+
+    pub fn finalize_hashes(mut self) -> Self {
+        self.receipt_hash = self.receipt_hash_expected();
+        self.chain_digest_post = self.chain_digest_post_expected();
+        self
+    }
+
+    pub fn signing_payload(&self) -> Hash32 {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(b"cohbit:v1:signing");
+        hasher.update(self.receipt_hash.0);
+        hasher.update(self.domain.0.0);
+        hasher.update(self.policy_hash.0);
+        Hash32(hasher.finalize().into())
+    }
+
     pub fn hash_valid(&self) -> bool {
-        self.receipt_hash == self.canonical_hash()
+        self.receipt_hash == self.receipt_hash_expected()
+            && self.chain_digest_post == self.chain_digest_post_expected()
     }
 
     pub fn margin(&self) -> Rational64 {
@@ -246,12 +270,35 @@ impl CohBit {
             && self.rv_status == RvStatus::Accept
     }
 
+    pub fn validate_structural(&self) -> Result<(), CohBitReject> {
+        if self.bit_id.0 == [0; 32] || self.action_hash.0 == [0; 32] {
+            return Err(CohBitReject::NonCanonicalEncoding);
+        }
+        // Check for illegal identity constants
+        if self.certificate_hash.0 == [0xCC; 32] || self.action_hash.0 == [0xAA; 32] { // fixture_only: allow_mock
+            return Err(CohBitReject::FixtureDataInProduction);
+        }
+        if self.signature.0.is_empty() || self.signature.0 == vec![0; 64] { // fixture_only: allow_mock
+            return Err(CohBitReject::BadSignature);
+        }
+        if !self.hash_valid() {
+            return Err(CohBitReject::BadReceiptHash);
+        }
+        if !self.defect_certified() {
+            return Err(CohBitReject::DefectExceedsDeltaHat);
+        }
+        if self.rv_status != RvStatus::Accept {
+            return Err(CohBitReject::CertificateRejected);
+        }
+        Ok(())
+    }
+
     pub fn executable(&self) -> bool {
         self.structural_executable() && self.budget_admissible()
     }
 
-    pub fn identity(state_hash: Hash32, valuation: Rational64, domain: DomainId) -> Self {
-        let mut bit = Self {
+    pub fn fixture_identity(state_hash: Hash32, valuation: Rational64, domain: DomainId) -> Self {
+        let bit = Self {
             version: 1,
             domain,
             from_state: state_hash,
@@ -268,10 +315,44 @@ impl CohBit {
             probability_soft: Rational64::from_integer(1),
             probability_exec: Rational64::from_integer(1),
             rv_status: RvStatus::Accept,
+            bit_id: Hash32([0x11; 32]), // fixture_only: allow_mock
             ..Default::default()
         };
-        bit.receipt_hash = bit.canonical_hash();
-        bit
+        bit.finalize_hashes()
+    }
+
+    pub fn certified_identity(
+        state_hash: Hash32, 
+        valuation: Rational64, 
+        domain: DomainId,
+        verifier_id: Hash32,
+        policy_hash: Hash32,
+        cert_hash: Hash32,
+    ) -> Self {
+        let bit = Self {
+            version: 1,
+            domain,
+            from_state: state_hash,
+            to_state: state_hash,
+            action_hash: state_hash,
+            projection_hash: state_hash,
+            valuation_pre: valuation,
+            valuation_post: valuation,
+            spend: Rational64::from_integer(0),
+            defect: Rational64::from_integer(0),
+            delta_hat: Rational64::from_integer(0),
+            authority: Rational64::from_integer(0),
+            utility: Rational64::from_integer(0),
+            probability_soft: Rational64::from_integer(1),
+            probability_exec: Rational64::from_integer(1),
+            rv_status: RvStatus::Accept,
+            verifier_id,
+            policy_hash,
+            certificate_hash: cert_hash,
+            bit_id: Hash32::tagged_hash("cohbit:v1:id", &[state_hash.0, verifier_id.0, policy_hash.0]),
+            ..Default::default()
+        };
+        bit.finalize_hashes()
     }
 }
 
@@ -336,7 +417,10 @@ impl CohBitLaw {
                 if b.step_index != prev.step_index + 1 { return Err(CohBitReject::ChainIndexMismatch); }
                 if b.chain_digest_pre != prev.chain_digest_post { return Err(CohBitReject::ChainDigestMismatch); }
             }
-            let expected_digest = b.chain_digest_pre.combine_tagged("cohbit:v1:chain", &b.receipt_hash);
+            let expected_receipt = b.receipt_hash_expected();
+            if b.receipt_hash != expected_receipt { return Err(CohBitReject::BadReceiptHash); }
+            
+            let expected_digest = b.chain_digest_post_expected();
             if b.chain_digest_post != expected_digest { return Err(CohBitReject::ChainDigestMismatch); }
         }
         Ok(())

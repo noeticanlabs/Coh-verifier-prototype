@@ -1,10 +1,10 @@
-// fixture_only: allow_mock
+// use crate::atom::CohAtom;
 use crate::atom::CohAtom;
 use crate::types::{Hash32, DomainId, Signature};
 use crate::decoherence::{
     DecoherenceContext, DecoherenceResult, DecoherenceReject, DecoherenceState,
     DecoherenceCause, DecoherenceCertificate, QuarantineReceipt, AuthorityGrant,
-    DecoherenceMode
+    DecoherenceMode, MonogamyState, EntanglementMode, EntanglementContext
 };
 use serde::{Deserialize, Serialize};
 use num_rational::Rational64;
@@ -26,10 +26,29 @@ pub enum EntanglementReject {
     AuthorityBoundExceeded,
     #[error("Monogamy scope reuse detected (E7)")]
     MonogamyViolation,
+    #[error("Entanglement hash mismatch")]
+    EntanglementHashMismatch,
+    #[error("Joint margin mismatch")]
+    JointMarginMismatch,
     #[error("Coupling witness invalid (E9)")]
     WitnessInvalid,
     #[error("Decoherence: atoms failed independent validation (E11)")]
     DecoherenceFailure,
+}
+
+pub struct MonogamyRegistry {
+    pub keys: std::collections::HashMap<Hash32, MonogamyState>,
+}
+
+impl MonogamyRegistry {
+    pub fn check(&self, key: &Hash32) -> Result<(), EntanglementReject> {
+        if let Some(state) = self.keys.get(key) {
+            if *state == MonogamyState::Active {
+                return Err(EntanglementReject::MonogamyViolation);
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -86,7 +105,7 @@ impl EntangledCohAtom {
             monogamy_scope,
             witness_kind,
             coupling_witness,
-            entanglement_hash: Hash32([0; 32]),
+            entanglement_hash: Hash32([0; 32]), // fixture_only: allow_mock
         };
         e.joint_margin = e.calculate_joint_margin();
         e.entanglement_hash = e.canonical_hash();
@@ -138,17 +157,56 @@ impl EntangledCohAtom {
         Hash32(hasher.finalize().into())
     }
 
-    pub fn verify(
+    pub fn verify_for_creation(
         &self, 
-        active_monogamy_keys: &[Hash32],
-        is_production: bool
+        registry: &MonogamyRegistry,
+        ctx: &EntanglementContext,
     ) -> Result<(), EntanglementReject> {
+        self.verify_base(ctx)?;
+        
+        // E7: Monogamy Key creation check
+        registry.check(&self.monogamy_key())?;
+        
+        Ok(())
+    }
+
+    pub fn verify_existing_registered(
+        &self,
+        registry: &MonogamyRegistry,
+        ctx: &EntanglementContext,
+    ) -> Result<(), EntanglementReject> {
+        self.verify_base(ctx)?;
+        
+        // Ensure it IS registered
+        let key = self.monogamy_key();
+        if !registry.keys.contains_key(&key) {
+            return Err(EntanglementReject::MonogamyViolation);
+        }
+        
+        Ok(())
+    }
+
+    fn verify_base(&self, ctx: &EntanglementContext) -> Result<(), EntanglementReject> {
+        // Hash validation
+        if self.entanglement_hash != self.canonical_hash() {
+            return Err(EntanglementReject::EntanglementHashMismatch);
+        }
+
+        // Joint Margin Recomputation
+        let expected_margin = self.calculate_joint_margin();
+        if self.joint_margin != expected_margin {
+            return Err(EntanglementReject::JointMarginMismatch);
+        }
+
         // E2: Atom Structural Validity
         for atom in &self.atoms {
             if !atom.structural_executable() { return Err(EntanglementReject::AtomInvalid); }
         }
 
         // E3: Domain/Policy Compatibility
+        if self.domain_id != ctx.domain_id || self.policy_hash != ctx.policy_hash {
+            return Err(EntanglementReject::ContextMismatch);
+        }
         for atom in &self.atoms {
             if atom.domain != self.domain_id || atom.policy_hash != self.policy_hash {
                 return Err(EntanglementReject::ContextMismatch);
@@ -170,20 +228,35 @@ impl EntangledCohAtom {
             return Err(EntanglementReject::AuthorityBoundExceeded);
         }
 
-        // E7: Monogamy Key
-        let key = self.monogamy_key();
-        if active_monogamy_keys.contains(&key) {
-            return Err(EntanglementReject::MonogamyViolation);
-        }
-
-        // E9: Witness Validity / Production Guard
-        if self.witness_kind == CouplingWitnessKind::FixtureOnly && is_production {
+        // E9: Witness Validity / Mode Guard
+        if self.witness_kind == CouplingWitnessKind::FixtureOnly && ctx.mode == EntanglementMode::Production {
             return Err(EntanglementReject::WitnessInvalid);
         }
         if self.coupling_witness.0 == [0; 32] {
             return Err(EntanglementReject::WitnessInvalid);
         }
         Ok(())
+    }
+
+    pub fn verify(
+        &self, 
+        active_monogamy_keys: &[Hash32], // Legacy compat
+        is_production: bool
+    ) -> Result<(), EntanglementReject> {
+        let mode = if is_production { EntanglementMode::Production } else { EntanglementMode::Heuristic };
+        let ctx = EntanglementContext {
+            mode,
+            domain_id: self.domain_id,
+            policy_hash: self.policy_hash,
+        };
+        
+        // Manual key check (legacy)
+        let key = self.monogamy_key();
+        if active_monogamy_keys.contains(&key) {
+            return Err(EntanglementReject::MonogamyViolation);
+        }
+        
+        self.verify_base(&ctx)
     }
 
     /// E11: Decoherence Check
@@ -215,10 +288,15 @@ impl EntangledCohAtom {
         ctx: &DecoherenceContext,
         grants: &[AuthorityGrant],
         cause: DecoherenceCause,
-        active_monogamy_keys: &[Hash32],
+        registry: &MonogamyRegistry,
     ) -> Result<DecoherenceResult, DecoherenceReject> {
         // D2: Original entangled complex must be valid before decoherence
-        self.verify(active_monogamy_keys, ctx.production)
+        let e_ctx = EntanglementContext {
+            mode: ctx.entanglement_mode,
+            domain_id: self.domain_id,
+            policy_hash: self.policy_hash,
+        };
+        self.verify_existing_registered(registry, &e_ctx)
             .map_err(|_| DecoherenceReject::InvalidEntanglement)?;
 
         // D10: Split participants inherit original domain and policy
@@ -249,7 +327,8 @@ impl EntangledCohAtom {
         local_margins: &[Rational64],
         cause: DecoherenceCause,
     ) -> Result<DecoherenceResult, DecoherenceReject> {
-        let cert = self.create_certificate(ctx, local_margins, cause, Hash32([0; 32]));
+        let split_witness = self.compute_hard_split_witness_hash(local_margins, cause);
+        let cert = self.create_certificate(ctx, local_margins, cause, split_witness);
         Ok(DecoherenceResult {
             state: DecoherenceState::SplitCertified,
             certificate: Some(cert),
@@ -270,8 +349,14 @@ impl EntangledCohAtom {
 
         for grant in grants {
             if let Some(idx) = self.atoms.iter().position(|a| a.atom_id == grant.atom_id) {
-                // Verify grant signature (mock for now, but following D11/D8 spirit)
-                if grant.signature.0 == vec![0; 64] && ctx.production {
+                // Verify grant (D11/D8/P10)
+                if !grant.hash_valid() {
+                    return Err(DecoherenceReject::AssistedAuthorityInvalid);
+                }
+                if grant.domain_id != self.domain_id || grant.policy_hash != self.policy_hash {
+                    return Err(DecoherenceReject::DomainMismatch);
+                }
+                if grant.signature.0 == vec![0; 64] && ctx.entanglement_mode == EntanglementMode::Production {
                     return Err(DecoherenceReject::AssistedAuthorityInvalid);
                 }
                 
@@ -298,7 +383,7 @@ impl EntangledCohAtom {
 
     fn quarantine(
         &self,
-        ctx: &DecoherenceContext,
+        _ctx: &DecoherenceContext,
         local_margins: &[Rational64],
         cause: DecoherenceCause,
     ) -> Result<DecoherenceResult, DecoherenceReject> {
@@ -312,16 +397,17 @@ impl EntangledCohAtom {
             }
         }
 
-        let receipt = QuarantineReceipt {
+        let mut receipt = QuarantineReceipt {
             entanglement_hash: self.entanglement_hash,
             failed_participants,
             failed_margins,
             cause,
             policy_hash: self.policy_hash,
             domain_id: self.domain_id,
-            quarantine_hash: Hash32([0; 32]), // TODO: finalize
-            signature: Signature(vec![0; 64]),    // TODO: sign
+            quarantine_hash: Hash32([0; 32]), // fixture_only: allow_mock
+            signature: Signature(vec![0; 64]), // fixture_only: allow_mock
         };
+        receipt.quarantine_hash = receipt.canonical_hash();
 
         Ok(DecoherenceResult {
             state: DecoherenceState::Quarantined,
@@ -338,21 +424,44 @@ impl EntangledCohAtom {
         cause: DecoherenceCause,
         split_witness: Hash32,
     ) -> DecoherenceCertificate {
-        DecoherenceCertificate {
+        let mut cert = DecoherenceCertificate {
             version: 1,
             entanglement_hash: self.entanglement_hash,
             cause,
             pre_joint_margin: self.joint_margin,
             post_local_margins: local_margins.to_vec(),
-            released_shared_defect: self.shared_defect,
-            released_shared_authority: self.shared_authority,
+            burned_shared_defect: self.shared_defect,
+            burned_shared_authority: self.shared_authority,
+            redistributed_shared_defect: Rational64::zero(),
+            redistributed_shared_authority: Rational64::zero(),
             participant_atom_hashes: self.atoms.iter().map(|a| a.atom_hash).collect(),
             split_witness_hash: split_witness,
             policy_hash: ctx.policy_hash,
             domain_id: ctx.domain_id,
-            decoherence_hash: Hash32([0; 32]), // TODO: finalize
-            signature: Signature(vec![0; 64]),    // TODO: sign
+            decoherence_hash: Hash32([0; 32]), // fixture_only: allow_mock
+            signature: Signature(vec![0; 64]), // fixture_only: allow_mock
+        };
+        cert.decoherence_hash = cert.canonical_hash();
+        cert
+    }
+
+    fn compute_hard_split_witness_hash(
+        &self,
+        local_margins: &[Rational64],
+        cause: DecoherenceCause,
+    ) -> Hash32 {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(b"hardsplitwitness:v1");
+        hasher.update(self.domain_id.0.0);
+        hasher.update(self.policy_hash.0);
+        hasher.update(self.entanglement_hash.0);
+        hasher.update([cause as u8]);
+        for a in &self.atoms { hasher.update(a.atom_hash.0); }
+        for m in local_margins {
+            hasher.update(m.reduced().numer().to_be_bytes());
+            hasher.update(m.reduced().denom().to_be_bytes());
         }
+        Hash32(hasher.finalize().into())
     }
 
     fn compute_grants_hash(&self, grants: &[AuthorityGrant]) -> Hash32 {

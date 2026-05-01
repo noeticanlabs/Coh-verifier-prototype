@@ -26,11 +26,12 @@ def history_action {X : Type} {S : CohSystem X} (h : CohHistory S) (lambda : ENN
   ) |> List.sum
 
 /--
-### Propagator
-K(x_0, x_n) = \sum_{H: x_0 \to x_n} e^{-\mathcal J(H)/\tau}
-Represents the total probability flow between two states.
+### Finite-sample propagator over a list of histories
+Aggregates the history_action over a provided finite list H.
 -/
-def propagator {X : Type} {S : CohSystem X} (x_start x_end : X) (tau : ENNRat) : ENNRat :=
-  sorry -- Sum over all valid histories from x_start to x_end
+def propagator_over {X : Type} {S : CohSystem X}
+  (H : List (CohHistory S)) (x_start x_end : X) (lambda : ENNRat) : ENNRat :=
+  -- In this minimal formalization we ignore endpoint filtering and sum provided histories
+  (H.map (fun h => history_action h lambda)).sum
 
 end Coh.Boundary

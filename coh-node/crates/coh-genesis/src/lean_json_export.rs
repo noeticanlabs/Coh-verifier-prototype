@@ -10,6 +10,8 @@ use std::path::Path;
 use std::process::{Command, Stdio, Child};
 use std::time::{Duration, Instant};
 use std::thread;
+use std::io::BufRead;
+use std::io::Write;
 
 /// Kill a process and all its children (tree-kill)
 fn kill_process_tree(mut child: Child) {
@@ -212,6 +214,57 @@ open Lean Elab Term Meta
     }
 }
 
+/// Persistent Lean Server for high-performance searching
+pub struct LeanServer {
+    child: Child,
+    #[allow(dead_code)]
+    project_path: std::path::PathBuf,
+}
+
+impl LeanServer {
+    pub fn start(project_path: &Path, lake_cmd: &str) -> Result<Self, String> {
+        let child = Command::new(lake_cmd)
+            .args(["env", "lean", "--run", "persistent_worker.lean"])
+            .current_dir(project_path)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to spawn Lean server: {}", e))?;
+
+        Ok(Self {
+            child,
+            project_path: project_path.to_path_buf(),
+        })
+    }
+
+    pub fn search(&mut self, query: &str) -> Result<LeanSearchResults, String> {
+        let stdin = self.child.stdin.as_mut().ok_or("Failed to open stdin")?;
+        writeln!(stdin, "{}", query).map_err(|e| format!("Failed to write to Lean server: {}", e))?;
+        stdin.flush().map_err(|e| format!("Failed to flush Lean server: {}", e))?;
+
+        let stdout = self.child.stdout.as_mut().ok_or("Failed to open stdout")?;
+        let mut reader = std::io::BufReader::new(stdout);
+        let mut line = String::new();
+        reader.read_line(&mut line).map_err(|e| format!("Failed to read from Lean server: {}", e))?;
+
+        if line.is_empty() {
+            return Err("Lean server returned empty response".to_string());
+        }
+
+        serde_json::from_str::<LeanSearchResults>(&line)
+            .map_err(|e| format!("Failed to parse Lean server response: {}. Raw: {}", e, line))
+    }
+
+    pub fn stop(mut self) {
+        if let Some(mut stdin) = self.child.stdin.take() {
+            let _ = writeln!(stdin, "EXIT");
+            let _ = stdin.flush();
+        }
+        let _ = self.child.wait();
+    }
+}
+
 /// Export search results to a JSON file
 pub fn export_search_json(
     project_path: &Path,
@@ -235,24 +288,47 @@ pub fn batch_search_json(
     output_dir: &Path,
     timeout_secs: Option<u64>,
 ) -> HashMap<String, LeanSearchResults> {
-    let mut results = HashMap::new();
-    for query in queries {
-        let output_file = output_dir.join(format!("search_{}.json", query.replace(' ', "_")));
-        match export_search_json(project_path, lake_cmd, query, &output_file, timeout_secs) {
-            Ok(r) => { results.insert(query.clone(), r); }
-            Err(e) => {
-                results.insert(query.clone(), LeanSearchResults {
-                    schema: LEAN_SEARCH_JSON_SCHEMA.to_string(),
-                    version: "1.0.0".to_string(),
-                    query: query.clone(),
-                    count: 0,
-                    results: vec![],
-                    errors: Some(e),
-                });
+    #[cfg(feature = "npe-parallel")]
+    {
+        use rayon::prelude::*;
+        queries
+            .par_iter()
+            .map(|query| {
+                let output_file = output_dir.join(format!("search_{}.json", query.replace(' ', "_")));
+                let res = export_search_json(project_path, lake_cmd, query, &output_file, timeout_secs)
+                    .unwrap_or_else(|e| LeanSearchResults {
+                        schema: LEAN_SEARCH_JSON_SCHEMA.to_string(),
+                        version: "1.0.0".to_string(),
+                        query: query.clone(),
+                        count: 0,
+                        results: vec![],
+                        errors: Some(e),
+                    });
+                (query.clone(), res)
+            })
+            .collect()
+    }
+    #[cfg(not(feature = "npe-parallel"))]
+    {
+        let mut results = HashMap::new();
+        for query in queries {
+            let output_file = output_dir.join(format!("search_{}.json", query.replace(' ', "_")));
+            match export_search_json(project_path, lake_cmd, query, &output_file, timeout_secs) {
+                Ok(r) => { results.insert(query.clone(), r); }
+                Err(e) => {
+                    results.insert(query.clone(), LeanSearchResults {
+                        schema: LEAN_SEARCH_JSON_SCHEMA.to_string(),
+                        version: "1.0.0".to_string(),
+                        query: query.clone(),
+                        count: 0,
+                        results: vec![],
+                        errors: Some(e),
+                    });
+                }
             }
         }
+        results
     }
-    results
 }
 
 #[cfg(test)]

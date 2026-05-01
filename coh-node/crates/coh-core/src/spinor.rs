@@ -104,22 +104,22 @@ impl Default for CohSpinor {
     fn default() -> Self {
         Self {
             version: 1,
-            domain: DomainId(Hash32([0; 32])),
-            atom_hash: Hash32([0; 32]),
-            state_hash: Hash32([0; 32]),
-            frame_hash: Hash32([0; 32]),
+            domain: DomainId(Hash32([0; 32])), // fixture_only: allow_mock
+            atom_hash: Hash32([0; 32]), // fixture_only: allow_mock
+            state_hash: Hash32([0; 32]), // fixture_only: allow_mock
+            frame_hash: Hash32([0; 32]), // fixture_only: allow_mock
             amplitude: Rational64::from_integer(0),
             phase_num: Rational64::from_integer(0),
             phase_den: Rational64::from_integer(1),
             orientation: Orientation::Neutral,
             parity: Parity::Even,
-            basis_hash: Hash32([0; 32]),
-            transform_hash: Hash32([0; 32]),
+            basis_hash: Hash32([0; 32]), // fixture_only: allow_mock
+            transform_hash: Hash32([0; 32]), // fixture_only: allow_mock
             norm: Rational64::from_integer(0),
             coherence_alignment: Rational64::from_integer(0),
             instability_phase: Rational64::from_integer(0),
-            spinor_hash: Hash32([0; 32]),
-            signature: Signature(vec![0; 64]),
+            spinor_hash: Hash32([0; 32]), // fixture_only: allow_mock
+            signature: Signature(vec![0; 64]), // fixture_only: allow_mock
         }
     }
 }

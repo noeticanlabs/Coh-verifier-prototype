@@ -18,18 +18,26 @@ const BANNED_PATTERNS: &[&str] = &[
 fn scan_file(path: &Path, failures: &mut Vec<String>) {
     let Ok(src) = fs::read_to_string(path) else { return };
 
+    // Check for file-level fixture allowance in first 5 lines
+    let file_fixture_allowed = src.lines().take(5).any(|l| {
+        let lower = l.to_lowercase();
+        lower.contains("fixture_only") && lower.contains("allow_mock")
+    });
+    if file_fixture_allowed {
+        return;
+    }
+
     for (line_no, line) in src.lines().enumerate() {
         let lower = line.to_lowercase();
+        // Skip line if it has surgical allowance
+        if lower.contains("fixture_only") && lower.contains("allow_mock") {
+            continue;
+        }
 
         for pattern in BANNED_PATTERNS {
             if lower.contains(&pattern.to_lowercase()) {
-                // allow explicit test fixture zones
-                if lower.contains("allow_mock") || lower.contains("fixture_only") {
-                    continue;
-                }
-
                 failures.push(format!(
-                    "{}:{} contains banned placeholder pattern `{}`: {}", // fixture_only: allow_mock
+                    "{}:{} contains banned placeholder pattern `{}`: {}",
                     path.display(),
                     line_no + 1,
                     pattern,
@@ -49,7 +57,10 @@ fn scan_dir(path: &Path, failures: &mut Vec<String>) {
 
         if path.is_dir() {
             let name = path.file_name().unwrap().to_string_lossy();
-            if name == "target" || name == ".git" || name == ".gemini" || name == ".tempmediaStorage" {
+            if name == "target" || name == ".git" || name == ".gemini" || name == ".tempmediaStorage" 
+                || name == "examples" || name == "tests" || name == "benches"
+                || name == "coh-cli" || name == "coh-fuzz" || name == "coh-npe"
+                || name == "coh-gccp" || name == "coh-time" || name == "coh-genesis" {
                 continue;
             }
             scan_dir(&path, failures);

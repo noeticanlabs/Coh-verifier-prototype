@@ -1,9 +1,12 @@
-//! Genesis Engine (Forward Generation)
+//! ## Coh-Bit Governed Runtime System
 //!
 //! Implements the Physics of Assertion:
-//! "Genesis is forward admissible generation."
+//! "Coh bits do not compute by permission of hardware alone; they compute by passing a verifier law."
 //!
-//! Law of Genesis: M(g') + C(p) <= M(g) + D(p)
+//! Law of Genesis (Admission): M(g') + C(p) <= M(g) + D(p)
+//!
+//! A Coh-bit is a verifier-governed computational cell that does not merely encode 
+//! information, but certifies its own admissibility under resource-bounded laws.
 //!
 //! ## Modules
 //!
@@ -104,6 +107,8 @@ pub mod atom;
 pub use atom::GmiAtom;
 pub mod kernel_invariants;
 pub mod vm_runtime;
+pub mod lean_worker;
+mod safety_audit_tests;
 
 // Re-export PhaseLoomLite types and functions
 pub use fusion_wedge::verify_governed_step;
@@ -216,7 +221,11 @@ pub struct GmiStepTrace {
 }
 
 /// Global GMI Governor (Gov_G)
-/// Now implemented as a wrapper around the GmiAtom.
+///
+/// Implements the Coh-Bit Runtime Cycle:
+/// Proposal → Admission → Verification → Commit → Receipt → Memory
+///
+/// This governor acts as the hard gate (GCCP) for the Coh-Bit Governed Runtime.
 pub struct GmiGovernor {
     pub atom: atom::GmiAtom,
 }

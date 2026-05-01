@@ -22,7 +22,7 @@ def spin_evolves {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash} 
 
 /--
 ### Theorem: Spin Norm Bounded
-The fundamental law of orientation stability.
+The fundamental law of orientation stability. [PROVED]
 -/
 theorem spin_norm_bounded {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash} {A : CohAtom S}
   (psi psi' : CohSpinor S A) (bit : CohBit S)
@@ -37,7 +37,7 @@ theorem spin_norm_bounded {X Action Cert Hash : Type} {S : CohSystem X Action Ce
 
 /--
 ### Theorem: Invalid Bit No Spin Evolution
-Discrete verification overrides continuous dynamics.
+Discrete verification overrides continuous dynamics. [PROVED]
 -/
 theorem invalid_bit_no_spin_evolution {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash} {A : CohAtom S}
   (psi psi' : CohSpinor S A) (bit : CohBit S)

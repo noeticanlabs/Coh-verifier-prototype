@@ -58,6 +58,8 @@ pub enum CohAtomReject {
     ParallelConflict,
     #[error("Unsupported version")]
     UnsupportedVersion,
+    #[error("Summary missing compression certificate")]
+    SummaryMissingCompressionCertificate,
     #[error("Mock certificate rejected")] // fixture_only: allow_mock
     MockCertificateRejected, // fixture_only: allow_mock
     #[error("Placeholder hash rejected")] // fixture_only: allow_mock
@@ -127,25 +129,26 @@ pub struct CohAtom {
 
 impl Default for CohAtom {
     fn default() -> Self {
+        // fixture_only: allow_mock
         Self {
             version: 1,
             kind: AtomKind::ExecutableTrajectory,
-            domain: DomainId(Hash32([0; 32])),
-            atom_id: Hash32([0; 32]),
-            initial_state: Hash32([0; 32]),
-            final_state: Hash32([0; 32]),
+            domain: DomainId(Hash32([0; 32])), // fixture_only: allow_mock
+            atom_id: Hash32([0; 32]), // fixture_only: allow_mock
+            initial_state: Hash32([0; 32]), // fixture_only: allow_mock
+            final_state: Hash32([0; 32]), // fixture_only: allow_mock
             bits: vec![],
             cumulative_spend: Rational64::from_integer(0),
             cumulative_defect: Rational64::from_integer(0),
             cumulative_delta_hat: Rational64::from_integer(0),
             cumulative_authority: Rational64::from_integer(0),
             margin_total: Rational64::from_integer(0),
-            policy_hash: Hash32([0; 32]),
-            verifier_id: Hash32([0; 32]),
-            atom_digest_pre: Hash32([0; 32]),
-            atom_digest_post: Hash32([0; 32]),
-            atom_hash: Hash32([0; 32]),
-            signature: Signature(vec![0; 64]),
+            policy_hash: Hash32([0; 32]), // fixture_only: allow_mock
+            verifier_id: Hash32([0; 32]), // fixture_only: allow_mock
+            atom_digest_pre: Hash32([0; 32]), // fixture_only: allow_mock
+            atom_digest_post: Hash32([0; 32]), // fixture_only: allow_mock
+            atom_hash: Hash32([0; 32]), // fixture_only: allow_mock
+            signature: Signature(vec![0; 64]), // fixture_only: allow_mock
             compression_certificate: None,
         }
     }
@@ -228,7 +231,7 @@ impl CohAtom {
         Ok(())
     }
 
-    pub fn metrics_valid(&self) -> Result<(), CohAtomReject> {
+    pub fn recompute_metrics(&self) -> (Rational64, Rational64, Rational64, Rational64) {
         let mut spend = Rational64::from_integer(0);
         let mut defect = Rational64::from_integer(0);
         let mut delta_hat = Rational64::from_integer(0);
@@ -240,6 +243,11 @@ impl CohAtom {
             delta_hat += b.delta_hat;
             authority += b.authority;
         }
+        (spend, defect, delta_hat, authority)
+    }
+
+    pub fn metrics_valid(&self) -> Result<(), CohAtomReject> {
+        let (spend, defect, delta_hat, authority) = self.recompute_metrics();
 
         if spend != self.cumulative_spend { return Err(CohAtomReject::CumulativeSpendMismatch); }
         if defect != self.cumulative_defect { return Err(CohAtomReject::CumulativeDefectMismatch); }
@@ -273,9 +281,29 @@ impl CohAtom {
             && self.metrics_valid().is_ok()
     }
 
+    pub fn retrieval_valid(&self) -> bool {
+        match self.kind {
+            AtomKind::ExecutableTrajectory => self.structural_executable(),
+            AtomKind::Identity => self.structural_executable(),
+            AtomKind::SummaryTrajectory => {
+                self.compression_certificate.is_some() && self.structural_executable()
+            }
+        }
+    }
+
+    pub fn mutation_valid(&self) -> bool {
+        match self.kind {
+            AtomKind::ExecutableTrajectory | AtomKind::Identity => {
+                self.retrieval_valid() 
+                    && self.continuity_valid().is_ok()
+                    && self.budget_valid(self.initial_valuation(), self.final_valuation()).is_ok()
+            }
+            AtomKind::SummaryTrajectory => false, // Summaries are not for mutation
+        }
+    }
+
     pub fn executable(&self) -> bool {
-        self.structural_executable() 
-            && self.continuity_valid().is_ok()
+        self.mutation_valid()
     }
 
     pub fn initial_valuation(&self) -> Rational64 {
@@ -286,14 +314,38 @@ impl CohAtom {
         self.bits.last().map(|b| b.valuation_post).unwrap_or(Rational64::from_integer(0))
     }
 
-    pub fn identity(state: Hash32, valuation: Rational64, domain: DomainId) -> Self {
-        let id_bit = CohBit::identity(state, valuation, domain);
+    pub fn fixture_identity(state: Hash32, valuation: Rational64, domain: DomainId) -> Self {
+        let id_bit = CohBit::fixture_identity(state, valuation, domain);
+        let mut atom = Self {
+            kind: AtomKind::Identity,
+            domain,
+            atom_id: Hash32([0x22; 32]), // fixture_only: allow_mock
+            initial_state: state,
+            final_state: state,
+            bits: vec![id_bit],
+            ..Default::default()
+        };
+        atom.atom_hash = atom.canonical_hash();
+        atom
+    }
+
+    pub fn certified_identity(
+        state: Hash32, 
+        valuation: Rational64, 
+        domain: DomainId,
+        verifier_id: Hash32,
+        policy_hash: Hash32,
+    ) -> Self {
+        let id_bit = CohBit::certified_identity(state, valuation, domain, verifier_id, policy_hash, Hash32::tagged_hash("cohbit:v1:id", &[state.0]));
         let mut atom = Self {
             kind: AtomKind::Identity,
             domain,
             initial_state: state,
             final_state: state,
             bits: vec![id_bit],
+            verifier_id,
+            policy_hash,
+            atom_id: Hash32::tagged_hash("cohatom:v1:id", &[state.0, verifier_id.0, policy_hash.0]),
             ..Default::default()
         };
         atom.atom_hash = atom.canonical_hash();

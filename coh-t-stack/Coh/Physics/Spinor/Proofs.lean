@@ -13,7 +13,7 @@ In the Dirac representation, gamma0 = diag(1,1,-1,-1).
 So gamma0 * gamma0 = diag(1,1,1,1) = I_4.
 -/
 
-abbrev GammaMatrix := Matrix (Fin 4) (Fin 4) (Complex ℝ)
+abbrev GammaMatrix := Matrix (Fin 4) (Fin 4) Complex
 
 -- Dirac gamma0 matrix
 def gamma0_mat : GammaMatrix := !![
@@ -38,7 +38,7 @@ For any matrix P and vector v, density(P v) = ||P v||^2 ≥ 0.
 This follows directly from Complex.normSq_nonneg applied to each component.
 -/
 
-def SpinorVec := Fin 4 → Complex ℝ
+def SpinorVec := Fin 4 → Complex
 
 def vec_density (v : SpinorVec) : ℝ :=
   Finset.univ.sum (fun i => Complex.normSq (v i))
@@ -47,7 +47,7 @@ def vec_density (v : SpinorVec) : ℝ :=
 ## Projection Weight is Non-Negative [PROVED]
 For any matrix P and spinor v, ||P v||^2 ≥ 0.
 -/
-theorem proj_density_nonneg (P : Matrix (Fin 4) (Fin 4) (Complex ℝ)) (v : SpinorVec) :
+theorem proj_density_nonneg (P : Matrix (Fin 4) (Fin 4) Complex) (v : SpinorVec) :
   vec_density (fun i => (P.mulVec v) i) ≥ 0 := by
   apply Finset.sum_nonneg
   intro i _
@@ -62,7 +62,7 @@ For a normalized psi, this equals 1.
 -/
 
 /-- Coordinate projector onto component k -/
-def coord_proj (k : Fin 4) : Matrix (Fin 4) (Fin 4) (Complex ℝ) :=
+def coord_proj (k : Fin 4) : Matrix (Fin 4) (Fin 4) Complex :=
   fun i j => if i = k ∧ j = k then 1 else 0
 
 /--
@@ -103,7 +103,7 @@ theorem coord_proj_weight_sum (v : SpinorVec) :
   conv_lhs =>
     arg 2; ext k
     arg 2; ext i
-    rw [show (Finset.univ.sum (fun j => (if i = k ∧ j = k then (1 : Complex ℝ) else 0) * v j)) =
+    rw [show (Finset.univ.sum (fun j => (if i = k ∧ j = k then (1 : Complex) else 0) * v j)) =
         if i = k then v k else 0 by
       simp [Finset.sum_ite_eq', Finset.mem_univ]]
   simp [Finset.sum_comm (s := Finset.univ) (t := Finset.univ)]

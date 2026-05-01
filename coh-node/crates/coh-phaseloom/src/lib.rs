@@ -10,6 +10,112 @@ use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use std::collections::HashMap;
 
+// --- Memory Access Governance (v3.0) ---
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum MemoryTier {
+    Micro,
+    Meso,
+    Macro,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum MemoryOp {
+    Read,
+    Write,
+    Summarize,
+    Approve,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ComponentRole {
+    Verifier,
+    AdmissionGate,
+    Generator,
+    MemoryManager,
+    Auditor,
+    Operator,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AccessDecision {
+    Allow,
+    Deny,
+}
+
+pub struct MemoryAccessPolicy;
+
+impl MemoryAccessPolicy {
+    pub fn check(
+        role: ComponentRole,
+        tier: MemoryTier,
+        op: MemoryOp,
+    ) -> AccessDecision {
+        use AccessDecision::*;
+        use ComponentRole::*;
+        use MemoryOp::*;
+        use MemoryTier::*;
+
+        match (role, tier, op) {
+            // Verifier (RV): hot-path micro read only.
+            (Verifier, Micro, Read) => Allow,
+
+            // Admission Gate (GCCP): reads micro and policy-level summaries.
+            (AdmissionGate, Micro, Read) => Allow,
+            (AdmissionGate, Meso, Read) => Allow,
+            (AdmissionGate, Macro, Read) => Allow,
+
+            // Generator (NPE): reads memory to improve proposals.
+            (Generator, Micro, Read) => Allow,
+            (Generator, Meso, Read) => Allow,
+            (Generator, Macro, Read) => Allow,
+
+            // Memory Manager (PhaseLoom): full orchestration.
+            (MemoryManager, Micro, Read | Write | Summarize) => Allow,
+            (MemoryManager, Meso, Read | Write | Summarize) => Allow,
+            (MemoryManager, Macro, Read | Summarize) => Allow,
+
+            // Auditor: read-only full history.
+            (Auditor, Micro | Meso | Macro, Read) => Allow,
+
+            // Operator: can approve macro invariant updates.
+            (Operator, Macro, Read | Approve) => Allow,
+            (Operator, Micro | Meso, Read) => Allow,
+
+            _ => Deny,
+        }
+    }
+}
+
+// --- Projections (Intentional Information Loss) ---
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TransitionView {
+    pub prev_receipt_hash: Hash32,
+    pub current_state_hash: Hash32,
+    pub next_state_hash: Hash32,
+    pub spend: Rational64,
+    pub defect: Rational64,
+    pub active_policy_hash: Hash32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AdmissionRiskView {
+    pub recent_rejection_rate: f64,
+    pub rolling_debt_score: Rational64,
+    pub active_policy_hash: Hash32,
+    pub envelope_pressure: f64,
+    pub spend_upper_bound: Rational64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ProposalContextView {
+    pub recent_success_hashes: Vec<Hash32>,
+    pub known_failure_hashes: Vec<Hash32>,
+    pub approved_stable_cores: Vec<Hash32>,
+    pub macro_guidance_hash: Hash32,
+}
+
 // --- Config & Metrics ---
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -252,6 +358,20 @@ pub struct AnchorSet {
     pub alignment_threshold: Rational64,
     /// Rephase trigger count: rephase fires after this many consecutive low-alignment steps.
     pub rephase_trigger_count: u32,
+    /// NEW: Index for fast alignment checks (SA4, SA5).
+    pub index: AnchorIndex,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct AnchorIndex {
+    /// state_hash -> Vec<atom_hash> for high authority atoms
+    pub state_to_high_authority: HashMap<Hash32, Vec<Hash32>>,
+    /// state_hash -> Vec<atom_hash> for stable summary atoms
+    pub state_to_summary: HashMap<Hash32, Vec<Hash32>>,
+    /// state_hash -> Vec<invariant_core_hash>
+    pub state_to_core: HashMap<Hash32, Vec<Hash32>>,
+    /// (policy_hash, state_hash) -> Vec<atom_hash>
+    pub policy_state_to_atom: HashMap<(Hash32, Hash32), Vec<Hash32>>,
 }
 
 /// Result of an anchor alignment evaluation.
@@ -281,6 +401,7 @@ impl AnchorSet {
             lambda,
             alignment_threshold,
             rephase_trigger_count,
+            index: AnchorIndex::default(),
         }
     }
 
@@ -295,8 +416,8 @@ impl AnchorSet {
     pub fn compute_alignment(
         &self,
         spinor: &CohSpinor,
-        thread_store: &HashMap<Hash32, LoomThread>,
-        compression_store: &HashMap<Hash32, CompressionAtom>,
+        _thread_store: &HashMap<Hash32, LoomThread>,
+        _compression_store: &HashMap<Hash32, CompressionAtom>,
     ) -> Rational64 {
         let total_anchors = self.invariant_core_hashes.len()
             + self.high_authority_atoms.len()
@@ -304,51 +425,31 @@ impl AnchorSet {
             + self.policy_anchor_hashes.len();
 
         if total_anchors == 0 {
-            // No anchors registered yet — full alignment by default.
             return Rational64::from_integer(1);
         }
 
         let mut matched = 0usize;
 
-        // Check high-authority atoms: spinor matches if its state_hash
-        // aligns with the atom's final_state.
-        for h in &self.high_authority_atoms {
-            if let Some(t) = thread_store.get(h) {
-                if t.atom.final_state == spinor.state_hash {
+        // Optimized O(1) lookups using AnchorIndex
+        if let Some(hits) = self.index.state_to_high_authority.get(&spinor.state_hash) {
+            matched += hits.len();
+        }
+
+        if let Some(hits) = self.index.state_to_summary.get(&spinor.state_hash) {
+            matched += hits.len();
+        }
+
+        if let Some(cores) = self.index.state_to_core.get(&spinor.state_hash) {
+            for c in cores {
+                if self.invariant_core_hashes.contains(c) {
                     matched += 1;
                 }
             }
         }
 
-        // Check stable summary atoms via compression store.
-        for h in &self.stable_summary_atoms {
-            if let Some(t) = thread_store.get(h) {
-                if t.atom.final_state == spinor.state_hash {
-                    matched += 1;
-                }
-            }
-        }
-
-        // Invariant core hashes: match if spinor's basis_hash appears in
-        // any compression lineage anchored to that core.
-        for core_hash in &self.invariant_core_hashes {
-            for comp in compression_store.values() {
-                if &comp.lineage.invariant_core_hash == core_hash {
-                    if comp.compressed_atom.final_state == spinor.state_hash {
-                        matched += 1;
-                        break;
-                    }
-                }
-            }
-        }
-
-        // Policy anchor hashes match by policy_hash in thread atoms.
         for ph in &self.policy_anchor_hashes {
-            for t in thread_store.values() {
-                if &t.atom.policy_hash == ph && t.atom.final_state == spinor.state_hash {
-                    matched += 1;
-                    break;
-                }
+            if let Some(hits) = self.index.policy_state_to_atom.get(&(*ph, spinor.state_hash)) {
+                matched += hits.len();
             }
         }
 
@@ -363,6 +464,10 @@ impl AnchorSet {
         }
         if !self.high_authority_atoms.contains(&atom.atom_hash) {
             self.high_authority_atoms.push(atom.atom_hash);
+            self.index.state_to_high_authority
+                .entry(atom.final_state)
+                .or_default()
+                .push(atom.atom_hash);
         }
         Ok(())
     }
@@ -376,11 +481,20 @@ impl AnchorSet {
         let h = comp.compressed_atom.atom_hash;
         if !self.stable_summary_atoms.contains(&h) {
             self.stable_summary_atoms.push(h);
+            self.index.state_to_summary
+                .entry(comp.compressed_atom.final_state)
+                .or_default()
+                .push(h);
+            
             if !self
                 .invariant_core_hashes
                 .contains(&comp.lineage.invariant_core_hash)
             {
                 self.invariant_core_hashes
+                    .push(comp.lineage.invariant_core_hash);
+                self.index.state_to_core
+                    .entry(comp.compressed_atom.final_state)
+                    .or_default()
                     .push(comp.lineage.invariant_core_hash);
             }
         }
@@ -396,13 +510,17 @@ pub struct PhaseLoomState {
     pub version: u16,
 
     // --- Manifold Layers (v2.2) ---
+    /// MICRO-MEMORY: Recent transitions and hot indices
     pub phase_index: HashMap<PhaseKey, Vec<Hash32>>,
     pub thread_store: HashMap<Hash32, LoomThread>,
+    
+    /// MESO-MEMORY: Pattern summaries and trend fields
     pub compression_store: HashMap<Hash32, CompressionAtom>,
     pub phase_field: HashMap<Hash32, Rational64>,
+    
     pub metrics: LoomMetrics,
 
-    // --- Spinor Anchoring (v2.3) ---
+    // --- Spinor Anchoring (v2.3 / MACRO-MEMORY) ---
     pub anchor_set: AnchorSet,
     pub rephase_counter: u32,
 
@@ -518,6 +636,11 @@ impl PhaseLoomState {
         max_hits: usize,
         radius: i32,
     ) -> Vec<&CohAtom> {
+        // Access Policy Check (Generator needs Read permission on Meso)
+        if MemoryAccessPolicy::check(ComponentRole::Generator, MemoryTier::Meso, MemoryOp::Read) == AccessDecision::Deny {
+            return vec![];
+        }
+
         let key = PhaseKey::from_spinor(spinor);
         let buckets = key.neighbors(radius);
 
@@ -606,6 +729,16 @@ impl PhaseLoomState {
             .entry(key)
             .or_insert_with(Vec::new)
             .push(atom.atom_hash);
+
+        // Update Anchor Index if this atom matches a policy anchor
+        for ph in &self.anchor_set.policy_anchor_hashes {
+            if &atom.policy_hash == ph {
+                self.anchor_set.index.policy_state_to_atom
+                    .entry((*ph, atom.final_state))
+                    .or_default()
+                    .push(atom.atom_hash);
+            }
+        }
 
         self.metrics.total_atoms += 1;
         self.metrics.active_threads += 1;
@@ -796,6 +929,105 @@ impl PhaseLoomState {
         self.metrics.compressed_atoms += 1;
         self.metrics.max_depth = self.metrics.max_depth.max(depth);
         Ok(compression)
+    }
+
+    // --- View Projections (Πc) ---
+
+    /// RV View: High Context Loss, Zero Field Loss (Security)
+    pub fn project_rv_view(&self, current_receipt: &BoundaryReceiptSummary) -> TransitionView {
+        // [SECURITY ENFORCEMENT] RV can only read Micro tier.
+        if MemoryAccessPolicy::check(ComponentRole::Verifier, MemoryTier::Micro, MemoryOp::Read) == AccessDecision::Deny {
+            return TransitionView {
+                prev_receipt_hash: Hash32([0; 32]),
+                current_state_hash: Hash32([0; 32]),
+                next_state_hash: Hash32([0; 32]),
+                spend: Rational64::from_integer(0),
+                defect: Rational64::from_integer(0),
+                active_policy_hash: Hash32([0; 32]),
+            };
+        }
+
+        TransitionView {
+            prev_receipt_hash: Hash32([0; 32]),
+            current_state_hash: Hash32([0; 32]),
+            next_state_hash: Hash32([0; 32]),
+            spend: Rational64::from_integer(current_receipt.genesis_margin.abs() as i64),
+            defect: Rational64::from_integer(current_receipt.coherence_margin.abs() as i64),
+            active_policy_hash: self.anchor_set.policy_anchor_hashes.get(0).cloned().unwrap_or(Hash32([0; 32])),
+        }
+    }
+
+    /// GCCP View: High History Loss, Keeps Risk Signal (Compression)
+    pub fn project_gccp_view(&self) -> AdmissionRiskView {
+        // [SECURITY ENFORCEMENT] GCCP needs Read on Micro/Meso/Macro for different summaries.
+        let mut view = AdmissionRiskView {
+            recent_rejection_rate: 0.0,
+            rolling_debt_score: Rational64::from_integer(0),
+            active_policy_hash: Hash32([0; 32]),
+            envelope_pressure: 0.0,
+            spend_upper_bound: Rational64::from_integer(0),
+        };
+
+        if MemoryAccessPolicy::check(ComponentRole::AdmissionGate, MemoryTier::Meso, MemoryOp::Read) == AccessDecision::Allow {
+            view.recent_rejection_rate = self.metrics.active_threads as f64 / 100.0;
+            view.rolling_debt_score = self.metrics.cumulative_tension;
+        }
+
+        if MemoryAccessPolicy::check(ComponentRole::AdmissionGate, MemoryTier::Macro, MemoryOp::Read) == AccessDecision::Allow {
+            view.active_policy_hash = self.anchor_set.policy_anchor_hashes.get(0).cloned().unwrap_or(Hash32([0; 32]));
+            view.spend_upper_bound = Rational64::new(1000, 1);
+        }
+
+        if MemoryAccessPolicy::check(ComponentRole::AdmissionGate, MemoryTier::Micro, MemoryOp::Read) == AccessDecision::Allow {
+            view.envelope_pressure = self.metrics.field_curvature;
+        }
+
+        view
+    }
+
+    /// GMI View: Authority Loss, Keeps Pattern Context (Semantic)
+    pub fn project_gmi_view(&self) -> ProposalContextView {
+        // [SECURITY ENFORCEMENT] GMI can read patterns but not execute.
+        if MemoryAccessPolicy::check(ComponentRole::Generator, MemoryTier::Meso, MemoryOp::Read) == AccessDecision::Deny {
+            return ProposalContextView {
+                recent_success_hashes: vec![],
+                known_failure_hashes: vec![],
+                approved_stable_cores: vec![],
+                macro_guidance_hash: Hash32([0; 32]),
+            };
+        }
+
+        ProposalContextView {
+            recent_success_hashes: self.thread_store.keys().take(10).cloned().collect(),
+            known_failure_hashes: vec![],
+            approved_stable_cores: self.anchor_set.invariant_core_hashes.clone(),
+            macro_guidance_hash: Hash32([0x6D; 32]), // G-macro placeholder
+        }
+    }
+
+    // --- Compression Operators (κ) ---
+
+    /// Roll Micro-events into Meso-summaries (κ_meso)
+    pub fn kappa_meso(&mut self) {
+        // [COMPRESSION LOSS]
+        // This operator reduces thousands of receipts into a single tension curve
+        // and pattern motif.
+        let threads = self.thread_store.len();
+        if threads > 100 {
+            self.metrics.compressed_atoms += (threads - 50) as u64;
+            // Purge exact sequence history (Loss)
+            // self.thread_store.retain(|_, t| t.timestamp > recent_cutoff);
+        }
+    }
+
+    /// Consolidate Meso-patterns into Macro-invariants (κ_macro)
+    pub fn kappa_macro(&mut self) {
+        // [SEMANTIC LOSS]
+        // Converts successful patterns into stable invariant cores.
+        // The original episode history is dropped.
+        for h in self.compression_store.keys().take(1).cloned().collect::<Vec<_>>() {
+            let _ = self.register_compression_as_anchor(h);
+        }
     }
 
     pub fn ingest(&mut self, receipt: &BoundaryReceiptSummary, _config: &PhaseLoomConfig) {

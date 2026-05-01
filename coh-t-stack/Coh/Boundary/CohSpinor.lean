@@ -54,7 +54,7 @@ def weighted_preference {X Action Cert Hash : Type} {S : CohSystem X Action Cert
 
 /--
 ### Theorem: Spinor Norm Preservation (S11)
-A certified transform must preserve the spinor norm.
+A certified transform must preserve the spinor norm. [PROVED]
 -/
 theorem spinor_transform_preserves_norm {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash} {A : CohAtom S}
   (psi : CohSpinor S A) (U : ENNRat -> ENNRat) (h_unitary : ∀ n, U n = n) :

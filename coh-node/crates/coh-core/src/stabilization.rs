@@ -1,4 +1,3 @@
-// fixture_only: allow_mock
 use serde::{Deserialize, Serialize};
 use num_rational::Rational64;
 use num_traits::One;

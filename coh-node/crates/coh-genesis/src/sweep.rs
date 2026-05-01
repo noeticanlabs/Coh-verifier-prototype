@@ -19,10 +19,21 @@ use coh_npe::generator::SyntheticNpeGenerator;
 pub fn run_wildness_sweep(levels: &[f64], count: usize, seed: u32) -> Vec<WildnessResult> {
     let generator = SyntheticNpeGenerator::new(seed);
 
-    levels
-        .iter()
-        .map(|&lambda| run_sweep_one_level(&generator, lambda, count))
-        .collect()
+    #[cfg(feature = "npe-parallel")]
+    {
+        use rayon::prelude::*;
+        levels
+            .par_iter()
+            .map(|&lambda| run_sweep_one_level(&generator, lambda, count))
+            .collect()
+    }
+    #[cfg(not(feature = "npe-parallel"))]
+    {
+        levels
+            .iter()
+            .map(|&lambda| run_sweep_one_level(&generator, lambda, count))
+            .collect()
+    }
 }
 
 /// Run sweep for a single wildness level

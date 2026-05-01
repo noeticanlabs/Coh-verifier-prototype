@@ -18,6 +18,14 @@ structure CohLieAlgebra where
   -- [T^a, T^b] != 0 implies incompatibility
 
 /--
+### Coh Current (coherence four-current)
+Minimal four-current with a time-like component and N spatial components.
+-/
+structure CohCurrent (N : ℕ) where
+  j0 : ENNRat
+  j_spatial : Fin N -> ENNRat
+
+/--
 ### Coh Gauge Field (Non-Abelian Connection)
 A_\mu = A_\mu^a T^a
 -/
@@ -36,8 +44,8 @@ Direct current-based constraint for field coupling.
 def current_satisfies_constraint {N : ℕ} (j : CohCurrent N) (sc : ENNRat) : Prop :=
   j.j0 + (Finset.univ.sum j.j_spatial) = sc
 
-def satisfies_covariant_admissibility {N : ℕ} {dim : ℕ} 
-  (j : Fin dim -> CohCurrent N) 
+def satisfies_covariant_admissibility {N : ℕ} {dim : ℕ}
+  (j : Fin dim -> CohCurrent N)
   (sc : Fin dim -> ENNRat) : Prop :=
   ∀ a, current_satisfies_constraint (j a) (sc a)
 
@@ -57,7 +65,7 @@ Multi-constraint field shaping admissible computation.
 structure CohYangMills where
   algebra : CohLieAlgebra
   gauge : CohGaugeField algebra.dim
-  
+
   -- Curvature as constraint conflict metric
   is_flat : ∀ mu nu a, gauge.curvature mu nu a = 0
 

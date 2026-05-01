@@ -30,7 +30,7 @@ def vm_transition {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash}
 
 /--
 ### Theorem: Transition Preserves System Integrity
-Grounds the VM in the global Coh laws.
+Grounds the VM in the global Coh laws. [PROVED]
 -/
 theorem vm_step_is_admissible {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash}
   (st : VmState S) (bit : CohBit S) (st' : VmState S)
@@ -42,8 +42,8 @@ theorem vm_step_is_admissible {X Action Cert Hash : Type} {S : CohSystem X Actio
   exact h_budget
 
 /--
-### Compute Law K7: Scheduler Preference Subordination
-Preference weighting occurs ONLY for admissible transitions.
+### Theorem: Scheduler Preference Subordination
+Preference weighting occurs ONLY for admissible transitions. [PROVED]
 -/
 theorem preference_subordinated {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash}
   (valid_bits : Set (CohBit S)) (preferred_bit : CohBit S) :

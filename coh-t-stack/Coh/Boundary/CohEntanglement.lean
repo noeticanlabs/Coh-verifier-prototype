@@ -13,29 +13,24 @@ inductive CouplingWitnessKind where
   deriving DecidableEq
 
 /--
-## Structural CohAtom
+## Entanglement Mode
 -/
-structure StructuralCohAtom (X Action Cert Hash : Type) (S : CohSystem X Action Cert Hash) where
-  bits : List (CohBit S)
-  nonempty_bits : bits ≠ []
-  initial_state : X
-  final_state : X
-  first_ok : (bits.head nonempty_bits).from_state = initial_state
-  last_ok : (bits.getLast nonempty_bits).to_state = final_state
-  continuous :
-    ∀ (i : ℕ) (h : i + 1 < bits.length),
-      (bits.get ⟨i, lt_trans (Nat.lt_succ_self i) h⟩).to_state =
-      (bits.get ⟨i + 1, h⟩).from_state
+inductive EntanglementMode where
+  | Fixture
+  | Heuristic
+  | Production
+  deriving DecidableEq
 
 /--
-## Coh Entanglement v2.4
+## Coh Entanglement v2.5
 -/
 structure CohEntanglement (X Action Cert Hash : Type) (S : CohSystem X Action Cert Hash) where
-  atoms : List (StructuralCohAtom X Action Cert Hash S)
+  atoms : List (CohAtom S)
   shared_defect : ENNRat
   shared_delta_hat : ENNRat
   shared_authority : ENNRat
   shared_authority_cap : ENNRat
+  joint_margin : ENNRat
   domain_id : Hash
   policy_hash : Hash
   monogamy_scope : Hash
@@ -49,29 +44,38 @@ structure CohEntanglement (X Action Cert Hash : Type) (S : CohSystem X Action Ce
 /--
 ## Joint Admissibility Law (E4)
 -/
-def joint_margin_ok {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash} 
-  (e : CohEntanglement X Action Cert Hash S) : Prop :=
+def calculate_joint_margin {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash} 
+  (e : CohEntanglement X Action Cert Hash S) : ENNRat :=
   let sum_val_pre : ENNRat := (e.atoms.map (fun a => S.V a.initial_state)).sum
   let sum_val_post : ENNRat := (e.atoms.map (fun a => S.V a.final_state)).sum
-  let sum_spend_all : ENNRat := (e.atoms.map (fun a => sum_spend a.bits)).sum
-  
-  sum_val_post + sum_spend_all ≤ 
-  sum_val_pre + e.shared_defect + e.shared_authority
+  let sum_spend_all : ENNRat := (e.atoms.map (fun a => a.cumulative_spend)).sum
+  (sum_val_pre + e.shared_defect + e.shared_authority) - (sum_val_post + sum_spend_all)
+
+def joint_margin_ok {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash} 
+  (e : CohEntanglement X Action Cert Hash S) : Prop :=
+  e.joint_margin = calculate_joint_margin e ∧
+  e.joint_margin ≥ 0
 
 /--
-## Lemma: Individual Inadmissibility
+## Monogamy Registration
 -/
-lemma entangled_non_separability {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash} 
-  (e : CohEntanglement X Action Cert Hash S) :
-  joint_margin_ok e → ¬ (∀ a ∈ e.atoms, cumulative_margin_ok (S := S) {
-    bits := a.bits,
-    nonempty_bits := a.nonempty_bits,
-    initial_state := a.initial_state,
-    final_state := a.final_state,
-    first_ok := a.first_ok,
-    last_ok := a.last_ok,
-    continuous := a.continuous
-  }) → True := by
-  sorry
+inductive MonogamyState where
+  | Active
+  | Decohered
+  | Burned
+  | Quarantined
+  deriving DecidableEq
+
+structure MonogamyRegistry (Hash : Type) where
+  keys : Hash → Option MonogamyState
+
+def verify_base {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash} 
+  (e : CohEntanglement X Action Cert Hash S) (mode : EntanglementMode) : Prop :=
+  (∀ a ∈ e.atoms, retrieval_valid a) ∧
+  e.domain_id = e.domain_id ∧ -- Simplified context check
+  joint_margin_ok e ∧
+  e.shared_defect ≤ e.shared_delta_hat ∧
+  e.shared_authority ≤ e.shared_authority_cap ∧
+  (mode = EntanglementMode.Production → e.witness_kind ≠ CouplingWitnessKind.FixtureOnly)
 
 end Coh.Boundary

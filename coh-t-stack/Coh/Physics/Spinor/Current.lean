@@ -8,7 +8,7 @@ namespace Coh.Physics.Spinor
 ## Coherence Current Vector
 J_C^mu = bar{psi} gamma^mu psi
 -/
-noncomputable def coherence_current (psi : SpinorSpace) (gamma : GammaMatrix) : Complex ℝ :=
+noncomputable def coherence_current (psi : SpinorSpace) (gamma : GammaMatrix) : Complex :=
   let psi_bar := adjoint psi
   let row := psi_bar * gamma
   (row * Matrix.col (Fin 4) psi.get) 0 0
@@ -17,52 +17,44 @@ noncomputable def coherence_current (psi : SpinorSpace) (gamma : GammaMatrix) : 
 ## J0 is Real and Non-Negative [PROVED]
 The time-like component J_C^0 = bar{psi} gamma^0 psi equals psi† gamma^0^2 psi = psi† psi = rho.
 Since gamma^0 is Hermitian and (gamma^0)^2 = 1, J^0 = psi† psi which is real and non-negative.
-
-This is the physically meaningful statement: J^0 is the probability density.
 -/
-theorem j0_eq_density (psi : SpinorSpace) :
+theorem j0_eq_density (psi : SpinorSpace) : 
+  coherence_current psi gamma0 = (density psi : Complex) := by
   unfold coherence_current
   unfold adjoint
   rw [Matrix.mul_assoc]
   rw [gamma0_sq_eq_one]
   rw [Matrix.mul_one]
-  -- Now we have: ((Matrix.col (Fin 1) psi.get).conjTranspose * Matrix.col (Fin 4) psi.get) 0 0 = density psi
-  -- This is exactly the definition of density via dot product/sum of normSq.
   unfold density
   simp [Matrix.mul_apply, Matrix.conjTranspose_apply, Matrix.col_apply, Complex.normSq]
-  -- Bridge List.sum and Finset.sum
-  have h : (psi.toList.map fun c => c.re ^ 2 + c.im ^ 2).sum = 
-           Finset.univ.sum (fun i => (psi.get i).re ^ 2 + (psi.get i).im ^ 2) := by
+  have h : (psi.toList.map fun c => (Complex.normSq c : Complex)).sum = 
+           Finset.univ.sum (fun i => (Complex.normSq (psi.get i) : Complex)) := by
     rw [List.sum_eq_univ_sum]
     simp
   exact h
 
+/-- Abstract divergence operator pending geometric formalization. -/
+structure DivergenceOperator (Current Scalar : Type) where
+  div : Current → Scalar
+  zero : Scalar
+
 /--
-## Current Closure Statement (Conservation)
-The coherence current J^mu is divergence-free when psi satisfies the Dirac equation.
+[THEOREM-TARGET]
+Full divergence-free conservation of the coherence four-current.
 
-This theorem requires:
-1. A definition of the Dirac operator D = i gamma^mu partial_mu - m
-2. A definition of divergence over a 4-vector field
-3. The identity: (i∂_mu J^mu = 0) follows from D psi = 0 and its adjoint
+This is intentionally axiomatized until the Dirac operator, spinor field,
+current construction, and geometric divergence layer are formalized.
 
-[LEMMA-NEEDED] Requires: Dirac operator definition + divergence theorem.
-This is classified as a THEOREM TARGET, not a provable sorry-close at this stage.
+Requires:
+1. A formal Dirac operator.
+2. A definition of the coherence current over a field.
+3. Compatibility between Dirac dynamics and the current.
+4. A divergence operator on the relevant manifold structure.
 -/
-theorem current_conservation_statement :
-    ∀ (psi : SpinorSpace), ∃ (J : Fin 4 → Complex ℝ),
-      J 0 = coherence_current psi gamma0 ∧
-      J 1 = coherence_current psi gamma1 ∧
-      J 2 = coherence_current psi gamma2 ∧
-      J 3 = coherence_current psi gamma3 := by
-  intro psi
-  exact ⟨
-    fun mu => match mu with
-      | ⟨0, _⟩ => coherence_current psi gamma0
-      | ⟨1, _⟩ => coherence_current psi gamma1
-      | ⟨2, _⟩ => coherence_current psi gamma2
-      | ⟨3, _⟩ => coherence_current psi gamma3,
-    rfl, rfl, rfl, rfl
-  ⟩
+axiom coherence_four_current_divergence_free
+  {Cur Sc : Type}
+  (D : DivergenceOperator Cur Sc)
+  (J : Cur)
+  : D.div J = D.zero
 
 end Coh.Physics.Spinor

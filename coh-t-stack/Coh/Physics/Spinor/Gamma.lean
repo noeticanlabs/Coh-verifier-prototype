@@ -8,7 +8,7 @@ namespace Coh.Physics.Spinor
 ## Gamma Matrix
 4x4 complex matrix representation for Dirac carriers.
 -/
-def GammaMatrix := Matrix (Fin 4) (Fin 4) (Complex ℝ)
+def GammaMatrix := Matrix (Fin 4) (Fin 4) Complex
 
 /--
 ## Gamma 0 (Dirac Representation)
@@ -58,7 +58,7 @@ def gamma3 : GammaMatrix := !![
 ## Dirac Adjoint
 psi_bar = psi† gamma0
 -/
-noncomputable def adjoint (psi : SpinorSpace) : Matrix (Fin 1) (Fin 4) (Complex ℝ) :=
+noncomputable def adjoint (psi : SpinorSpace) : Matrix (Fin 1) (Fin 4) Complex :=
   (Matrix.col (Fin 1) psi.get).conjTranspose * gamma0
 
 end Coh.Physics.Spinor

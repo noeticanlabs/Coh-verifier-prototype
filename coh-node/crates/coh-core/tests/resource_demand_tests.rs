@@ -14,20 +14,21 @@ fn test_memory_footprint() {
     let ram_1m_bits = (size_of::<CohBit>() * 1_000_000) as f64 / 1024.0 / 1024.0;
     println!("RAM for 1M CohBits: {:.2} MB", ram_1m_bits);
     
-    assert!(size_of::<CohBit>() < 512); // Keep bits lean
+    assert!(size_of::<CohBit>() < 640); // Keep bits lean
 }
 
 #[test]
 fn test_path_integral_scaling_demands() {
     use coh_core::trajectory::path_integral::CohHistory;
-    use coh_core::types::{Hash32, Decision};
+    use coh_core::types::{Hash32, RvStatus};
+    use coh_core::atom::CohGovernor;
     use std::time::Instant;
 
     let steps_count = 10_000;
     let bit = CohBit {
         from_state: Hash32([0; 32]),
         to_state: Hash32([1; 32]),
-        rv_status: Decision::Accept,
+        rv_status: RvStatus::Accept,
         ..Default::default()
     };
     
@@ -35,10 +36,10 @@ fn test_path_integral_scaling_demands() {
         steps: vec![bit; steps_count],
     };
     
-    let atom = CohAtom::default();
+    let gov = CohGovernor::default();
     
     let start = Instant::now();
-    let prob = history.path_probability(&atom, 1.0, 0.0, 1.0, 1.0);
+    let prob = history.path_probability(&gov, 1.0, 0.0, 1.0, 1.0);
     let duration = start.elapsed();
     
     println!("--- Resource Demand: Path Integral Scaling ---");

@@ -114,8 +114,7 @@ impl CohVM {
                 chosen.chain_digest_pre = prev.chain_digest_post;
             }
         }
-        chosen.chain_digest_post = chosen.chain_digest_pre.combine_tagged("cohbit:v1:chain", &chosen.action_hash); // Mock derivation // fixture_only: allow_mock
-        chosen.receipt_hash = chosen.canonical_hash();
+        chosen = chosen.finalize_hashes();
 
         // 5. Execute and Verify (K6)
         let next_state = runtime.execute(chosen.action_hash);
@@ -169,9 +168,24 @@ impl CohVM {
         // Compute total margin (A22)
         atom.margin_total = self.initial_valuation + atom.cumulative_defect + atom.cumulative_authority - self.governor.valuation - atom.cumulative_spend;
 
-        // Set non-zero ID to pass executable() guard
-        // fixture_only: allow_mock
-        atom.atom_id = Hash32([0xAA; 32]);
+        // Set trajectory digests from first and last bits
+        if let Some(first) = atom.bits.first() {
+            atom.atom_digest_pre = first.chain_digest_pre;
+        }
+        if let Some(last) = atom.bits.last() {
+            atom.atom_digest_post = last.chain_digest_post;
+        }
+
+        // Use deterministic canonical atom ID
+        atom.atom_id = Hash32::tagged_hash(
+            "cohatom:v1:id",
+            &[
+                atom.initial_state.0, 
+                atom.final_state.0, 
+                atom.atom_digest_pre.0, 
+                atom.atom_digest_post.0
+            ]
+        );
 
         // Set canonical hash before verification
         atom.atom_hash = atom.canonical_hash();

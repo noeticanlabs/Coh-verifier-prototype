@@ -162,14 +162,23 @@ pub fn batch_validate_receipts(
     receipts: &[ProofAttemptReceipt],
     mode: VerifyMode,
 ) -> HashMap<String, BudgetValidationResult> {
-    let mut results = HashMap::new();
-
-    for receipt in receipts {
-        let result = validate_proof_attempt(receipt, mode);
-        results.insert(receipt.attempt_id.clone(), result);
+    #[cfg(feature = "npe-parallel")]
+    {
+        use rayon::prelude::*;
+        receipts
+            .par_iter()
+            .map(|receipt| (receipt.attempt_id.clone(), validate_proof_attempt(receipt, mode)))
+            .collect()
     }
-
-    results
+    #[cfg(not(feature = "npe-parallel"))]
+    {
+        let mut results = HashMap::new();
+        for receipt in receipts {
+            let result = validate_proof_attempt(receipt, mode);
+            results.insert(receipt.attempt_id.clone(), result);
+        }
+        results
+    }
 }
 
 /// Index proven cache by goal hash for quick lookup

@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CohBit v1.0 — Academic Mathematical Visualization</title>
+    <style>
+        /* System fonts fallback - no external dependencies */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Georgia, "Times New Roman", Times, serif;
+            background: #0d1117;
+            color: #e6edf3;
+            min-height: 100vh;
+            padding: 40px 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        h1 {
+            font-size: 2.4rem;
+            font-weight: 400;
+            color: #58a6ff;
+            letter-spacing: 0.05em;
+            margin-bottom: 12px;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: #8b949e;
+            font-style: italic;
+        }
+
+        .version {
+            font-family: Consolas, "Courier New", monospace;
+            background: #21262d;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            color: #7ee787;
+        }
+
+        .visualization-panel {
+            background: #161b22;
+            border-radius: 16px;
+            padding: 40px;
+            margin-bottom: 40px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        svg {
+            display: block;
+            margin: 0 auto;
+            max-width: 100%;
+            height: auto;
+        }
+
+        .definition-box {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 24px;
+            margin: 30px 0;
+            text-align: center;
+        }
+
+        .definition-box .latex {
+            font-size: 1.4rem;
+            color: #ffa657;
+        }
+
+        .proof-obligations {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .obligation-card {
+            background: #21262d;
+            border-radius: 8px;
+            padding: 20px;
+            border-left: 3px solid;
+        }
+
+        .obligation-card.c7 {
+            border-color: #f85149;
+        }
+
+        .obligation-card.c6 {
+            border-color: #a371f7;
+        }
+
+        .obligation-card.c17 {
+            border-color: #3fb950;
+        }
+
+        .obligation-card.c8 {
+            border-color: #58a6ff;
+        }
+
+        .obligation-card.c9 {
+            border-color: #ffa657;
+        }
+
+        .obligation-title {
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .obligation-card.c7 .obligation-title {
+            color: #f85149;
+        }
+
+        .obligation-card.c6 .obligation-title {
+            color: #a371f7;
+        }
+
+        .obligation-card.c17 .obligation-title {
+            color: #3fb950;
+        }
+
+        .obligation-card.c8 .obligation-title {
+            color: #58a6ff;
+        }
+
+        .obligation-card.c9 .obligation-title {
+            color: #ffa657;
+        }
+
+        .obligation-desc {
+            font-size: 0.95rem;
+            color: #8b949e;
+        }
+
+        .theorem-box {
+            background: linear-gradient(135deg, #161b22 0%, #0d1117 100%);
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 24px;
+            margin: 30px 0;
+        }
+
+        .theorem-title {
+            font-size: 1.1rem;
+            color: #7ee787;
+            margin-bottom: 16px;
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 12px;
+        }
+
+        .theorem-content {
+            font-size: 1.05rem;
+            color: #e6edf3;
+        }
+
+        .theorem-content .formula {
+            font-family: Consolas, "Courier New", monospace;
+            background: #21262d;
+            padding: 8px 16px;
+            border-radius: 4px;
+            display: block;
+            margin: 12px 0;
+            color: #ffa657;
+        }
+
+        footer {
+            text-align: center;
+            color: #484f58;
+            font-size: 0.9rem;
+            margin-top: 40px;
+        }
+
+        .reference {
+            font-family: Consolas, "Courier New", monospace;
+            color: #58a6ff;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>CohBit</h1>
+            <p class="subtitle">A cryptographically committed, certificate-verified, budget-bounded state transition</p>
+            <span class="version">v1.0 — Lean Formalized</span>
+        </header>
+
+        <div class="definition-box">
+            <p class="latex">CohBit = A cryptographically committed, certificate-verified, budget-bounded state
+                transition.</p>
+        </div>
+
+        <div class="visualization-panel">
+            <!-- Academic SVG Diagram of CohBit -->
+            <svg width="900" height="520" viewBox="0 0 900 520" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="stateGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#21262d;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#161b22;stop-opacity:1" />
+                    </linearGradient>
+                    <linearGradient id="certGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#1f6feb;stop-opacity:0.3" />
+                        <stop offset="100%" style="stop-color:#1f6feb;stop-opacity:0.1" />
+                    </linearGradient>
+                    <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color:#58a6ff;stop-opacity:0.6" />
+                        <stop offset="100%" style="stop-color:#3fb950;stop-opacity:0.8" />
+                    </linearGradient>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#58a6ff" />
+                    </marker>
+                    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feGaussianBlur stdDeviation="3" result="blur" />
+                        <feMerge>
+                            <feMergeNode in="blur" />
+                            <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                    </filter>
+                </defs>
+
+                <!-- State Space Background -->
+                <rect x="20" y="20" width="860" height="480" rx="12" fill="#0d1117" stroke="#30363d" stroke-width="1" />
+
+                <!-- Title -->
+                <text x="450" y="50" font-family="Georgia, serif" font-size="18" fill="#8b949e" text-anchor="middle">
+                    Mathematical Structure of CohBit
+                </text>
+
+                <!-- State Nodes -->
+                <g transform="translate(120, 200)">
+                    <ellipse cx="0" cy="0" rx="80" ry="50" fill="url(#stateGrad)" stroke="#58a6ff" stroke-width="2" />
+                    <text x="0" y="5" font-family="Georgia, serif" font-size="22" fill="#e6edf3" text-anchor="middle"
+                        font-weight="600">X</text>
+                    <text x="0" y="25" font-family="Consolas, monospace" font-size="12" fill="#8b949e"
+                        text-anchor="middle">State Space</text>
+                </g>
+
+                <g transform="translate(780, 200)">
+                    <ellipse cx="0" cy="0" rx="80" ry="50" fill="url(#stateGrad)" stroke="#3fb950" stroke-width="2" />
+                    <text x="0" y="5" font-family="Georgia, serif" font-size="22" fill="#e6edf3" text-anchor="middle"
+                        font-weight="600">X</text>
+                    <text x="0" y="25" font-family="Consolas, monospace" font-size="12" fill="#8b949e"
+                        text-anchor="middle">State Space</text>
+                </g>
+
+                <!-- State Labels -->
+                <text x="120" y="270" font-family="Consolas, monospace" font-size="14" fill="#58a6ff"
+                    text-anchor="middle">from_state</text>
+                <text x="780" y="270" font-family="Consolas, monospace" font-size="14" fill="#3fb950"
+                    text-anchor="middle">to_state</text>
+
+                <!-- Transition Arrow -->
+                <path d="M 200 200 Q 450 120 700 200" fill="none" stroke="url(#arrowGrad)" stroke-width="3"
+                    marker-end="url(#arrowhead)" filter="url(#glow)" />
+
+                <!-- Action Node -->
+                <g transform="translate(450, 130)">
+                    <rect x="-60" y="-25" width="120" height="50" rx="8" fill="#21262d" stroke="#a371f7"
+                        stroke-width="2" />
+                    <text x="0" y="5" font-family="Consolas, monospace" font-size="16" fill="#a371f7"
+                        text-anchor="middle" font-weight="600">Action</text>
+                </g>
+
+                <!-- Certificate Bubble -->
+                <g transform="translate(450, 280)">
+                    <rect x="-90" y="-35" width="180" height="70" rx="10" fill="url(#certGrad)" stroke="#f85149"
+                        stroke-width="2" stroke-dasharray="6,4" />
+                    <text x="0" y="-12" font-family="Consolas, monospace" font-size="14" fill="#f85149"
+                        text-anchor="middle" font-weight="600">Cert</text>
+                    <text x="0" y="12" font-family="Georgia, serif" font-size="12" fill="#8b949e"
+                        text-anchor="middle">Verification</text>
+                </g>
+
+                <!-- Proof Obligations (Left Side) -->
+                <g transform="translate(60, 380)">
+                    <text x="0" y="0" font-family="Georgia, serif" font-size="14" fill="#8b949e" font-weight="600">Proof
+                        Obligations:</text>
+
+                    <g transform="translate(0, 30)">
+                        <circle cx="-8" cy="-4" r="4" fill="#f85149" />
+                        <text x="10" y="0" font-family="Consolas, monospace" font-size="13" fill="#e6edf3">rv_ok :
+                            S.rv_verify cert = accept</text>
+                    </g>
+
+                    <g transform="translate(0, 55)">
+                        <circle cx="-8" cy="-4" r="4" fill="#a371f7" />
+                        <text x="10" y="0" font-family="Consolas, monospace" font-size="13" fill="#e6edf3">cert_ok :
+                            S.certifies cert from action to</text>
+                    </g>
+
+                    <g transform="translate(0, 80)">
+                        <circle cx="-8" cy="-4" r="4" fill="#3fb950" />
+                        <text x="10" y="0" font-family="Consolas, monospace" font-size="13" fill="#e6edf3">exec_ok :
+                            S.exec from action = to</text>
+                    </g>
+                </g>
+
+                <!-- Budget Constraint (Right Side) -->
+                <g transform="translate(450, 400)">
+                    <text x="0" y="-25" font-family="Georgia, serif" font-size="14" fill="#8b949e" text-anchor="middle"
+                        font-weight="600">Budget Admissibility (C9):</text>
+                    <rect x="-200" y="0" width="400" height="45" rx="6" fill="#21262d" stroke="#ffa657"
+                        stroke-width="2" />
+                    <text x="0" y="8" font-family="Consolas, monospace" font-size="13" fill="#ffa657"
+                        text-anchor="middle">V(to) + spend <= V(from) + defect + authority</text>
+                            <text x="0" y="28" font-family="Georgia, serif" font-size="11" fill="#8b949e"
+                                text-anchor="middle" font-style="italic">Coherence Reserve Conservation</text>
+                </g>
+
+                <!-- Defect Bound (Bottom) -->
+                <g transform="translate(700, 420)">
+                    <circle cx="-8" cy="-4" r="4" fill="#58a6ff" />
+                    <text x="10" y="0" font-family="Consolas, monospace" font-size="13" fill="#e6edf3">defect_ok :
+                        S.defect action <= S.delta_hat action</text>
+                </g>
+
+                <!-- CohSystem Context -->
+                <g transform="translate(450, 490)">
+                    <text x="0" y="0" font-family="Georgia, serif" font-size="12" fill="#484f58" text-anchor="middle">
+                        Defined within CohSystem (X, Action, Cert, Hash)
+                    </text>
+                </g>
+            </svg>
+        </div>
+
+        <div class="proof-obligations">
+            <div class="obligation-card c7">
+                <div class="obligation-title">C7: rv_ok</div>
+                <div class="obligation-desc">Certificate verification status must be accept. This is the gatekeeper — no
+                    execution without proper cryptographic commitment.</div>
+            </div>
+
+            <div class="obligation-card c6">
+                <div class="obligation-title">C6: cert_ok</div>
+                <div class="obligation-desc">The certificate must certify the specific state transition: from_state →
+                    action → to_state</div>
+            </div>
+
+            <div class="obligation-card c17">
+                <div class="obligation-title">C17: exec_ok</div>
+                <div class="obligation-desc">The execution function must compute the correct target state from the
+                    source state and action.</div>
+            </div>
+
+            <div class="obligation-card c8">
+                <div class="obligation-title">C8: defect_ok</div>
+                <div class="obligation-desc">Defect (coherence loss) must be bounded above by delta_hat (maximum
+                    tolerable defect).</div>
+            </div>
+
+            <div class="obligation-card c9">
+                <div class="obligation-title">C9: margin_ok</div>
+                <div class="obligation-desc">Budget admissibility: V(to_state) + spend ≤ V(from_state) + defect +
+                    authority</div>
+            </div>
+        </div>
+
+        <div class="theorem-box">
+            <div class="theorem-title">Theorem: Identity CohBit Exists</div>
+            <div class="theorem-content">
+                For any state x ∈ X and certificate cert such that S.rv_verify cert = accept and S.certificates cert x
+                id_action x, there exists a valid CohBit:
+                <span class="formula">CohBit S = { from_state := x, action := id_action, to_state := x, cert := cert
+                    }</span>
+                This grounds the transition graph in a formally admissible neutral element — the identity transition
+                leaves the state unchanged.
+            </div>
+        </div>
+
+        <div class="theorem-box">
+            <div class="theorem-title">Theorem: Chain Stability (Telescoping Sum)</div>
+            <div class="theorem-content">
+                For a verified chain of CohBits (bit₀, bit₁, ..., bitₙ) where continuity holds:
+                <span class="formula">V_n + sum(spend) <= V_0 + sum(defect) + sum(authority)</span>
+                        The cumulative coherence budget is preserved across the entire execution trace. This is the
+                        crown jewel — the budget constraint telescopes across the chain.
+            </div>
+        </div>
+
+        <footer>
+            <p>Formalized in <span class="reference">coh-t-stack/Coh/Boundary/CohBit.lean</span></p>
+            <p>Part of the Coh-wedge Formal Foundation</p>
+        </footer>
+    </div>
+</body>
+
+</html>

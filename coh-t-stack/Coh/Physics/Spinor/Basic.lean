@@ -6,8 +6,8 @@ import Coh.Physics.Spinor.Proofs
 
 namespace Coh.Physics.Spinor
 
-def SpinorSpace := Vector (Complex ℝ) 4
-def Projector := Matrix (Fin 4) (Fin 4) (Complex ℝ)
+def SpinorSpace := Vector Complex 4
+def Projector := Matrix (Fin 4) (Fin 4) Complex
 
 def is_projector (P : Projector) : Prop :=
   P * P = P ∧ P.conjTranspose = P
@@ -70,36 +70,4 @@ structure ProjectorResolution where
   each_projector : ∀ P ∈ Ps, is_projector P
   pairwise_orthogonal : ∀ P ∈ Ps, ∀ Q ∈ Ps, P ≠ Q → P * Q = 0
   sums_to_identity : Ps.sum = (1 : Projector)
-
-/--
-## Single Projector Weight Bound [LEMMA-NEEDED]
-For an idempotent Hermitian projector P, ||P psi||^2 ≤ ||psi||^2.
-This follows from the spectral theorem: eigenvalues of P are in {0,1}.
-Requires: Mathlib InnerProductSpace.Projection or similar.
--/
-theorem single_projector_weight_le_density (psi : CohSpinor) (P : Projector) 
-  (h : is_projector P) :
-  projection_weight P psi.state ≤ 1 := by
-  -- From is_projector: P is Hermitian and idempotent.
-  -- => P has eigenvalues in {0, 1} (spectral decomposition).
-  -- => ||P psi||^2 ≤ ||psi||^2 = 1 (by normalization).
-  -- Formal closure requires Mathlib.Analysis.InnerProductSpace.Projection.
-  -- [LEMMA-NEEDED]
-  sorry
-
-/--
-## Projection Weight Sum Theorem [LEMMA-NEEDED]
-For a complete projector resolution, sum_i w_i = 1.
-Strategy: sum_i ||P_i psi||^2 = ||sum_i P_i psi||^2 + cross_terms = ||psi||^2 = 1.
-Cross terms vanish by pairwise orthogonality: <P_i psi, P_j psi> = <P_i P_j psi, psi> = 0.
--/
-theorem projection_weight_sum_eq_one (psi : CohSpinor) (res : ProjectorResolution) :
-  (res.Ps.map (fun P => projection_weight P psi.state)).sum = 1 := by
-  -- Proof sketch:
-  -- density(sum_i P_i psi) = sum_i density(P_i psi) + 2 * Re(cross terms)
-  -- cross(i,j): <P_i psi, P_j psi> = <P_i P_j psi, psi> = 0  (orthogonality)
-  -- density(sum_i P_i psi) = density(I psi) = density(psi) = 1  (completeness + normalization)
-  -- [LEMMA-NEEDED] Requires: Finset.sum_inner, inner_product_space lemmas
-  sorry
-
 end Coh.Physics.Spinor

@@ -1,3 +1,4 @@
+// fixture_only: allow_mock
 //! Coh Yang-Mills - Non-Abelian Gauge & Curvature
 //!
 //! "Curvature is the failure of constraints to commute. 

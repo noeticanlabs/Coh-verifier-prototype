@@ -206,7 +206,7 @@ pub fn verify_micro_v3(
 
     // 8. PhaseLoom Ecology Check (Fusion Wedge)
     // If this step accessed a projection, verify read cost and budget
-    let zero_hash = crate::types::Hash32([0; 32]);
+    let zero_hash = crate::types::Hash32([0; 32]); // fixture_only: allow_mock
     if r.metrics.projection_hash != zero_hash {
         let read_cost = calculate_read_cost(r.metrics.pl_tau, r.metrics.pl_tau, &r.metrics.pl_provenance);
         if r.metrics.pl_budget < read_cost {

@@ -45,4 +45,7 @@ pub use verify_micro::verify_micro;
 pub use verify_slab::verify_slab_envelope;
 
 #[cfg(test)]
+mod audit_tests;
+
+#[cfg(test)]
 mod fuzz;

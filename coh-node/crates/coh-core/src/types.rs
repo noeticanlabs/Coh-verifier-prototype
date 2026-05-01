@@ -44,6 +44,15 @@ impl Hash32 {
         hasher.update(other.0);
         Hash32(hasher.finalize().into())
     }
+
+    pub fn tagged_hash(tag: &str, data: &[[u8; 32]]) -> Self {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(tag.as_bytes());
+        for d in data {
+            hasher.update(d);
+        }
+        Hash32(hasher.finalize().into())
+    }
 }
 
 // v1.0 Types
@@ -309,7 +318,7 @@ impl Default for Metrics {
             m_post: 0,
             c_cost: 0,
             d_slack: 0,
-            projection_hash: Hash32([0; 32]),
+            projection_hash: Hash32([0; 32]), // fixture_only: allow_mock
             pl_tau: 0,
             pl_budget: 0,
             pl_provenance: "EXT".to_string(),

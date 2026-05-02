@@ -71,23 +71,27 @@ def budget_valid {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash}
 /--
 ## Execution Gates
 -/
-def retrieval_valid {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash} 
+def retrieval_valid {X Action Cert Hash : Type _} {S : CohSystem X Action Cert Hash} 
   (a : @CohAtom X Action Cert Hash S) : Prop :=
   match a.kind with
   | AtomKind.ExecutableTrajectory => metrics_ok a
   | AtomKind.Identity => metrics_ok a
   | AtomKind.SummaryTrajectory => a.compression_certificate.isSome ∧ metrics_ok a
 
-def mutation_valid {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash} 
+def mutation_valid {X Action Cert Hash : Type _} {S : CohSystem X Action Cert Hash} 
   (a : @CohAtom X Action Cert Hash S) : Prop :=
   match a.kind with
-  | AtomKind.ExecutableTrajectory | AtomKind.Identity => 
+  | AtomKind.ExecutableTrajectory => 
     retrieval_valid a ∧ 
-    (∀ b ∈ a.bits, b.rv_status = RvStatus.Accept) ∧
+    (∀ b ∈ a.bits, S.rv_verify b.cert = RvStatus.accept) ∧
+    budget_valid a
+  | AtomKind.Identity =>
+    retrieval_valid a ∧ 
+    (∀ b ∈ a.bits, S.rv_verify b.cert = RvStatus.accept) ∧
     budget_valid a
   | AtomKind.SummaryTrajectory => False
 
-def executable {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash} 
+def executable {X Action Cert Hash : Type _} {S : CohSystem X Action Cert Hash} 
   (a : @CohAtom X Action Cert Hash S) : Prop :=
   mutation_valid a
 
@@ -95,30 +99,47 @@ def executable {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash}
 ### Theorem: Atom Metrics Stability
 Bridging the Bit-level stability to the Atom-level cumulative fields. [PROVED]
 -/
-theorem atom_metrics_stability {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash}
+theorem atom_metrics_stability {X Action Cert Hash : Type _} {S : CohSystem X Action Cert Hash}
   (a : @CohAtom X Action Cert Hash S)
   (h_mut : mutation_valid a) 
   (h_finite : ∀ x, S.V x ≠ ⊤) :
   S.V a.final_state + a.cumulative_spend ≤ S.V a.initial_state + a.cumulative_defect + a.cumulative_authority := by
   -- 1. Unpack mutation_valid
-  unfold mutation_valid at h_mut
-  split at h_mut
-  next => 
-    obtain ⟨h_ret, ⟨_, _⟩⟩ := h_mut
-    unfold retrieval_valid at h_ret
-    split at h_ret
-    all_goals
-      obtain ⟨h_spend, h_defect, _, h_auth, _⟩ := h_ret
-      rw [← h_spend, ← h_defect, ← h_auth]
-      
-      -- Apply chain_stability
-      have h_stable := chain_stability a.bits a.nonempty_bits (by
-        intro i
-        exact a.continuous i
-      ) h_finite
-      
-      rw [a.first_ok, a.last_ok] at h_stable
-      exact h_stable
-  next => contradiction
+  cases h_kind : a.kind
+  case ExecutableTrajectory =>
+    unfold mutation_valid retrieval_valid at h_mut
+    rw [h_kind] at h_mut
+    simp at h_mut
+    obtain ⟨h_ret, _, _⟩ := h_mut
+    obtain ⟨h_spend, h_defect, _, h_auth, _⟩ := h_ret
+    rw [← h_spend, ← h_defect, ← h_auth]
+    
+    -- Apply chain_stability
+    have h_stable := chain_stability a.bits a.nonempty_bits (by
+      intro i
+      exact a.continuous i
+    ) h_finite
+    
+    rw [a.first_ok, a.last_ok] at h_stable
+    exact h_stable
+  case Identity =>
+    unfold mutation_valid retrieval_valid at h_mut
+    rw [h_kind] at h_mut
+    simp at h_mut
+    obtain ⟨h_ret, _, _⟩ := h_mut
+    obtain ⟨h_spend, h_defect, _, h_auth, _⟩ := h_ret
+    rw [← h_spend, ← h_defect, ← h_auth]
+    
+    have h_stable := chain_stability a.bits a.nonempty_bits (by
+      intro i
+      exact a.continuous i
+    ) h_finite
+    rw [a.first_ok, a.last_ok] at h_stable
+    exact h_stable
+  case SummaryTrajectory =>
+    unfold mutation_valid at h_mut
+    rw [h_kind] at h_mut
+    simp at h_mut
+    contradiction
 
 end Coh.Boundary

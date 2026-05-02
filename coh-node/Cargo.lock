@@ -461,6 +461,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "coh-ctrl"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "coh-genesis",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "coh-fuzz"
 version = "0.1.0"
 dependencies = [

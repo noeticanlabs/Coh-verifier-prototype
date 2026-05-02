@@ -1,11 +1,13 @@
 use std::process::{Command, Stdio, Child};
 use std::io::{Write, BufReader, BufRead};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use serde_json;
 use crate::lean_json_export::LeanSearchResults;
 
 pub struct LeanWorker {
     child: Child,
+    lake_cmd: String,
+    project_path: PathBuf,
 }
 
 impl LeanWorker {
@@ -19,7 +21,7 @@ impl LeanWorker {
             .spawn()
             .map_err(|e| format!("Failed to spawn Lean worker: {}", e))?;
 
-        Ok(Self { child })
+        Ok(Self { child, lake_cmd: lake_cmd.to_string(), project_path: project_path.to_path_buf() })
     }
 
     pub fn query(&mut self, query: &str) -> Result<LeanSearchResults, String> {
@@ -74,6 +76,26 @@ impl LeanWorker {
 
         serde_json::from_str::<serde_json::Value>(&line)
             .map_err(|e| format!("Failed to parse Lean worker response: {}. Raw: {}", e, line))
+    }
+
+    pub fn full_build_output(&mut self) -> Result<std::process::Output, String> {
+        Command::new(&self.lake_cmd)
+            .args(["build", "Coh"])
+            .current_dir(&self.project_path)
+            .output()
+            .map_err(|e| format!("Failed to run lake build: {}", e))
+    }
+
+    pub fn full_build(&mut self) -> Result<String, String> {
+        let output = self.full_build_output()?;
+
+        if output.status.success() {
+            Ok("SUCCESS".to_string())
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            Ok(format!("FAILURE\nSTDOUT: {}\nSTDERR: {}", stdout, stderr))
+        }
     }
 
     pub fn stop(mut self) {

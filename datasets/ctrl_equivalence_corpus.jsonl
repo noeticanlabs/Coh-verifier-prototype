@@ -1,0 +1,4 @@
+{"id": "gauge_equiv_001", "object_a": "Aμ", "object_b": "Aμ + ∂μλ", "expected_equivalence_kind": "GaugeEquivalence", "expected_repair_action": "UseEquivalence"}
+{"id": "compression_bisim_001", "object_a": "Trajectory τ", "object_b": "SummaryAtom Ac", "expected_equivalence_kind": "CompressionEquivalence", "expected_repair_action": "UseEquivalence"}
+{"id": "hamiltonian_iso_001", "object_a": "Hamiltonian H", "object_b": "Valuation V", "expected_equivalence_kind": "Isomorphism", "expected_repair_action": "UseEquivalence"}
+{"id": "normalization_001", "object_a": "x + 0", "object_b": "x", "expected_equivalence_kind": "NormalFormEquivalence", "expected_repair_action": "UseEquivalence"}

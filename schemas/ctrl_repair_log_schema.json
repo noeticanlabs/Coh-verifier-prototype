@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CtrlRepairLog",
+  "type": "object",
+  "required": ["run_id", "target", "candidate_id", "strategy", "accepted", "elapsed_ms"],
+  "properties": {
+    "run_id": { "type": "string" },
+    "mode": { "type": "string" },
+    "target": { "type": "string" },
+    "candidate_id": { "type": "integer" },
+    "strategy": { "type": "string" },
+    "accepted": { "type": "boolean" },
+    "elapsed_ms": { "type": "integer" },
+    "error_kind": { "type": ["string", "null"] },
+    "remaining_goals": { "type": "integer" },
+    "used_sorry": { "type": "boolean" },
+    "used_admit": { "type": "boolean" },
+    "undeclared_axiom": { "type": "boolean" },
+    "proof_hash": { "type": ["string", "null"] }
+  }
+}

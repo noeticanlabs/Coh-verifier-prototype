@@ -35,8 +35,8 @@ def ADMFoliation := List Hypersurface
 A transition Σₜ → Σₜ₊₁ is lawful if it satisfies the Einstein constraints.
 This is the physical analogue of the Verifier (RV) predicate.
 -/
-def LawfulTransition (Σ : Hypersurface) (E : EvolutionShift) (Σ' : Hypersurface) : Prop :=
-  Σ'.index = Σ.index + 1 ∧ Σ'.geometry ≥ Σ.geometry -- Simplified constraint
+def LawfulTransition (sigma : Hypersurface) (E : EvolutionShift) (sigma' : Hypersurface) : Prop :=
+  sigma'.index = sigma.index + 1 ∧ sigma'.geometry ≥ sigma.geometry -- Simplified constraint
 
 /--
 ## Theorem: ADM Foliation ≅ CohBit Trajectory

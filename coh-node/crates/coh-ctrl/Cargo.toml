@@ -1,0 +1,10 @@
+[package]
+name = "coh-ctrl"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.0", features = ["derive"] }
+coh-genesis = { path = "../coh-genesis" }
+tokio = { version = "1", features = ["full"] }
+serde_json = "1.0"

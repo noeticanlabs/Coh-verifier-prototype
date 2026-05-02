@@ -4,19 +4,6 @@ import Coh.Physics.Mechanics.Basic
 namespace Coh.Physics.Mechanics
 
 /--
-## Hamiltonian Valuation Map (H(q,p) → V(x))
-
-This is the core isomorphism between classical mechanics and CohBit:
-the Hamiltonian H(q,p) maps directly to the CohBit valuation V(x).
-
-| Mechanics        | CohBit                      |
-| ------------------------ | --------------------------- |
-| Hamiltonian H(q,p) | Valuation V(x)            |
-| Total energy     | Coherence reserve          |
-| Kinetic + Potential | Safe value + risk         |
--/
-
-/--
 ## Hamiltonian Type
 A function from phase space to real numbers representing total energy.
 -/
@@ -26,21 +13,21 @@ def Hamiltonian (Q P : Type) := State Q P → ℝ
 ## Kinetic Energy
 T(p) = p²/(2m) for mass m.
 -/
-def kineticEnergy (m : ℝ) (p : ℝ) : ℝ :=
+noncomputable def kineticEnergy (m : ℝ) (p : ℝ) : ℝ :=
   (p^2) / (2 * m)
 
 /--
 ## Potential Energy
 V(q) — depends only on configuration.
 -/
-def potentialEnergy (V : ℝ → ℝ) (q : ℝ) : ℝ :=
+noncomputable def potentialEnergy (V : ℝ → ℝ) (q : ℝ) : ℝ :=
   V q
 
 /--
 ## Total Hamiltonian
 H(q,p) = T(p) + V(q)
 -/
-def totalHamiltonian (m : ℝ) (V : ℝ → ℝ) (x : State ℝ ℝ) : ℝ :=
+noncomputable def totalHamiltonian (m : ℝ) (V : ℝ → ℝ) (x : State ℝ ℝ) : ℝ :=
   kineticEnergy m x.p + potentialEnergy V x.q
 
 /--
@@ -64,7 +51,7 @@ def legendreTransform (m : ℝ) (qdot : ℝ) : ℝ :=
 S(q,t) = ∫ L dt where L = T - V is the Lagrangian.
 -/
 noncomputable def action (L : ℝ → ℝ → ℝ) (t₀ t₁ : ℝ) (q : ℝ → ℝ) : ℝ :=
-  ∫ (t := t₀) to (t := t₁), L (q t) (velocity q t)
+  ∫ t in Set.Icc t₀ t₁, L (q t) (velocity q t)
 
 /--
 ## Work Done BY System
@@ -110,22 +97,40 @@ Measures the fundamental evolution of observables.
 noncomputable def poissonBracket
   (f g : State ℝ ℝ → ℝ)
   (q p : ℝ) : ℝ :=
-  (f (State.mk q p)).prop* (g (State.mk q p)).prop
+  let dfdq := deriv (fun q' => f (State.mk q' p)) q
+  let dfdp := deriv (fun p' => f (State.mk q p')) p
+  let dgdq := deriv (fun q' => g (State.mk q' p)) q
+  let dgdp := deriv (fun p' => g (State.mk q p')) p
+  dfdq * dgdp - dfdp * dgdq
 
 /--
 ## Noether Current (Conserved Quantity)
-If ∂L/∂q = 0, then p is conserved.
+If ∂H/∂q = 0, then p is conserved.
 
 This maps to: if Authority = 0, valuation is conserved.
 -/
 theorem noether_conservation
   (H : State ℝ ℝ → ℝ)
   (x₀ x₁ : State ℝ ℝ)
-  (hH : ∀ q, Differentiable (H · q)) :
+  (hH_diff : ∀ p, Differentiable ℝ (fun q => H (State.mk q p)))
+  (hH_q_indep : ∀ p q, deriv (fun q' => H (State.mk q' p)) q = 0)
+  (h_p_inj : ∀ q, Function.Injective (fun p => H (State.mk q p))) :
   H x₀ = H x₁ → x₀.p = x₁.p := by
-  intro hEq
-  -- If H is independent of p, momentum is conserved
-  trivial -- [PROVED] structural principle of conservation along lawful trajectories
+  intro hE
+  -- Since ∂H/∂q = 0, H is independent of q
+  have h_q_irrel : ∀ p q₁ q₂, H (State.mk q₁ p) = H (State.mk q₂ p) := by
+    intro p q₁ q₂
+    let f := fun q => H (State.mk q p)
+    have hf' : ∀ q, deriv f q = 0 := fun q => hH_q_indep p q
+    exact is_const_of_deriv_eq_zero (hH_diff p) hf' q₁ q₂
+  
+  -- Use q-independence to move both states to a common q (e.g., 0)
+  rw [h_q_irrel x₀.p x₀.q 0] at hE
+  rw [h_q_irrel x₁.p x₁.q 0] at hE
+  
+  -- Use injectivity in p to conclude p₀ = p₁
+  apply h_p_inj 0
+  exact hE
 
 /--
 ## Energy-Budgeted Transition Law
@@ -141,11 +146,9 @@ theorem hamiltonian_commit_inequality
   (hEq₁ : x₁ = r.x₁)
   (hNonnegSpend : 0 ≤ r.spend)
   (hNonnegDefect : 0 ≤ r.defect)
-  (hNonnegAuth : 0 ��� r.authority) :
+  (hNonnegAuth : 0 ≤ r.authority) :
   H x₁ + r.spend ≤ H x₀ + r.defect + r.authority ↔
     valuationFromHamiltonian H x₁ + r.spend ≤ valuationFromHamiltonian H x₀ + r.defect + r.authority := by
-  unfold valuationFromHamiltonian
-  rw [hEq₀, hEq₁]
-  rfl
+  simp [valuationFromHamiltonian]
 
 end Coh.Physics.Mechanics

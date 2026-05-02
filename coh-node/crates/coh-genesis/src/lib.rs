@@ -99,6 +99,14 @@ pub mod proof_receipt;
 pub mod report;
 pub mod sweep;
 pub mod governor_tests;
+pub mod lean_error;
+pub mod repair;
+pub mod invariant_hunter;
+pub mod equivalence_hunter;
+pub mod lemma_forge;
+pub mod failure_memory;
+pub mod ctrl;
+pub mod lean_worker;
 pub mod lean_json_export;
 pub mod causal_cone;
 pub mod ledger;
@@ -107,9 +115,9 @@ pub mod atom;
 pub use atom::GmiAtom;
 pub mod kernel_invariants;
 pub mod vm_runtime;
-pub mod lean_worker;
 pub mod vm_runtime_lean;
 mod safety_audit_tests;
+mod refinery_tests;
 
 // Re-export PhaseLoomLite types and functions
 pub use fusion_wedge::verify_governed_step;

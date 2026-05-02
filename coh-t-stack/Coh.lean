@@ -21,7 +21,7 @@ import Coh.Physics.Fluid.NavierStokes
 import Coh.Physics.Horizon.EventHorizon
 import Coh.Physics.Trajectory.Commit
 import Coh.Physics.Isomorphism.Isomorphism
-import Coh.Physics.Trajectory.Commit
+import Coh.Refinery.Compression
 import Coh.Control.Canon
 import Coh.Physics.Spinor.Basic
 import Coh.Physics.Spinor.ParticleMirror

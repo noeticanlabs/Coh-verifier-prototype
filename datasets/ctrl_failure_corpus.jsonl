@@ -1,0 +1,5 @@
+{"id": "type_mismatch_001", "raw_error": "type mismatch: hτ has type TrajectoryAdmissible τ but is expected to have type SummaryAtomAdmissible Ac", "expected_error_kind": "TypeMismatch", "expected_repair_action": "TypeAlign"}
+{"id": "unsolved_goals_001", "raw_error": "unsolved goals\ncase neg\n⊢ 0 ≤ authority", "expected_error_kind": "UnsolvedGoals", "expected_repair_action": "DecomposeGoals"}
+{"id": "linarith_failed_001", "raw_error": "linarith failed to find a contradiction", "expected_error_kind": "LinarithFailed", "expected_repair_action": "StrengthenArithmeticContext"}
+{"id": "unknown_identifier_001", "raw_error": "unknown identifier 'trajectory_admissible'", "expected_error_kind": "UnknownIdentifier", "expected_repair_action": "SearchImportOrNamespace"}
+{"id": "forbidden_sorry_001", "raw_error": "sorry used in proof", "expected_error_kind": "ForbiddenShortcut", "expected_repair_action": "HardReject"}

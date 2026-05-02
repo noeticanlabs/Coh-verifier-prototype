@@ -9,8 +9,8 @@ A physical boundary where information loss occurs.
 In CohBit terms, this is a "Compression Boundary" where micro-state
 history is folded into a summary receipt.
 -/
-structure EventHorizon (R : ℝ) where
-  radius : R
+structure EventHorizon where
+  radius : ℝ
   is_boundary : True
 
 /--

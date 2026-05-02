@@ -27,9 +27,15 @@ def gamma0_mat : GammaMatrix := !![
 ## gamma0^2 = I [PROVED]
 In the Dirac representation, (gamma^0)^2 = diag(1,1,-1,-1)^2 = diag(1,1,1,1) = I.
 -/
+/--
+## gamma0^2 = I [PROVED]
+In the Dirac representation, (gamma^0)^2 = diag(1,1,-1,-1)^2 = diag(1,1,1,1) = I.
+-/
 theorem gamma0_sq_eq_one : gamma0_mat * gamma0_mat = (1 : GammaMatrix) := by
   ext i j
-  fin_cases i <;> fin_cases j <;> simp [gamma0_mat, Matrix.mul_fin_two, Matrix.one_apply]
+  unfold gamma0_mat
+  rw [Matrix.mul_apply, Matrix.one_apply]
+  fin_cases i <;> fin_cases j <;> simp [Finset.sum_fin_four] <;> norm_num
 
 /-!
 ## Lean Proof: Projection Weight Non-Negativity
@@ -70,12 +76,9 @@ def coord_proj (k : Fin 4) : Matrix (Fin 4) (Fin 4) Complex :=
 -/
 theorem coord_proj_idem (k : Fin 4) : coord_proj k * coord_proj k = coord_proj k := by
   ext i j
-  simp [coord_proj, Matrix.mul_apply]
-  split_ifs with h
-  · obtain ⟨hi, hj⟩ := h
-    simp [hi, hj]
-  · push_neg at h
-    simp [h]
+  unfold coord_proj
+  rw [Matrix.mul_apply]
+  fin_cases k <;> fin_cases i <;> fin_cases j <;> simp <;> rfl
 
 /--
 ## coord_proj is Hermitian [PROVED]
@@ -83,12 +86,10 @@ The coordinate projectors are real diagonal matrices, so P† = P.
 -/
 theorem coord_proj_hermitian (k : Fin 4) : (coord_proj k).conjTranspose = coord_proj k := by
   ext i j
-  simp [coord_proj, Matrix.conjTranspose_apply]
-  split_ifs with h1 h2
-  · simp [h2.1, h2.2]
-  · simp [h1]
-  · simp [h2]
-  · rfl
+  unfold coord_proj
+  rw [Matrix.conjTranspose_apply]
+  simp
+  fin_cases k <;> fin_cases i <;> fin_cases j <;> simp <;> rfl
 
 /--
 ## Coordinate Projector Weight Sum = density [PROVED]
@@ -97,18 +98,13 @@ sum_{k=0}^{3} |P_k psi|^2 = sum_{k} |psi_k|^2 = density(psi)
 theorem coord_proj_weight_sum (v : SpinorVec) :
   Finset.univ.sum (fun k => vec_density (fun i => (coord_proj k).mulVec v i)) =
   vec_density v := by
-  simp [vec_density, coord_proj, Matrix.mulVec, Matrix.dotProduct]
-  -- Each P_k picks out v k, so density(P_k v) = |v k|^2
-  -- sum_k |v k|^2 = density(v)
-  conv_lhs =>
-    arg 2; ext k
-    arg 2; ext i
-    rw [show (Finset.univ.sum (fun j => (if i = k ∧ j = k then (1 : Complex) else 0) * v j)) =
-        if i = k then v k else 0 by
-      simp [Finset.sum_ite_eq', Finset.mem_univ]]
-  simp [Finset.sum_comm (s := Finset.univ) (t := Finset.univ)]
+  unfold vec_density coord_proj
+  simp [Matrix.mulVec, Matrix.dotProduct]
+  -- Use simp_rw to handle the inner summation over j
+  simp_rw [Finset.sum_ite_eq]
+  simp [Complex.normSq_zero]
+  -- Use sum_comm to group by k and then apply sum_ite_eq
   rw [Finset.sum_comm]
-  congr 1; ext i
-  simp [Finset.sum_ite_eq', Complex.normSq_zero]
+  simp [Finset.sum_ite_eq]
 
 end Coh.Physics.Spinor

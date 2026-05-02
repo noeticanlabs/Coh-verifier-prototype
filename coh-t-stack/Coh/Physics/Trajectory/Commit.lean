@@ -1,166 +1,100 @@
 import Mathlib
 import Coh.Boundary.LawOfCoherence
 import Coh.Physics.Spacetime.SpacetimeTransition
+import Coh.Physics.Isomorphism.Isomorphism
 
 namespace Coh.Physics.Trajectory
 
-/--
-## Trajectory Commit Module
-Proves that single admissible CohBit transitions imply admissible trajectories.
--/
-
+open Classical
 open Coh.Boundary
 open Coh.Physics.Spacetime
+open Coh.Physics.Isomorphism
 
 /--
-## CohBit Commit (without rigidity/law check)
-The budget inequality alone - does not require verifier law.
+## CohBit Commit
 -/
 def CohCommit {X Q S : Type} [OrderedAddCommMonoid S]
-  (𝒮 : CoherenceObject X Q S) (x : X) (q : Q) (y : X) : Prop :=
-  𝒮.V y + 𝒮.Spend q ≤ 𝒮.V x + 𝒮.Defect q + 𝒮.Authority q
+  (V : X → S) (Spend Defect Authority : Q → S) (x : X) (q : Q) (y : X) : Prop :=
+  V y + Spend q ≤ V x + Defect q + Authority q
 
 /--
-## Spacetime Commit (without physical law check)
-The energy-action inequality alone.
--/
-def SpacetimeCommit {Σ E S : Type} [OrderedAddCommMonoid S]
-  (𝒫 : SpacetimeTransitionSystem Σ E S) (σ : Σ) (e : E) (σ' : Σ) : Prop :=
-  𝒫.ℰ σ' + 𝒫.𝒜 e ≤ 𝒫.ℰ σ + 𝒫.δ e + 𝒫.𝒲 e
-
-/--
-## Single Step Commit Implies Admissibility
-If a transition satisfies both commit (budget) and rigidity (verifier law),
-it is fully admissible.
--/
-theorem commit_plus_rigidity_is_admissible {X Q S : Type} [OrderedAddCommMonoid S]
-  (𝒮 : CoherenceObject X Q S) (x : X) (q : Q) (y : X) :
-  CohCommit 𝒮 x q y → 𝒮.RV x q y → CohAdmissible 𝒮 x q y := by
-  intro h_commit h_rigidity
-  unfold CohAdmissible
-  constructor
-  exact h_rigidity
-  exact h_commit
-
-/--
-## Single Step Equivalent Definition
-Admissibility = Commit ∧ Rigidity (proved both directions)
--/
-theorem admissible_eq_commit_and_rigidity {X Q S : Type} [OrderedAddCommMonoid S]
-  (𝒮 : CoherenceObject X Q S) (x : X) (q : Q) (y : X) :
-  CohAdmissible 𝒮 x q y ↔ (CohCommit 𝒮 x q y ∧ 𝒮.RV x q y) := by
-  unfold CohAdmissible CohCommit
-  constructor
-  · intro h
-    constructor
-    exact h.right
-    exact h.left
-  · intro h
-    constructor
-    exact h.right
-    exact h.left
-
-/--
-## Trajectory (Chain of Transitions)
-A sequence: x₀ → x₁ → ... → xₙ
+## Trajectory Structure
 -/
 structure Trajectory (X Q : Type) where
   states : List X
   actions : List Q
   continuous : states.length = actions.length + 1
-  -- ∀ i, the i-th action leads from state i to state i+1
 
 /--
 ## Trajectory Commit (Telescoping Sum)
-The cumulative budget inequality for a full trajectory.
-The sum of final valuations plus all spends ≤ sum of initial valuation plus all defects plus all authorities.
-
-This is the KEY trajectory theorem.
 -/
 def TrajectoryCommit {X Q S : Type} [OrderedAddCommMonoid S]
-  (𝒮 : CoherenceObject X Q S) (τ : Trajectory X Q) : Prop :=
-  let final_val := 𝒮.V (τ.states.last (by
-    have h := τ.continuous
-    cases τ.states
-    · simp at h
-    · simp))
-  let initial_val := 𝒮.V (τ.states.head (by
-    have h := τ.continuous
-    cases τ.states
-    · simp at h
-    · simp))
-  let total_spend := (τ.actions.map 𝒮.Spend).sum
-  let total_defect := (τ.actions.map 𝒮.Defect).sum
-  let total_authority := (τ.actions.map 𝒮.Authority).sum
-  final_val + total_spend ≤ initial_val + total_defect + total_authority
+  (V : X → S) (Spend Defect Authority : Q → S) (ss : List X) (as : List Q) : Prop :=
+  match ss with
+  | [] => True
+  | x :: xs =>
+    V ((x :: xs).getLast (by simp)) + (as.map Spend).sum ≤ 
+    V x + (as.map Defect).sum + (as.map Authority).sum
 
 /--
-## Lemma: Local Commit as Delta Bound
-Convert each local commit inequality into a delta bound:
-/--
-## Single Step Equivalent Definition
-Admissibility = Commit ∧ Rigidity (proved both directions)
+## Theorem: Local Commit telescopes to Trajectory Commit
 -/
 theorem trajectory_commit_telescopes {X Q S : Type} [OrderedAddCommMonoid S]
-  (𝒮 : CoherenceObject X Q S)
-  (τ : Trajectory X Q)
-  (h_states : τ.states ≠ [])
-  (h_step : ∀ i : Fin τ.actions.length,
-    CohCommit 𝒮 τ.states[i] τ.actions[i] τ.states[i+1]) :
-  TrajectoryCommit 𝒮 τ := by
+  (V : X → S) (Spend Defect Authority : Q → S)
+  (ss : List X) (as : List Q)
+  (h_cont : ss.length = as.length + 1)
+  (h_step : ∀ i : Fin as.length,
+    CohCommit V Spend Defect Authority (ss.get ⟨i.1, by rw [h_cont]; exact Nat.lt_succ_of_lt i.2⟩) 
+              (as.get i) 
+              (ss.get ⟨i.1 + 1, by rw [h_cont]; exact Nat.succ_lt_succ i.2⟩)) :
+  TrajectoryCommit V Spend Defect Authority ss as := by
   unfold TrajectoryCommit
-  induction τ.actions generalizing τ.states
-  case nil =>
-    have h := τ.continuous; simp at h
-    simp [h]
-  case cons q qs ih =>
-    match τ.states with
-    | x₀ :: x₁ :: xs =>
-      have h_head := h_step 0
-      let τ_tail : Trajectory X Q := {
-        states := x₁ :: xs,
-        actions := qs,
-        continuous := by have h := τ.continuous; simp at h; exact h
-      }
-      have ih_res := ih τ_tail (by simp) (by intro i; exact h_step (i.succ))
-      simp only [List.map_cons, List.sum_cons, List.head_cons] at ih_res ⊢
-      exact coh_compose_linear h_head ih_res
-    | _ => have h := τ.continuous; simp at h; contradiction
+  match h_s : ss with
+  | [] => simp [h_s] at h_cont
+  | x₀ :: xs =>
+    simp [h_s]
+    induction as generalizing x₀ xs
+    case nil =>
+      simp at h_cont
+      match xs with
+      | [] => simp; exact le_refl (V x₀)
+      | _ :: _ => simp at h_cont
+    case cons q qs ih =>
+      match h_xs : xs with
+      | x₁ :: xss =>
+        simp at h_cont
+        have h_head : CohCommit V Spend Defect Authority x₀ q x₁ := by
+          have h_step_0 := h_step ⟨0, by simp⟩
+          simp [h_s, h_xs] at h_step_0
+          exact h_step_0
+        have h_cont_tail : (x₁ :: xss).length = qs.length + 1 := by simp [h_cont]
+        have ih_res := ih x₁ xss h_cont_tail (by
+          intro i
+          have h_step_i := h_step ⟨i.1 + 1, by simp; exact i.2⟩
+          simp [h_s, h_xs] at h_step_i
+          exact h_step_i)
+        simp only [List.map_cons, List.sum_cons, List.head_cons, List.getLast_cons] at ih_res ⊢
+        exact Coh.coh_compose_linear h_head ih_res
+      | [] => simp at h_cont
 
 /--
-## Theorem: Admissible Individual Steps Imply Admissible Trajectory
-[NEEDS PROOF]
-
-If each individual step is admissible (commit + rigidity), then the entire trajectory is admissible.
+## Theorem: Isomorphism Preserves Trajectory Commit
 -/
-theorem admissible_steps_imply_admissible_trajectory {X Q S : Type} [OrderedAddCommMonoid S]
-  (𝒮 : CoherenceObject X Q S)
-  (τ : Trajectory X Q)
-  (h_states : τ.states ≠ [])
-  (h_step : ∀ i : Fin τ.actions.length, CohAdmissible 𝒮 τ.states[i] τ.actions[i] τ.states[i+1]) :
-  TrajectoryCommit 𝒮 τ := by
-  apply trajectory_commit_telescopes 𝒮 τ h_states
-  intro i
-  exact (admissible_eq_commit_and_rigidity 𝒮 _ _ _).mp (h_step i) |>.left
-
-/--
-## Theorem: Isomorphism Preserves Trajectory Commit [PROVED]
-Under the isomorphism, commit inequality holds for the trajectory in both spaces.
--/
-theorem isomorphism_preserves_trajectory_commit {X Q Σ E S : Type} [OrderedAddCommMonoid S]
-  (𝒮 : CoherenceObject X Q S)
-  (𝒫 : SpacetimeTransitionSystem Σ E S)
-  (Φ : X → Σ) (Ψ : Q → E)
+theorem isomorphism_preserves_trajectory_commit {X Q Sigma E S : Type} [OrderedAddCommMonoid S]
+  (sysS : CoherenceObject X Q S)
+  (sysP : SpacetimeTransitionSystem Sigma E S)
+  (phi : X → Sigma) (psi : Q → E)
   (τ_X : Trajectory X Q)
-  (h_states_ne : τ_X.states ≠ [])
-  (h_iso : Isomorphism 𝒮 𝒫 Φ Ψ) :
-  TrajectoryCommit 𝒮 τ_X ↔ TrajectoryCommit 𝒫 {
-    states := τ_X.states.map Φ,
-    actions := τ_X.actions.map Ψ,
-    continuous := by simp [τ_X.continuous]
-  } := by
+  (h_iso : Isomorphism sysS sysP phi psi) :
+  TrajectoryCommit sysS.V sysS.Spend sysS.Defect sysS.Authority τ_X.states τ_X.actions ↔ 
+  TrajectoryCommit sysP.ℰ sysP.𝒜 sysP.δ sysP.𝒲 (τ_X.states.map phi) (τ_X.actions.map psi) := by
   unfold TrajectoryCommit
-  simp [h_iso.val_pres, h_iso.spend_pres, h_iso.defect_pres, h_iso.auth_pres]
-  rfl
+  match h : τ_X.states with
+  | [] => rfl
+  | x :: xs =>
+    simp [h]
+    simp [h_iso.val_pres, h_iso.spend_pres, h_iso.defect_pres, h_iso.auth_pres]
+    simp [List.getLast_map]
+    rfl
 
 end Coh.Physics.Trajectory

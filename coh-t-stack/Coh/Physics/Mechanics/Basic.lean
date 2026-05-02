@@ -1,5 +1,5 @@
 import Mathlib
-import Mathlib.Analysis.Calculus.Fderiv
+import Mathlib.Analysis.Calculus.FDeriv.Basic
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Coh.Templates
 import Coh.Boundary.CohBit
@@ -45,23 +45,23 @@ structure Trajectory (Q P : Type) where
 For a differentiable path q(t), velocity is dq/dt.
 This is the natural projection from q to tangent space.
 -/
-def velocity {Q : Type} [NormedSpace ℝ Q] (q : ℝ → Q) (t : ℝ) : Q :=
-  (stdDifferentiable 𝕜 q).dfdifferentiableWithinAt (Set.univ : Set ℝ) t |>.deriv
+noncomputable def velocity {Q : Type _} [NormedAddCommGroup Q] [NormedSpace ℝ Q] (q : ℝ → Q) (t : ℝ) : Q :=
+  deriv q t
 
+/-
 /--
 ## Configuration Space
 A smooth manifold of positions.
 -/
-class ConfigSpace (Q : Type) where
+class ConfigSpace (Q : Type _) [TopologicalSpace Q] [ChartedSpace (EuclideanSpace ℝ (Fin 1)) Q] [SmoothManifoldWithCorners (modelWithCornersSelf ℝ (EuclideanSpace ℝ (Fin 1))) Q] where
   dimension : ℕ
-  smooth_struct : SmoothManifoldWithCorners 𝓘 Q
 
 /--
 ## Phase Space
 Cotangent bundle T*Q where coordinates are (q,p).
 -/
-class PhaseSpace (Q P : Type) where
-  config : ConfigSpace Q
-  fiber : P ≃* (Q → ℝ)  -- trivialization
+class PhaseSpace (Q P : Type _) [TopologicalSpace Q] [ChartedSpace (EuclideanSpace ℝ (Fin 1)) Q] [ConfigSpace Q] [AddCommMonoid P] where
+  fiber : P ≃ₗ[ℝ] (EuclideanSpace ℝ (Fin 1))  -- linear trivialization
+-/
 
 end Coh.Physics.Mechanics

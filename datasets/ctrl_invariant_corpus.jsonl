@@ -1,0 +1,4 @@
+{"id": "missing_lorentz_001", "goal": "⊢ LorentzInvariantSummary Ac", "context": "hc : ConservativeCompression τ Ac\nhτ : TrajectoryAdmissible τ", "expected_missing_invariants": ["LorentzInvariance"], "expected_repair_action": "StrengthenTheoremStatement"}
+{"id": "missing_lineage_001", "goal": "⊢ LineageLock Ac", "context": "hτ : TrajectoryAdmissible τ", "expected_missing_invariants": ["LineageLock", "MarginConservativity"], "expected_repair_action": "InvokeInvariantLemma"}
+{"id": "missing_commit_001", "goal": "⊢ TrajectoryAdmissible τ_post", "context": "hτ : Trajectory τ_pre", "expected_missing_invariants": ["CommitInequality"], "expected_repair_action": "StrengthenTheoremStatement"}
+{"id": "axiom_transparency_001", "goal": "⊢ AxiomDeps Ac = AxiomDeps τ", "context": "hc : ConservativeCompression τ Ac", "expected_missing_invariants": [], "expected_repair_action": "InvokeInvariantLemma"}

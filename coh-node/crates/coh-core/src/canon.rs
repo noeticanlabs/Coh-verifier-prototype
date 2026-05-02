@@ -1,12 +1,30 @@
 use crate::reject::RejectCode;
 use crate::types::{MetricsPrehash, MicroReceipt, MicroReceiptPrehash};
 
-pub const EXPECTED_MICRO_SCHEMA_ID: &str = "coh.receipt.micro.v1";
-pub const EXPECTED_MICRO_VERSION: &str = "1.0.0";
-pub const EXPECTED_SLAB_SCHEMA_ID: &str = "coh.receipt.slab.v1";
-pub const EXPECTED_SLAB_VERSION: &str = "1.0.0";
-pub const EXPECTED_CANON_PROFILE_HASH: &str =
-    "4fb5a33116a4e393ad7900f0744e8ec5d1b7a2d67d71003666d628d7a1cded09";
+pub struct SchemaRegistry;
+
+impl SchemaRegistry {
+    pub const MICRO_V1_ID: &'static str = "coh.receipt.micro.v1";
+    pub const MICRO_V1_VERSION: &'static str = "1.0.0";
+    pub const SLAB_V1_ID: &'static str = "coh.receipt.slab.v1";
+    pub const SLAB_V1_VERSION: &'static str = "1.0.0";
+    pub const CANON_PROFILE_V1: &'static str =
+        "4fb5a33116a4e393ad7900f0744e8ec5d1b7a2d67d71003666d628d7a1cded09";
+
+    pub fn validate_micro(schema_id: &str, version: &str) -> bool {
+        schema_id == Self::MICRO_V1_ID && version == Self::MICRO_V1_VERSION
+    }
+
+    pub fn validate_slab(schema_id: &str, version: &str) -> bool {
+        schema_id == Self::SLAB_V1_ID && version == Self::SLAB_V1_VERSION
+    }
+
+    pub fn validate_profile(profile_hash: &str) -> bool {
+        profile_hash == Self::CANON_PROFILE_V1
+    }
+}
+
+pub use SchemaRegistry as CanonRegistry;
 
 pub fn to_prehash_view(r: &MicroReceipt) -> MicroReceiptPrehash {
     MicroReceiptPrehash {

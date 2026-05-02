@@ -108,6 +108,7 @@ pub use atom::GmiAtom;
 pub mod kernel_invariants;
 pub mod vm_runtime;
 pub mod lean_worker;
+pub mod vm_runtime_lean;
 mod safety_audit_tests;
 
 // Re-export PhaseLoomLite types and functions

@@ -1,4 +1,4 @@
-use crate::canon::{EXPECTED_SLAB_SCHEMA_ID, EXPECTED_SLAB_VERSION};
+use crate::canon::CanonRegistry;
 use crate::math::CheckedMath;
 use crate::merkle;
 use crate::types::{Decision, RejectCode, SlabReceipt, SlabReceiptWire, VerifySlabResult};
@@ -25,27 +25,13 @@ pub fn verify_slab_envelope(wire: SlabReceiptWire) -> VerifySlabResult {
         }
     };
 
-    if r.schema_id != EXPECTED_SLAB_SCHEMA_ID {
+    if !CanonRegistry::validate_slab(&r.schema_id, &r.version) {
         return VerifySlabResult {
             decision: Decision::Reject,
             code: Some(RejectCode::RejectSchema),
             message: format!(
-                "Invalid schema_id: {} (Expected: {})",
-                r.schema_id, EXPECTED_SLAB_SCHEMA_ID
-            ),
-            range_start: r.range_start,
-            range_end: r.range_end,
-            micro_count: Some(r.micro_count),
-            merkle_root: Some(r.merkle_root.to_hex()),
-        };
-    }
-    if r.version != EXPECTED_SLAB_VERSION {
-        return VerifySlabResult {
-            decision: Decision::Reject,
-            code: Some(RejectCode::RejectSchema),
-            message: format!(
-                "Unsupported version: {} (Expected: {})",
-                r.version, EXPECTED_SLAB_VERSION
+                "Invalid schema_id/version: {} v{} (Expected: {} v{})",
+                r.schema_id, r.version, CanonRegistry::SLAB_V1_ID, CanonRegistry::SLAB_V1_VERSION
             ),
             range_start: r.range_start,
             range_end: r.range_end,

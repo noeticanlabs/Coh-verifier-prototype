@@ -1,5 +1,5 @@
 use coh_core::types::{Decision, MicroReceipt, MicroReceiptWire};
-use coh_core::verify_micro::verify_micro;
+use coh_core::verify_micro;
 use coh_gccp::{GccpState, GccpVerifier};
 use coh_time::CohTimeEngine;
 use std::convert::TryFrom;

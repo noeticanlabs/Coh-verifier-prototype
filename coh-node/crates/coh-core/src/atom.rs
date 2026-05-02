@@ -125,6 +125,10 @@ pub struct CohAtom {
     pub atom_hash: Hash32,
     pub signature: Signature,
     pub compression_certificate: Option<Hash32>, // NEW
+    
+    // Boundary caching for O(1) summary verification
+    pub initial_valuation: Option<Rational64>,
+    pub final_valuation: Option<Rational64>,
 }
 
 impl Default for CohAtom {
@@ -150,6 +154,8 @@ impl Default for CohAtom {
             atom_hash: Hash32([0; 32]), // fixture_only: allow_mock
             signature: Signature(vec![0; 64]), // fixture_only: allow_mock
             compression_certificate: None,
+            initial_valuation: None,
+            final_valuation: None,
         }
     }
 }
@@ -194,6 +200,22 @@ impl CohAtom {
             hasher.update([0]);
         }
 
+        if let Some(val) = self.initial_valuation {
+            hasher.update([1]);
+            hasher.update(val.reduced().numer().to_be_bytes());
+            hasher.update(val.reduced().denom().to_be_bytes());
+        } else {
+            hasher.update([0]);
+        }
+
+        if let Some(val) = self.final_valuation {
+            hasher.update([1]);
+            hasher.update(val.reduced().numer().to_be_bytes());
+            hasher.update(val.reduced().denom().to_be_bytes());
+        } else {
+            hasher.update([0]);
+        }
+
         Hash32(hasher.finalize().into())
     }
 
@@ -202,9 +224,16 @@ impl CohAtom {
     }
 
     pub fn structural_continuity_valid(&self) -> Result<(), CohAtomReject> {
+        if self.kind == AtomKind::SummaryTrajectory {
+            // Summaries rely on the compression certificate and boundary caches
+            if self.compression_certificate.is_none() { return Err(CohAtomReject::SummaryMissingCompressionCertificate); }
+            return Ok(());
+        }
+
         if self.bits.is_empty() {
             return if self.initial_state == self.final_state { Ok(()) } else { Err(CohAtomReject::EmptyBits) };
         }
+        // ... (existing bit-level checks)
 
         if self.bits[0].from_state != self.initial_state { return Err(CohAtomReject::InitialStateMismatch); }
         if self.bits.last().unwrap().to_state != self.final_state { return Err(CohAtomReject::FinalStateMismatch); }
@@ -224,6 +253,9 @@ impl CohAtom {
     }
 
     pub fn continuity_valid(&self) -> Result<(), CohAtomReject> {
+        if self.kind == AtomKind::SummaryTrajectory {
+            return self.structural_continuity_valid();
+        }
         self.structural_continuity_valid()?;
         for b in &self.bits {
             if !b.executable() { return Err(CohAtomReject::BitRejected(CohBitReject::NegativeMargin)); }
@@ -247,6 +279,12 @@ impl CohAtom {
     }
 
     pub fn metrics_valid(&self) -> Result<(), CohAtomReject> {
+        if self.kind == AtomKind::SummaryTrajectory {
+            // A summary is valid if its cumulative metrics don't exceed the envelope
+            if self.cumulative_defect > self.cumulative_delta_hat { return Err(CohAtomReject::DefectEnvelopeExceeded); }
+            return Ok(());
+        }
+
         let (spend, defect, delta_hat, authority) = self.recompute_metrics();
 
         if spend != self.cumulative_spend { return Err(CohAtomReject::CumulativeSpendMismatch); }
@@ -306,16 +344,48 @@ impl CohAtom {
         self.mutation_valid()
     }
 
+    /// The Refinery Operation: Transition from ExecutableTrajectory to SummaryTrajectory.
+    /// This is a one-way transformation that minimizes footprint while preserving validity.
+    pub fn compress(&mut self) -> Result<(), CohAtomReject> {
+        if self.kind != AtomKind::ExecutableTrajectory {
+            return Err(CohAtomReject::UnsupportedVersion); // Cannot compress a non-executable atom
+        }
+
+        // 1. Verify before compression
+        if !self.executable() {
+            return Err(CohAtomReject::BitRejected(CohBitReject::CertificateRejected));
+        }
+
+        // 2. Cache boundary valuations for O(1) budget verification
+        self.initial_valuation = Some(self.initial_valuation());
+        self.final_valuation = Some(self.final_valuation());
+
+        // 3. Compute Merkle Root of bits
+        let leaves: Vec<Hash32> = self.bits.iter().map(|b| b.receipt_hash).collect();
+        self.compression_certificate = Some(crate::merkle::build_merkle_root(&leaves));
+
+        // 4. Transform to Summary
+        self.kind = AtomKind::SummaryTrajectory;
+        self.bits.clear();
+        self.bits.shrink_to_fit(); // Release heap memory
+
+        // 5. Seal the atom
+        self.atom_hash = self.canonical_hash();
+        Ok(())
+    }
+
     pub fn initial_valuation(&self) -> Rational64 {
+        if let Some(val) = self.initial_valuation { return val; }
         self.bits.first().map(|b| b.valuation_pre).unwrap_or(Rational64::from_integer(0))
     }
 
     pub fn final_valuation(&self) -> Rational64 {
+        if let Some(val) = self.final_valuation { return val; }
         self.bits.last().map(|b| b.valuation_post).unwrap_or(Rational64::from_integer(0))
     }
 
-    pub fn fixture_identity(state: Hash32, valuation: Rational64, domain: DomainId) -> Self {
-        let id_bit = CohBit::fixture_identity(state, valuation, domain);
+    pub fn identity_atom(state: Hash32, valuation: Rational64, domain: DomainId) -> Self {
+        let id_bit = CohBit::identity_atom(state, valuation, domain);
         let mut atom = Self {
             kind: AtomKind::Identity,
             domain,
@@ -336,7 +406,7 @@ impl CohAtom {
         verifier_id: Hash32,
         policy_hash: Hash32,
     ) -> Self {
-        let id_bit = CohBit::certified_identity(state, valuation, domain, verifier_id, policy_hash, Hash32::tagged_hash("cohbit:v1:id", &[state.0]));
+        let id_bit = CohBit::certified_identity(state, valuation, domain, verifier_id, policy_hash, Hash32::tagged_hash("cohbit:v1:id", &[state.0, verifier_id.0, policy_hash.0]));
         let mut atom = Self {
             kind: AtomKind::Identity,
             domain,
@@ -412,3 +482,6 @@ impl CohGovernor {
         true
     }
 }
+
+#[cfg(test)]
+mod refinery_tests;

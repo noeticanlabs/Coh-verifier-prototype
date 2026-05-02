@@ -14,7 +14,7 @@ fn main() {
 
     // --- SETUP ATOMS ---
     // Atom A: valuation_pre=1000, spend=0. Local margin=0 (Valid)
-    let mut atom_a = CohAtom::identity(Hash32([0xA1; 32]), Rational64::from_integer(1000), domain);
+    let mut atom_a = CohAtom::identity_atom(Hash32([0xA1; 32]), Rational64::from_integer(1000), domain);
     atom_a.policy_hash = policy_hash;
     atom_a.atom_id = Hash32([0xA1; 32]);
     let bit_a = &mut atom_a.bits[0];
@@ -27,7 +27,7 @@ fn main() {
     atom_a.atom_hash = atom_a.canonical_hash();
 
     // Atom B: valuation_pre=500, spend=500. Local margin=-500 (Invalid)
-    let mut atom_b = CohAtom::identity(Hash32([0xB1; 32]), Rational64::from_integer(500), domain);
+    let mut atom_b = CohAtom::identity_atom(Hash32([0xB1; 32]), Rational64::from_integer(500), domain);
     atom_b.policy_hash = policy_hash;
     atom_b.atom_id = Hash32([0xA2; 32]);
     let bit_b = &mut atom_b.bits[0];
@@ -86,7 +86,7 @@ fn main() {
         Hash32([0xCC; 32]),
     );
 
-    let res1 = e_valid.decohere(&ctx, &[], DecoherenceCause::ManualSeverance, &[]).unwrap();
+    let res1 = e_valid.decohere(&ctx, &[], DecoherenceCause::ManualSeverance, &[], &Default::default()).unwrap();
     println!("  State: {:?} (Expected: SplitCertified)", res1.state);
     assert_eq!(res1.state, DecoherenceState::SplitCertified);
     println!("  Result: ACCEPT ✅");
@@ -102,7 +102,7 @@ fn main() {
     let mut ctx_assisted = ctx.clone();
     ctx_assisted.mode = DecoherenceMode::AssistedSplit;
 
-    let res2 = entanglement.decohere(&ctx_assisted, &[grant], DecoherenceCause::SharedAuthorityExhausted, &[]).unwrap();
+    let res2 = entanglement.decohere(&ctx_assisted, &[grant], DecoherenceCause::SharedAuthorityExhausted, &[], &Default::default()).unwrap();
     println!("  State: {:?} (Expected: SplitCertified)", res2.state);
     assert_eq!(res2.state, DecoherenceState::SplitCertified);
     println!("  Atoms produced: {}", res2.local_atoms.len());
@@ -111,7 +111,7 @@ fn main() {
 
     // --- CASE 3: Quarantine ---
     println!("\nCase 3: joint valid, one local invalid, no new authority");
-    let res3 = entanglement.decohere(&ctx, &[], DecoherenceCause::CouplingWitnessExpired, &[]).unwrap();
+    let res3 = entanglement.decohere(&ctx, &[], DecoherenceCause::CouplingWitnessExpired, &[], &Default::default()).unwrap();
     println!("  State: {:?} (Expected: Quarantined)", res3.state);
     assert_eq!(res3.state, DecoherenceState::Quarantined);
     println!("  Quarantine Receipt generated: {}", res3.quarantine_receipt.is_some());
@@ -126,7 +126,7 @@ fn main() {
     println!("\nCase 5: Policy changed during decoherence attempt");
     let mut ctx_bad_policy = ctx.clone();
     ctx_bad_policy.policy_hash = Hash32([0x99; 32]);
-    let res5 = entanglement.decohere(&ctx_bad_policy, &[], DecoherenceCause::PolicyChanged, &[]);
+    let res5 = entanglement.decohere(&ctx_bad_policy, &[], DecoherenceCause::PolicyChanged, &[], &Default::default());
     match res5 {
         Err(_) => println!("  Result: REJECT ✅"),
         _ => panic!("Policy mismatch not caught!"),

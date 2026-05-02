@@ -2,7 +2,7 @@
 use coh_core::auth::{fixture_signing_key, sign_micro_receipt};
 use coh_core::fixtures::finalize_micro_receipt;
 use coh_core::types::*;
-use coh_core::verify_micro;
+use coh_core::verify_micro_dev_fixture;
 
 #[test]
 fn test_defect_bound_violation() {
@@ -48,7 +48,7 @@ fn test_defect_bound_violation() {
     )
     .expect("should sign");
 
-    let res = verify_micro(wire);
+    let res = verify_micro_dev_fixture(wire);
     assert_eq!(res.decision, Decision::Reject);
     assert_eq!(res.code, Some(RejectCode::SemanticEnvelopeViolation));
     assert!(res.message.contains("Semantic envelope violation"));
@@ -97,7 +97,7 @@ fn test_identity_spend_violation() {
     )
     .expect("should sign");
 
-    let res = verify_micro(wire);
+    let res = verify_micro_dev_fixture(wire);
     assert_eq!(res.decision, Decision::Reject);
     assert!(res
         .message
@@ -147,7 +147,7 @@ fn test_valid_transfer() {
     )
     .expect("should sign");
 
-    let res = verify_micro(wire);
+    let res = verify_micro_dev_fixture(wire);
     assert_eq!(res.decision, Decision::Accept, "Failed: {}", res.message);
 }
 
@@ -190,7 +190,7 @@ fn test_unknown_step_type_rejection() {
     )
     .unwrap();
 
-    let res = verify_micro(wire);
+    let res = verify_micro_dev_fixture(wire);
     assert_eq!(res.decision, Decision::Reject);
     assert_eq!(res.code, Some(RejectCode::SemanticEnvelopeMissing));
 }

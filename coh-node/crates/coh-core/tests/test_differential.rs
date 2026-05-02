@@ -2,13 +2,11 @@
 // Ensures both implementations make consistent decisions on the core accounting law
 
 #![allow(clippy::needless_update)]
-use coh_core::canon::{
-    EXPECTED_CANON_PROFILE_HASH, EXPECTED_MICRO_SCHEMA_ID, EXPECTED_MICRO_VERSION,
-};
+use coh_core::canon::CanonRegistry;
 use coh_core::finalize_micro_receipt;
 use coh_core::types::{Decision, MetricsWire, RejectCode, SignatureWire};
 use coh_core::types_v3::{MicroReceiptV3Wire, PolicyGovernance, SequenceGuard, TieredConfig};
-use coh_core::verify_micro::verify_micro;
+use coh_core::verify_micro_dev_fixture;
 use coh_core::verify_micro_v3::verify_micro_v3;
 
 fn build_v1_wire(
@@ -19,10 +17,10 @@ fn build_v1_wire(
 ) -> coh_core::types::MicroReceiptWire {
     // Create wire without signature first
     let wire = coh_core::types::MicroReceiptWire {
-        schema_id: EXPECTED_MICRO_SCHEMA_ID.to_string(),
-        version: EXPECTED_MICRO_VERSION.to_string(),
+        schema_id: CanonRegistry::MICRO_V1_ID.to_string(),
+        version: CanonRegistry::MICRO_V1_VERSION.to_string(),
         object_id: "test_obj_001".to_string(),
-        canon_profile_hash: EXPECTED_CANON_PROFILE_HASH.to_string(),
+        canon_profile_hash: CanonRegistry::CANON_PROFILE_V1.to_string(),
         policy_hash: "f".repeat(64),
         step_index: 1,
         step_type: Some("action".to_string()),
@@ -62,7 +60,7 @@ fn build_v3_wire(v_pre: &str, v_post: &str, spend: &str, defect: &str) -> MicroR
         schema_id: "coh.receipt.micro.v3".to_string(),
         version: "v3.0.0".to_string(),
         object_id: "test_obj_001".to_string(),
-        canon_profile_hash: EXPECTED_CANON_PROFILE_HASH.to_string(),
+        canon_profile_hash: CanonRegistry::CANON_PROFILE_V1.to_string(),
         policy_hash: "f".repeat(64),
         step_index: 1,
         step_type: Some("action".to_string()),
@@ -141,7 +139,7 @@ fn test_differential_valid_receipts_accepted() {
         let v1_wire = build_v1_wire(v_pre, v_post, spend, defect);
         let v3_wire = build_v3_wire(v_pre, v_post, spend, defect);
 
-        let v1_result = verify_micro(v1_wire);
+        let v1_result = verify_micro_dev_fixture(v1_wire);
         let v3_result = verify_micro_v3(v3_wire, &config, &sequence_guard, &policy_gov, None, None, &coh_core::auth::VerifierContext::fixture_default());
 
         // Both should make the same decision
@@ -169,7 +167,7 @@ fn test_differential_policy_violation() {
         let v1_wire = build_v1_wire(v_pre, v_post, spend, defect);
         let v3_wire = build_v3_wire(v_pre, v_post, spend, defect);
 
-        let v1_result = verify_micro(v1_wire);
+        let v1_result = verify_micro_dev_fixture(v1_wire);
         let v3_result = verify_micro_v3(v3_wire, &config, &sequence_guard, &policy_gov, None, None, &coh_core::auth::VerifierContext::fixture_default());
 
         // Both should reject
@@ -206,7 +204,7 @@ fn test_differential_boundary_cases() {
     let sequence_guard = SequenceGuard::default();
     let policy_gov = PolicyGovernance::default();
 
-    let v1_result = verify_micro(v1_wire);
+    let v1_result = verify_micro_dev_fixture(v1_wire);
     let v3_result = verify_micro_v3(v3_wire, &config, &sequence_guard, &policy_gov, None, None, &coh_core::auth::VerifierContext::fixture_default());
 
     // Both should accept at exact boundary
@@ -217,7 +215,7 @@ fn test_differential_boundary_cases() {
     let v1_wire_over = build_v1_wire("99", "50", "50", "0");
     let v3_wire_over = build_v3_wire("99", "50", "50", "0");
 
-    let v1_result_over = verify_micro(v1_wire_over);
+    let v1_result_over = verify_micro_dev_fixture(v1_wire_over);
     let v3_result_over = verify_micro_v3(
         v3_wire_over,
         &config,
@@ -243,7 +241,7 @@ fn test_differential_schema_validation() {
     v1_wire.schema_id = "invalid.schema".to_string();
     // We need to re-hash if we tampered
     let v1_wire = finalize_micro_receipt(v1_wire).expect("fixture should finalize");
-    let v1_result = verify_micro(v1_wire);
+    let v1_result = verify_micro_dev_fixture(v1_wire);
 
     // Invalid schema - V3 (using wrong schema but V3 wire type)
     let mut v3_wire = build_v3_wire("100", "50", "25", "0");
@@ -266,7 +264,7 @@ fn test_differential_vacuous_zero() {
     let v1_wire = build_v1_wire("0", "0", "0", "0");
     let v3_wire = build_v3_wire("0", "0", "0", "0");
 
-    let v1_result = verify_micro(v1_wire);
+    let v1_result = verify_micro_dev_fixture(v1_wire);
     let v3_result = verify_micro_v3(v3_wire, &config, &sequence_guard, &policy_gov, None, None, &coh_core::auth::VerifierContext::fixture_default());
 
     // Both should reject vacuous zero
@@ -293,7 +291,7 @@ fn test_consistency_large_values() {
     let v1_wire = build_v1_wire(large, "0", "0", large);
     let v3_wire = build_v3_wire(large, "0", "0", large);
 
-    let v1_result = verify_micro(v1_wire);
+    let v1_result = verify_micro_dev_fixture(v1_wire);
     let v3_result = verify_micro_v3(v3_wire, &config, &sequence_guard, &policy_gov, None, None, &coh_core::auth::VerifierContext::fixture_default());
 
     // Both should make a decision (either accept or reject consistently)
@@ -315,7 +313,7 @@ fn test_consistency_overflow() {
     let v1_wire = build_v1_wire("1000", &max, "1000", "0");
     let v3_wire = build_v3_wire("1000", &max, "1000", "0");
 
-    let v1_result = verify_micro(v1_wire);
+    let v1_result = verify_micro_dev_fixture(v1_wire);
     let v3_result = verify_micro_v3(v3_wire, &config, &sequence_guard, &policy_gov, None, None, &coh_core::auth::VerifierContext::fixture_default());
 
     // Both should reject (with numeric parse or overflow or policy violation)

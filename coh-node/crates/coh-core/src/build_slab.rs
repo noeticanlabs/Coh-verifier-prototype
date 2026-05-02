@@ -1,4 +1,4 @@
-use crate::canon::{EXPECTED_SLAB_SCHEMA_ID, EXPECTED_SLAB_VERSION};
+use crate::canon::CanonRegistry;
 use crate::math::CheckedMath;
 use crate::merkle::build_merkle_root;
 use crate::types::{
@@ -165,8 +165,8 @@ pub fn build_slab(receipts: Vec<MicroReceiptWire>) -> BuildSlabResult {
     };
 
     let slab = SlabReceiptWire {
-        schema_id: EXPECTED_SLAB_SCHEMA_ID.to_string(),
-        version: EXPECTED_SLAB_VERSION.to_string(),
+        schema_id: CanonRegistry::SLAB_V1_ID.to_string(),
+        version: CanonRegistry::SLAB_V1_VERSION.to_string(),
         object_id: first_wire.object_id.clone(),
         canon_profile_hash: first_wire.canon_profile_hash.clone(),
         policy_hash: first_wire.policy_hash.clone(),

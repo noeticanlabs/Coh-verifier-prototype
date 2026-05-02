@@ -83,7 +83,7 @@ fn main() {
         
         // Weave small atoms periodically to flood memory
         if i % 500 == 0 {
-            let mut a = CohAtom::identity(vm.state, Rational64::from_integer(100), domain);
+            let mut a = CohAtom::identity_atom(vm.state, Rational64::from_integer(100), domain);
             let mut id_bytes = [0xAA; 32]; // fixture_only: allow_mock
             id_bytes[31] = (i / 500) as u8;
             a.atom_id = Hash32(id_bytes);

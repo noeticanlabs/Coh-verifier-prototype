@@ -25,17 +25,15 @@ pub fn finalize_micro_receipt(mut wire: MicroReceiptWire) -> Result<MicroReceipt
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::canon::{
-        EXPECTED_CANON_PROFILE_HASH, EXPECTED_MICRO_SCHEMA_ID, EXPECTED_MICRO_VERSION,
-    };
+    use crate::canon::CanonRegistry;
     use crate::types::{MetricsWire, SignatureWire};
 
     fn sample_wire() -> MicroReceiptWire {
         MicroReceiptWire {
-            schema_id: EXPECTED_MICRO_SCHEMA_ID.to_string(),
-            version: EXPECTED_MICRO_VERSION.to_string(),
+            schema_id: CanonRegistry::MICRO_V1_ID.to_string(),
+            version: CanonRegistry::MICRO_V1_VERSION.to_string(),
             object_id: "fixture.sample".to_string(),
-            canon_profile_hash: EXPECTED_CANON_PROFILE_HASH.to_string(),
+            canon_profile_hash: CanonRegistry::CANON_PROFILE_V1.to_string(),
             policy_hash: "0".repeat(64),
             step_index: 1,
             step_type: Some("workflow".to_string()),

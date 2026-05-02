@@ -40,7 +40,7 @@ fn main() {
 
     // --- 1. CohBit Lawful Execution ---
     println!("--- 1. CohBit Lawful Execution ---");
-    let mut bit = CohBit::identity(initial_state, Rational64::from_integer(100), domain);
+    let mut bit = CohBit::identity_atom(initial_state, Rational64::from_integer(100), domain);
     bit.to_state = Hash32([1; 32]);
     bit.valuation_post = Rational64::from_integer(90);
     bit.spend = Rational64::from_integer(10);

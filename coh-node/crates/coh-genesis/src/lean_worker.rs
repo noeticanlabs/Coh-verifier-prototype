@@ -2,7 +2,7 @@ use std::process::{Command, Stdio, Child};
 use std::io::{Write, BufReader, BufRead};
 use std::path::Path;
 use serde_json;
-use crate::lean_json_export::{LeanSearchResults, LEAN_SEARCH_JSON_SCHEMA};
+use crate::lean_json_export::LeanSearchResults;
 
 pub struct LeanWorker {
     child: Child,
@@ -24,7 +24,7 @@ impl LeanWorker {
 
     pub fn query(&mut self, query: &str) -> Result<LeanSearchResults, String> {
         let stdin = self.child.stdin.as_mut().ok_or("Failed to open stdin")?;
-        writeln!(stdin, "{}", query).map_err(|e| format!("Failed to write to Lean worker: {}", e))?;
+        writeln!(stdin, "SEARCH|{}", query).map_err(|e| format!("Failed to write to Lean worker: {}", e))?;
         stdin.flush().map_err(|e| format!("Failed to flush Lean worker: {}", e))?;
 
         let stdout = self.child.stdout.as_mut().ok_or("Failed to open stdout")?;
@@ -37,6 +37,42 @@ impl LeanWorker {
         }
 
         serde_json::from_str::<LeanSearchResults>(&line)
+            .map_err(|e| format!("Failed to parse Lean worker response: {}. Raw: {}", e, line))
+    }
+
+    pub fn verify_step(&mut self, goal: &str, tactic: &str) -> Result<serde_json::Value, String> {
+        let stdin = self.child.stdin.as_mut().ok_or("Failed to open stdin")?;
+        writeln!(stdin, "VERIFY|{}|{}", goal, tactic).map_err(|e| format!("Failed to write to Lean worker: {}", e))?;
+        stdin.flush().map_err(|e| format!("Failed to flush Lean worker: {}", e))?;
+
+        let stdout = self.child.stdout.as_mut().ok_or("Failed to open stdout")?;
+        let mut reader = BufReader::new(stdout);
+        let mut line = String::new();
+        reader.read_line(&mut line).map_err(|e| format!("Failed to read from Lean worker: {}", e))?;
+
+        if line.is_empty() {
+            return Err("Lean worker returned empty response".to_string());
+        }
+
+        serde_json::from_str::<serde_json::Value>(&line)
+            .map_err(|e| format!("Failed to parse Lean worker response: {}. Raw: {}", e, line))
+    }
+
+    pub fn try_tactic(&mut self, thm_name: &str, tactic: &str) -> Result<serde_json::Value, String> {
+        let stdin = self.child.stdin.as_mut().ok_or("Failed to open stdin")?;
+        writeln!(stdin, "TRY_TACTIC|{}|{}", thm_name, tactic).map_err(|e| format!("Failed to write to Lean worker: {}", e))?;
+        stdin.flush().map_err(|e| format!("Failed to flush Lean worker: {}", e))?;
+
+        let stdout = self.child.stdout.as_mut().ok_or("Failed to open stdout")?;
+        let mut reader = BufReader::new(stdout);
+        let mut line = String::new();
+        reader.read_line(&mut line).map_err(|e| format!("Failed to read from Lean worker: {}", e))?;
+
+        if line.is_empty() {
+            return Err("Lean worker returned empty response".to_string());
+        }
+
+        serde_json::from_str::<serde_json::Value>(&line)
             .map_err(|e| format!("Failed to parse Lean worker response: {}. Raw: {}", e, line))
     }
 

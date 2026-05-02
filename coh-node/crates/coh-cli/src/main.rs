@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use coh_core::build_slab::build_slab;
 use coh_core::types::*;
 use coh_core::verify_chain::verify_chain;
-use coh_core::verify_micro::verify_micro;
+use coh_core::verify_micro;
 use coh_core::verify_slab_envelope;
 use coh_genesis::*;
 use num_rational::Rational64;

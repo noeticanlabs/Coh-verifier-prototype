@@ -47,7 +47,7 @@ impl Runtime for PhaseLoomRuntime {
 
         // 2. Convert NpeProposals to CohBits
         proposals.into_iter().enumerate().map(|(i, _p)| {
-            let mut bit = CohBit::fixture_identity(state, Rational64::from_integer(100), self.domain);
+            let mut bit = CohBit::identity_atom(state, Rational64::from_integer(100), self.domain);
             // fixture_only: allow_mock
             let mut id = [0xEE; 32];
             let rand_val = rand::random::<u64>();

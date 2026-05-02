@@ -1,8 +1,5 @@
 use crate::auth::{verify_signature, VerifierContext};
-use crate::canon::{
-    to_canonical_json_bytes, to_prehash_view, EXPECTED_CANON_PROFILE_HASH,
-    EXPECTED_MICRO_SCHEMA_ID, EXPECTED_MICRO_VERSION,
-};
+use crate::canon::{to_canonical_json_bytes, to_prehash_view, CanonRegistry};
 use crate::hash::compute_chain_digest;
 use crate::math::CheckedMath;
 use crate::semantic::PolicyEnvelopeRegistry;
@@ -37,26 +34,13 @@ pub fn verify_micro_with_context(
     };
 
     // 2. Schema check
-    if r.schema_id != EXPECTED_MICRO_SCHEMA_ID {
+    if !CanonRegistry::validate_micro(&r.schema_id, &r.version) {
         return VerifyMicroResult {
             decision: Decision::Reject,
             code: Some(RejectCode::RejectSchema),
             message: format!(
-                "Invalid schema_id: {} (Expected: {})",
-                r.schema_id, EXPECTED_MICRO_SCHEMA_ID
-            ),
-            step_index: Some(r.step_index),
-            object_id: Some(r.object_id),
-            chain_digest_next: None,
-        };
-    }
-    if r.version != EXPECTED_MICRO_VERSION {
-        return VerifyMicroResult {
-            decision: Decision::Reject,
-            code: Some(RejectCode::RejectSchema),
-            message: format!(
-                "Unsupported version: {} (Expected: {})",
-                r.version, EXPECTED_MICRO_VERSION
+                "Invalid schema_id/version: {} v{} (Expected: {} v{})",
+                r.schema_id, r.version, CanonRegistry::MICRO_V1_ID, CanonRegistry::MICRO_V1_VERSION
             ),
             step_index: Some(r.step_index),
             object_id: Some(r.object_id),
@@ -111,14 +95,14 @@ pub fn verify_micro_with_context(
     }
 
     // 5. Profile check
-    if r.canon_profile_hash.to_hex() != EXPECTED_CANON_PROFILE_HASH {
+    if !CanonRegistry::validate_profile(&r.canon_profile_hash.to_hex()) {
         return VerifyMicroResult {
             decision: Decision::Reject,
             code: Some(RejectCode::RejectCanonProfile),
             message: format!(
                 "Canonical profile mismatch: {} (Expected: {})",
                 r.canon_profile_hash.to_hex(),
-                EXPECTED_CANON_PROFILE_HASH
+                CanonRegistry::CANON_PROFILE_V1
             ),
             step_index: Some(r.step_index),
             object_id: Some(r.object_id),

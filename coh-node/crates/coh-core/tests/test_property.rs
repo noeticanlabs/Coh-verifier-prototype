@@ -3,17 +3,15 @@
 // Tests core invariants: accounting law, determinism, reject codes, chain linkage
 
 use coh_core::auth::{fixture_signing_key, sign_micro_receipt};
-use coh_core::canon::{
-    EXPECTED_CANON_PROFILE_HASH, EXPECTED_MICRO_SCHEMA_ID, EXPECTED_MICRO_VERSION,
-};
+use coh_core::canon::CanonRegistry;
 use coh_core::finalize_micro_receipt;
 use coh_core::types::{Decision, MetricsWire, RejectCode};
-use coh_core::verify_micro::verify_micro;
+use coh_core::verify_micro_dev_fixture;
 
 // Test constants
 const TEST_SIGNER: &str = "test_signer";
 const TEST_OBJ_ID: &str = "test_obj_001";
-const CANON_PROFILE: &str = EXPECTED_CANON_PROFILE_HASH;
+const CANON_PROFILE: &str = CanonRegistry::CANON_PROFILE_V1;
 
 // =============================================================================
 // Helper Functions
@@ -27,8 +25,8 @@ fn build_test_wire_with_metrics(
 ) -> coh_core::types::MicroReceiptWire {
     // Build unsigned wire first, then sign it with real Ed25519 signature
     let mut wire = coh_core::types::MicroReceiptWire {
-        schema_id: EXPECTED_MICRO_SCHEMA_ID.to_string(),
-        version: EXPECTED_MICRO_VERSION.to_string(),
+        schema_id: CanonRegistry::MICRO_V1_ID.to_string(),
+        version: CanonRegistry::MICRO_V1_VERSION.to_string(),
         object_id: TEST_OBJ_ID.to_string(),
         canon_profile_hash: CANON_PROFILE.to_string(),
         policy_hash: "0000000000000000000000000000000000000000000000000000000000000000".to_string(),
@@ -94,7 +92,7 @@ fn test_accounting_law_valid_receipts_accepted() {
 
     for (v_pre, v_post, spend, defect) in valid_cases {
         let wire = build_test_wire_with_metrics(v_pre, v_post, spend, defect);
-        let result = verify_micro(wire);
+        let result = verify_micro_dev_fixture(wire);
 
         eprintln!(
             "DEBUG: v_pre={}, v_post={}, spend={}, defect={}, decision={:?}, code={:?}",
@@ -124,7 +122,7 @@ fn test_accounting_law_violation_rejected() {
 
     for (v_pre, v_post, spend, defect) in invalid_cases {
         let wire = build_test_wire_with_metrics(v_pre, v_post, spend, defect);
-        let result = verify_micro(wire);
+        let result = verify_micro_dev_fixture(wire);
 
         assert_eq!(
             result.decision,
@@ -148,7 +146,7 @@ fn test_accounting_law_violation_rejected() {
 fn test_boundary_exact_equality_accepted() {
     // Exact boundary: v_post + spend == v_pre + defect
     let wire = build_test_wire_with_metrics("100", "50", "50", "0"); // 50+50==100+0
-    let result = verify_micro(wire);
+    let result = verify_micro_dev_fixture(wire);
 
     assert_eq!(
         result.decision,
@@ -161,7 +159,7 @@ fn test_boundary_exact_equality_accepted() {
 fn test_boundary_plus_one_rejected() {
     // One over boundary
     let wire = build_test_wire_with_metrics("99", "50", "50", "0"); // 50+50=100 > 99+0=99
-    let result = verify_micro(wire);
+    let result = verify_micro_dev_fixture(wire);
 
     assert_eq!(result.decision, Decision::Reject);
     assert_eq!(result.code, Some(RejectCode::RejectPolicyViolation));
@@ -176,7 +174,7 @@ fn test_overflow_rejected() {
     // Test with u128::MAX values - will get parsed but violate policy
     let max_val = u128::MAX.to_string(); // u128::MAX
     let wire = build_test_wire_with_metrics("1000", &max_val, "1000", "0");
-    let result = verify_micro(wire);
+    let result = verify_micro_dev_fixture(wire);
 
     // Should reject - policy violation or malformed
     assert_eq!(result.decision, Decision::Reject);
@@ -190,9 +188,9 @@ fn test_overflow_rejected() {
 fn test_determinism_same_input_produces_same_output() {
     let wire = build_test_wire_with_metrics("100", "50", "25", "25");
 
-    let result1 = verify_micro(wire.clone());
-    let result2 = verify_micro(wire.clone());
-    let result3 = verify_micro(wire.clone());
+    let result1 = verify_micro_dev_fixture(wire.clone());
+    let result2 = verify_micro_dev_fixture(wire.clone());
+    let result3 = verify_micro_dev_fixture(wire.clone());
 
     assert_eq!(result1.decision, result2.decision);
     assert_eq!(result2.decision, result3.decision);
@@ -209,7 +207,7 @@ fn test_invalid_schema_rejected() {
     let mut wire = build_test_wire_with_metrics("100", "50", "25", "25");
     wire.schema_id = "invalid.schema.id".to_string();
 
-    let result = verify_micro(wire);
+    let result = verify_micro_dev_fixture(wire);
 
     assert_eq!(result.decision, Decision::Reject);
     assert_eq!(result.code, Some(RejectCode::RejectSchema));
@@ -220,7 +218,7 @@ fn test_invalid_version_rejected() {
     let mut wire = build_test_wire_with_metrics("100", "50", "25", "25");
     wire.version = "v99.99".to_string();
 
-    let result = verify_micro(wire);
+    let result = verify_micro_dev_fixture(wire);
 
     assert_eq!(result.decision, Decision::Reject);
     assert_eq!(result.code, Some(RejectCode::RejectSchema));
@@ -234,7 +232,7 @@ fn test_invalid_version_rejected() {
 fn test_vacuous_zero_receipt_rejected() {
     // All zeros = vacuous, no economic activity
     let wire = build_test_wire_with_metrics("0", "0", "0", "0");
-    let result = verify_micro(wire);
+    let result = verify_micro_dev_fixture(wire);
 
     assert_eq!(result.decision, Decision::Reject);
     assert_eq!(result.code, Some(RejectCode::VacuousZeroReceipt));
@@ -249,7 +247,7 @@ fn test_missing_signatures_rejected() {
     let mut wire = build_test_wire_with_metrics("100", "50", "25", "25");
     wire.signatures = None;
 
-    let result = verify_micro(wire);
+    let result = verify_micro_dev_fixture(wire);
 
     assert_eq!(result.decision, Decision::Reject);
     assert_eq!(result.code, Some(RejectCode::RejectMissingSignature));
@@ -260,7 +258,7 @@ fn test_empty_signatures_rejected() {
     let mut wire = build_test_wire_with_metrics("100", "50", "25", "25");
     wire.signatures = Some(vec![]);
 
-    let result = verify_micro(wire);
+    let result = verify_micro_dev_fixture(wire);
 
     assert_eq!(result.decision, Decision::Reject);
     assert_eq!(result.code, Some(RejectCode::RejectMissingSignature));
@@ -275,7 +273,7 @@ fn test_missing_object_id_rejected() {
     let mut wire = build_test_wire_with_metrics("100", "50", "25", "25");
     wire.object_id = "".to_string();
 
-    let result = verify_micro(wire);
+    let result = verify_micro_dev_fixture(wire);
 
     assert_eq!(result.decision, Decision::Reject);
     assert_eq!(result.code, Some(RejectCode::RejectMissingObjectId));
@@ -291,7 +289,7 @@ fn test_large_valid_values_no_panic() {
     let large_val = "999999999".to_string();
     let wire = build_test_wire_with_metrics(&large_val, "0", "0", &large_val);
 
-    let result = verify_micro(wire);
+    let result = verify_micro_dev_fixture(wire);
 
     // Should accept without panic
     assert!(matches!(

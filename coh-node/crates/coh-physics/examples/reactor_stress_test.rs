@@ -34,7 +34,7 @@ fn main() {
 
     // Fill sources for depth 1
     for i in 0..5 {
-        let mut a = CohAtom::identity(initial_state, Rational64::from_integer(100), domain);
+        let mut a = CohAtom::identity_atom(initial_state, Rational64::from_integer(100), domain);
         a.atom_id = Hash32([i as u8; 32]);
         a.atom_hash = a.canonical_hash();
         loom.weave(a, &CohSpinor::default());
@@ -45,7 +45,7 @@ fn main() {
     
     // Add more sources for depth 2
     for i in 10..15 {
-        let mut a = CohAtom::identity(initial_state, Rational64::from_integer(100), domain);
+        let mut a = CohAtom::identity_atom(initial_state, Rational64::from_integer(100), domain);
         a.atom_id = Hash32([i as u8; 32]);
         a.atom_hash = a.canonical_hash();
         loom.weave(a, &CohSpinor::default());
@@ -56,7 +56,7 @@ fn main() {
     
     // Add more sources for depth 3
     for i in 20..25 {
-        let mut a = CohAtom::identity(initial_state, Rational64::from_integer(100), domain);
+        let mut a = CohAtom::identity_atom(initial_state, Rational64::from_integer(100), domain);
         a.atom_id = Hash32([i as u8; 32]);
         a.atom_hash = a.canonical_hash();
         loom.weave(a, &CohSpinor::default());
@@ -76,7 +76,7 @@ fn main() {
     // Bucket flooding
     println!("Flooding bucket 0 with 10k junk atoms...");
     for i in 0..10_000 {
-        let mut a = CohAtom::identity(initial_state, Rational64::from_integer(100), domain);
+        let mut a = CohAtom::identity_atom(initial_state, Rational64::from_integer(100), domain);
         let mut id_bytes = [0xFF; 32];
         let i_u16 = i as u16;
         id_bytes[31] = (i_u16 & 0xFF) as u8;
@@ -92,7 +92,7 @@ fn main() {
 
     // --- 4. COHBIT REACTOR WALL ---
     println!("\n--- 4. CohBit Reactor Wall ---");
-    let mut bit = CohBit::identity(initial_state, Rational64::from_integer(100), domain);
+    let mut bit = CohBit::identity_atom(initial_state, Rational64::from_integer(100), domain);
     bit.to_state = Hash32([1; 32]);
     bit.valuation_post = Rational64::from_integer(90); // 100 -> 90
     bit.spend = Rational64::from_integer(10);
@@ -109,15 +109,15 @@ fn main() {
 
     // --- 5. COHATOM CONTINUITY ---
     println!("\n--- 5. CohAtom Continuity ---");
-    let mut atom = CohAtom::identity(initial_state, Rational64::from_integer(100), domain);
-    atom.bits = vec![CohBit::identity(initial_state, Rational64::from_integer(100), domain), 
-                     CohBit::identity(Hash32([2; 32]), Rational64::from_integer(100), domain)];
+    let mut atom = CohAtom::identity_atom(initial_state, Rational64::from_integer(100), domain);
+    atom.bits = vec![CohBit::identity_atom(initial_state, Rational64::from_integer(100), domain), 
+                     CohBit::identity_atom(Hash32([2; 32]), Rational64::from_integer(100), domain)];
     
     println!("State continuity break test: {:?}", atom.continuity_valid().err().unwrap());
     
     // --- 6. CROSS-LAYER LAUNDERING ---
     println!("\n--- 6. Cross-Layer Laundering (The Passport Test) ---");
-    let mut illegal_atom = CohAtom::identity(initial_state, Rational64::from_integer(100), domain);
+    let mut illegal_atom = CohAtom::identity_atom(initial_state, Rational64::from_integer(100), domain);
     illegal_atom.cumulative_spend = Rational64::from_integer(1000); // Mismatch!
     illegal_atom.atom_hash = illegal_atom.canonical_hash();
     

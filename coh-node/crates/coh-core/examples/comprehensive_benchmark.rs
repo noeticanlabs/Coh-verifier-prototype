@@ -10,7 +10,7 @@
 
 use coh_core::auth::{fixture_signing_key, sign_micro_receipt};
 use coh_core::types::{Decision, MetricsWire, MicroReceiptWire};
-use coh_core::verify_micro::verify_micro;
+use coh_core::verify_micro;
 use std::collections::HashMap;
 use std::time::Instant;
 

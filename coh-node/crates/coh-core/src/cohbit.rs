@@ -215,6 +215,10 @@ impl CohBit {
         Hash32::tagged_hash("cohbit:v1:receipt", &[self.payload_hash().0])
     }
 
+    pub fn canonical_hash(&self) -> Hash32 {
+        self.receipt_hash_expected()
+    }
+
     pub fn chain_digest_post_expected(&self) -> Hash32 {
         self.chain_digest_pre.combine_tagged("cohbit:v1:chain", &self.receipt_hash)
     }
@@ -297,7 +301,7 @@ impl CohBit {
         self.structural_executable() && self.budget_admissible()
     }
 
-    pub fn fixture_identity(state_hash: Hash32, valuation: Rational64, domain: DomainId) -> Self {
+    pub fn identity_atom(state_hash: Hash32, valuation: Rational64, domain: DomainId) -> Self {
         let bit = Self {
             version: 1,
             domain,

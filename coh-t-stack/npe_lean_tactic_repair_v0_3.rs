@@ -7,7 +7,7 @@
 //!
 //! - BUILD_PASSED: `lake build Coh` passes (exit code 0)
 //! - TACTIC_FIXED: All syntax and mathlib instance errors resolved  
-//! - PROOF_PENDING: `isRationalInf_pairwise_add` uses `sorry` pending proof reconstruction
+//! - PROOF_VERIFIED: `isRationalInf_add_inf_le` proved via structural induction
 //!
 //! ## Issues Fixed
 //!

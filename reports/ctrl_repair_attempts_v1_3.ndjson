@@ -1,0 +1,6 @@
+{"error_kind":"UnknownIdentifier","expected_error_kind":"UnknownIdentifier","expected_repair_action":"AddImport(\"Mathlib.Tactic\")","raw_error":"unknown identifier 'Real'","repair_action":"AddImport(\"Mathlib.Tactic\")","success":true}
+{"error_kind":"UnsolvedGoals","expected_error_kind":"UnsolvedGoals","expected_repair_action":"DecomposeGoals","raw_error":"unsolved goals\n⊢ 1 + 1 = 2","repair_action":"DecomposeGoals","success":true}
+{"error_kind":"TypeMismatch","expected_error_kind":"TypeMismatch","expected_repair_action":"TypeAlign","raw_error":"type mismatch, expected 'Real' but got 'Nat'","repair_action":"TypeAlign","success":true}
+{"error_kind":"RewriteFailed","expected_error_kind":"RewriteFailed","expected_repair_action":"RewriteAlternate","raw_error":"rewrite tactic failed, did not find instance of pattern","repair_action":"RewriteAlternate","success":true}
+{"error_kind":"Timeout","expected_error_kind":"Timeout","expected_repair_action":"ReduceSearch","raw_error":"heartbeat exhausted, timeout","repair_action":"ReduceSearch","success":true}
+{"error_kind":"UsesForbiddenShortcut","expected_error_kind":"UsesForbiddenShortcut","expected_repair_action":"RejectPolicyViolation","raw_error":"error: sorry used in proof","repair_action":"RejectPolicyViolation","success":true}

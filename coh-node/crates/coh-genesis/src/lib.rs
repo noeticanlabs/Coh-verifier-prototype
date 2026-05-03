@@ -14,7 +14,9 @@
 //! - [`generator`]: Synthetic NPE generator for wildness testing
 //! - [`sweep`]: Wildness sweep algorithm
 //! - [`report`]: Report generation and exports
+//! - [`safety`]: No-bluff protocol enforcement
 
+pub mod safety;
 use serde::{Deserialize, Serialize};
 
 /// Resource metrics for the Law of Genesis

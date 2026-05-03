@@ -63,8 +63,8 @@ def metrics_ok {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash}
 -/
 def budget_valid {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash} 
   (a : @CohAtom X Action Cert Hash S) : Prop :=
-  let v_pre := S.V a.initial_state
-  let v_post := S.V a.final_state
+  let v_pre := (a.bits.head a.nonempty_bits).v_pre
+  let v_post := (a.bits.getLast a.nonempty_bits).v_post
   a.margin_total = v_pre + a.cumulative_defect + a.cumulative_authority - v_post - a.cumulative_spend ∧
   a.margin_total ≥ 0
 
@@ -103,7 +103,8 @@ theorem atom_metrics_stability {X Action Cert Hash : Type _} {S : CohSystem X Ac
   (a : @CohAtom X Action Cert Hash S)
   (h_mut : mutation_valid a) 
   (h_finite : ∀ x, S.V x ≠ ⊤) :
-  S.V a.final_state + a.cumulative_spend ≤ S.V a.initial_state + a.cumulative_defect + a.cumulative_authority := by
+  (a.bits.getLast a.nonempty_bits).v_post + a.cumulative_spend ≤ 
+  (a.bits.head a.nonempty_bits).v_pre + a.cumulative_defect + a.cumulative_authority := by
   -- 1. Unpack mutation_valid
   cases h_kind : a.kind
   case ExecutableTrajectory =>
@@ -115,13 +116,7 @@ theorem atom_metrics_stability {X Action Cert Hash : Type _} {S : CohSystem X Ac
     rw [← h_spend, ← h_defect, ← h_auth]
     
     -- Apply chain_stability
-    have h_stable := chain_stability a.bits a.nonempty_bits (by
-      intro i
-      exact a.continuous i
-    ) h_finite
-    
-    rw [a.first_ok, a.last_ok] at h_stable
-    exact h_stable
+    exact chain_stability a.bits a.nonempty_bits a.continuous h_finite
   case Identity =>
     unfold mutation_valid retrieval_valid at h_mut
     rw [h_kind] at h_mut
@@ -130,12 +125,7 @@ theorem atom_metrics_stability {X Action Cert Hash : Type _} {S : CohSystem X Ac
     obtain ⟨h_spend, h_defect, _, h_auth, _⟩ := h_ret
     rw [← h_spend, ← h_defect, ← h_auth]
     
-    have h_stable := chain_stability a.bits a.nonempty_bits (by
-      intro i
-      exact a.continuous i
-    ) h_finite
-    rw [a.first_ok, a.last_ok] at h_stable
-    exact h_stable
+    exact chain_stability a.bits a.nonempty_bits a.continuous h_finite
   case SummaryTrajectory =>
     unfold mutation_valid at h_mut
     rw [h_kind] at h_mut

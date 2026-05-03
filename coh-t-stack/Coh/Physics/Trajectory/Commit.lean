@@ -30,11 +30,11 @@ structure Trajectory (X Q : Type) where
 -/
 def TrajectoryCommit {X Q S : Type} [OrderedAddCommMonoid S]
   (V : X → S) (Spend Defect Authority : Q → S) (ss : List X) (as : List Q) : Prop :=
-  match ss with
-  | [] => True
-  | x :: xs =>
-    V ((x :: xs).getLast (by simp)) + (as.map Spend).sum ≤ 
-    V x + (as.map Defect).sum + (as.map Authority).sum
+  if h : ss = [] then True
+  else 
+    let x₀ := ss.head (by simp [h])
+    V (ss.getLast (by simp [h])) + (as.map Spend).sum ≤ 
+    V x₀ + (as.map Defect).sum + (as.map Authority).sum
 
 /--
 ## Theorem: Local Commit telescopes to Trajectory Commit
@@ -58,7 +58,6 @@ theorem trajectory_commit_telescopes {X Q S : Type} [OrderedAddCommMonoid S]
       simp at h_cont
       match xs with
       | [] => simp; exact le_refl (V x₀)
-      | _ :: _ => simp at h_cont
     case cons q qs ih =>
       match h_xs : xs with
       | x₁ :: xss =>
@@ -70,12 +69,13 @@ theorem trajectory_commit_telescopes {X Q S : Type} [OrderedAddCommMonoid S]
         have h_cont_tail : (x₁ :: xss).length = qs.length + 1 := by simp [h_cont]
         have ih_res := ih x₁ xss h_cont_tail (by
           intro i
-          have h_step_i := h_step ⟨i.1 + 1, by simp; exact i.2⟩
+          have h_step_i := h_step ⟨i.val + 1, by simp; exact i.isLt⟩
           simp [h_s, h_xs] at h_step_i
           exact h_step_i)
         simp only [List.map_cons, List.sum_cons, List.head_cons, List.getLast_cons] at ih_res ⊢
+        rw [List.getLast_cons_cons]
         exact Coh.coh_compose_linear h_head ih_res
-      | [] => simp at h_cont
+      | [] => contradiction
 
 /--
 ## Theorem: Isomorphism Preserves Trajectory Commit

@@ -21,7 +21,7 @@ pub struct EquivalenceDiagnosis {
     pub source_representation: String,
     pub target_representation: String,
     pub preserve_invariant: bool,
-    pub proof_strategy: String,
+    pub proof_strategy: Option<String>,
 }
 
 pub struct EquivalenceHunter;
@@ -30,12 +30,12 @@ impl EquivalenceHunter {
     pub fn hunt(source: &str, target: &str) -> EquivalenceDiagnosis {
         let kind = Self::detect_kind(source, target);
         let strategy = match kind {
-            EquivalenceKind::DefinitionalEquality => "rfl".to_string(),
-            EquivalenceKind::NormalFormEquivalence => "simp; ring_nf".to_string(),
-            EquivalenceKind::Isomorphism => "apply Isomorphism.to_equiv".to_string(),
-            EquivalenceKind::GaugeEquivalence => "apply Gauge.equivalent".to_string(),
-            EquivalenceKind::CompressionEquivalence => "apply Compression.bisimulation".to_string(),
-            _ => "sorry".to_string(),
+            EquivalenceKind::DefinitionalEquality => Some("rfl".to_string()),
+            EquivalenceKind::NormalFormEquivalence => Some("simp; ring_nf".to_string()),
+            EquivalenceKind::Isomorphism => Some("apply Isomorphism.to_equiv".to_string()),
+            EquivalenceKind::GaugeEquivalence => Some("apply Gauge.equivalent".to_string()),
+            EquivalenceKind::CompressionEquivalence => Some("apply Compression.bisimulation".to_string()),
+            _ => None, // No fallback to sorry
         };
 
         EquivalenceDiagnosis {

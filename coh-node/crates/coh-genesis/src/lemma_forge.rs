@@ -35,7 +35,7 @@ impl LemmaForge {
             DerivationKind::RingEquality => vec!["ring".to_string()],
             DerivationKind::StructuralProjection => vec!["cases hc".to_string(), "assumption".to_string()],
             DerivationKind::InvariantExtraction => vec!["exact hc.lineage_lock".to_string()],
-            _ => vec!["sorry".to_string()],
+            _ => vec![], // No fallback to sorry; triggers escalation
         };
 
         DerivationPlan {

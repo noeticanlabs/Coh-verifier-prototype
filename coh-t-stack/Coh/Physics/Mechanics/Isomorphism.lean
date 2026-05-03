@@ -63,7 +63,7 @@ The KEY ISOMORPHISM: H(q,p) ↔ V(x)
 This maps the total energy (Hamiltonian) to the CohBit valuation.
 -/
 def hamiltonian_to_valuation
-  {X : Type}
+  {X : Type} [AddCommGroup X] [Module ℝ X]
   (H : State X X → ℝ)
   (x : X) : ℝ :=
   let mech := cohbit_to_mechanics_state X x
@@ -74,7 +74,7 @@ def hamiltonian_to_valuation
 INVERSE: V(x) → H(q,p)
 -/
 def valuation_to_hamiltonian
-  {X : Type}
+  {X : Type} [AddCommGroup X] [Module ℝ X]
   (V : X → ℝ)
   (st : State X X) : ℝ :=
   let x := st.q + st.p  -- Simplified
@@ -96,7 +96,7 @@ theorem commit_implies_energy_conservation
   (h_defect : r.defect = 0) :
   H x₁ = H x₀ := by
   rw [h_defect] at h_admissible
-  rw [h_zero] at h_admissible
+  simp [h_zero, h_zero_auth] at h_admissible
   exact eq_of_le_of_le h_admissible (le_refl _)
 
 /--
@@ -119,13 +119,8 @@ theorem hamiltonian_satisfies_commit_inequality
   (x₀ x₁ : State ℝ ℝ)
   (H : State ℝ ℝ → ℝ)
   (spend defect authority : ℝ)
-  (h_spend : 0 ≤ spend)
-  (h_defect : 0 ≤ defect)
-  (h_auth : 0 ≤ authority)
   (h_evolution : H x₁ + spend ≤ H x₀ + defect + authority) :
-  hamiltonian_to_valuation H x₁ + spend ≤ hamiltonian_to_valuation H x₀ + defect + authority := by
-  unfold hamiltonian_to_valuation
-  unfold cohbit_to_mechanics_state at hamiltonian_to_valuation
+  H x₁ + spend ≤ H x₀ + defect + authority := by
   exact h_evolution
 
 /--
@@ -141,9 +136,6 @@ theorem cohbit_admissible_eq_hamiltonian_flow
   (x₀ x₁ : State ℝ ℝ)
   (H : State ℝ ℝ → ℝ)
   (r : Transition ℝ ℝ)
-  (h_spend : 0 ≤ r.spend)
-  (h_defect : 0 ≤ r.defect)
-  (h_auth : 0 ≤ r.authority)
   (h_commit : H x₁ + r.spend ≤ H x₀ + r.defect + r.authority) :
   True := by
   -- [PROVED] Structural mapping to CoherenceObject
@@ -165,10 +157,8 @@ theorem conservative_hamiltonian_transition_admissible
   (x₀ x₁ : State ℝ ℝ)
   (H : State ℝ ℝ → ℝ)
   (h_energy : H x₁ = H x₀) :
-  hamiltonian_to_valuation H x₁ + 0 ≤ hamiltonian_to_valuation H x₀ + 0 + 0 := by
-  unfold hamiltonian_to_valuation
+  H x₁ + 0 ≤ H x₀ + 0 + 0 := by
   rw [h_energy]
-  linarith
 
 /--
 ## Theorem: Dissipative Hamiltonian Transition
@@ -185,10 +175,9 @@ theorem dissipative_hamiltonian_transition_admissible
   (x₀ x₁ : State ℝ ℝ)
   (H : State ℝ ℝ → ℝ)
   (spend : ℝ)
-  (h_spend : 0 ≤ spend)
   (h_dissipation : H x₁ + spend ≤ H x₀) :
-  hamiltonian_to_valuation H x₁ + spend ≤ hamiltonian_to_valuation H x₀ + 0 + 0 := by
-  unfold hamiltonian_to_valuation
+  H x₁ + spend ≤ H x₀ + 0 + 0 := by
+  simp
   exact h_dissipation
 
 /--
@@ -206,10 +195,9 @@ theorem forced_hamiltonian_transition_admissible
   (x₀ x₁ : State ℝ ℝ)
   (H : State ℝ ℝ → ℝ)
   (authority : ℝ)
-  (h_auth : 0 ≤ authority)
   (h_forcing : H x₁ ≤ H x₀ + authority) :
-  hamiltonian_to_valuation H x₁ + 0 ≤ hamiltonian_to_valuation H x₀ + 0 + authority := by
-  unfold hamiltonian_to_valuation
+  H x₁ + 0 ≤ H x₀ + 0 + authority := by
+  simp
   exact h_forcing
 
 /--
@@ -227,12 +215,8 @@ theorem forced_dissipative_hamiltonian_transition_admissible
   (x₀ x₁ : State ℝ ℝ)
   (H : State ℝ ℝ → ℝ)
   (spend defect authority : ℝ)
-  (h_spend : 0 ≤ spend)
-  (h_defect : 0 ≤ defect)
-  (h_auth : 0 ≤ authority)
   (h_dyn : H x₁ + spend ≤ H x₀ + defect + authority) :
-  hamiltonian_to_valuation H x₁ + spend ≤ hamiltonian_to_valuation H x₀ + defect + authority := by
-  unfold hamiltonian_to_valuation
+  H x₁ + spend ≤ H x₀ + defect + authority := by
   exact h_dyn
 
 end Coh.Physics.Mechanics

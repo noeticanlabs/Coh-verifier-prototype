@@ -39,7 +39,21 @@ impl CtrlLoop {
     /// Attempts to repair a theorem by trying a list of candidate tactics.
     pub fn repair_theorem(&mut self, theorem: &str, candidates: Vec<&str>) -> Result<CtrlResult, String> {
         for tactic in candidates {
-            // Check failure memory first
+            // 1. Check for forbidden shortcuts (No-Bluff Protocol)
+            if crate::safety::contains_forbidden_shortcut(tactic) {
+                return Ok(CtrlResult {
+                    theorem: theorem.to_string(),
+                    tactic: tactic.to_string(),
+                    proof_hash: String::new(),
+                    success: false,
+                    error_kind: Some(crate::lean_error::LeanErrorKind::UsesForbiddenShortcut),
+                    invariant_diagnosis: None,
+                    equivalence_diagnosis: None,
+                    derivation_plan: None,
+                });
+            }
+
+            // 2. Check failure memory first
             if self.memory.has_failed(theorem, tactic) {
                 continue;
             }

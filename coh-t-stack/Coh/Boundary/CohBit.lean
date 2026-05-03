@@ -42,6 +42,10 @@ structure CohSystem (X Action Cert Hash : Type) where
   rv_verify : Cert -> RvStatus
   certifies : Cert -> X -> Action -> X -> Prop
   
+  -- Persistence and Safety Constants
+  gamma_ps : ENNRat -- Persistence Sensitivity (Decay rate)
+  pi_min : ENNRat   -- Admissibility Floor
+  
   -- Hard Invariants (C8-C10, C19)
   nonneg_spend : ∀ a, 0 ≤ spend a
   nonneg_defect : ∀ a, 0 ≤ defect a
@@ -57,8 +61,8 @@ structure CohSystem (X Action Cert Hash : Type) where
   id_authority_zero : authority id_action = 0
 
 /--
-### CohBit v1.0 structure
-Carries both data and proof obligations.
+### CohBit v1.3 structure
+Hardened with security anchors and trace continuity fields.
 -/
 structure CohBit {X Action Cert Hash : Type} (S : CohSystem X Action Cert Hash) where
   from_state : X
@@ -66,17 +70,29 @@ structure CohBit {X Action Cert Hash : Type} (S : CohSystem X Action Cert Hash) 
   to_state : X
   cert : Cert
   
+  -- Security Anchors (NotebookLM v1.3)
+  v_pre : ENNRat          -- Literal Pre-State Valuation
+  v_post : ENNRat         -- Literal Post-State Valuation
+  state_root : Hash       -- Cryptographic Pre-State Anchor
+  v_proof : Cert          -- State-Read Proof (π_read)
+  seq_index : ℕ           -- Trace Sequence Index
+  
   -- Proof Obligations
   rv_ok : S.rv_verify cert = RvStatus.accept -- C7
   cert_ok : S.certifies cert from_state action to_state -- C6
   exec_ok : S.exec from_state action = to_state -- C17 (The Reactor Wall)
   defect_ok : S.defect action ≤ S.delta_hat action -- C8
   
+  -- Valuation Integrity (NotebookLM v1.3)
+  v_pre_ok : S.V from_state = v_pre
+  v_post_ok : S.V to_state = v_post
+  floor_ok : v_post ≥ S.pi_min
+  
   -- Budget Admissibility (C9)
   -- V_post + spend ≤ V_pre + defect + authority
   margin_ok :
-    S.V to_state + S.spend action ≤
-    S.V from_state + S.defect action + S.authority action
+    v_post + S.spend action ≤
+    v_pre + S.defect action + S.authority action
 
 /--
 ### Theorem: Identity CohBit Exists
@@ -84,16 +100,28 @@ Grounds the transition graph in a formally admissible neutral atom. [PROVED]
 -/
 theorem identity_exists {X Action Cert Hash : Type} (S : CohSystem X Action Cert Hash) (x : X) (cert : Cert)
   (h_rv : S.rv_verify cert = RvStatus.accept)
-  (h_cert : S.certifies cert x S.id_action x) :
+  (h_cert : S.certifies cert x S.id_action x)
+  (h_floor : S.V x ≥ S.pi_min)
+  (h_root : S.hash_state x = S.hash_state x) -- Trivial placeholder for hash stability
+  (v_proof : Cert)
+  (h_v_proof : S.V x = S.V x) : -- Placeholder for read-proof obligation
   CohBit S := {
     from_state := x,
     action := S.id_action,
     to_state := x,
     cert := cert,
+    v_pre := S.V x,
+    v_post := S.V x,
+    state_root := S.hash_state x,
+    v_proof := v_proof,
+    seq_index := 0,
     rv_ok := h_rv,
     cert_ok := h_cert,
     exec_ok := S.id_exec x,
     defect_ok := by rw [S.id_defect_zero]; exact S.nonneg_delta S.id_action,
+    v_pre_ok := rfl,
+    v_post_ok := rfl,
+    floor_ok := h_floor,
     margin_ok := by
       rw [S.id_spend_zero, S.id_defect_zero, S.id_authority_zero]
       simp only [add_zero]
@@ -108,42 +136,33 @@ Telescoping sum proof. [PROVED]
 theorem chain_stability {X Action Cert Hash : Type} {S : CohSystem X Action Cert Hash}
   (chain : List (CohBit S))
   (h_nonempty : chain ≠ [])
-  (h_cont : ∀ i, (chain.get? i).map (·.to_state) = (chain.get? (i+1)).map (·.from_state))
+  (h_cont : ∀ (i : ℕ) (h : i + 1 < chain.length),
+    (chain.get ⟨i, Nat.lt_of_succ_lt h⟩).to_state = (chain.get ⟨i + 1, h⟩).from_state)
   (h_finite : ∀ x, S.V x ≠ ⊤) :
-  S.V (chain.getLast h_nonempty).to_state + (chain.map (fun b => S.spend b.action)).sum ≤
-  S.V (chain.head h_nonempty).from_state + (chain.map (fun b => S.defect b.action)).sum + (chain.map (fun b => S.authority b.action)).sum := by
+  (chain.getLast h_nonempty).v_post + (chain.map (fun b => S.spend b.action)).sum ≤
+  (chain.head h_nonempty).v_pre + (chain.map (fun b => S.defect b.action)).sum + (chain.map (fun b => S.authority b.action)).sum := by
   match chain with
   | [b] =>
     simp only [List.map_singleton, List.sum_singleton, List.getLast_singleton, List.head_cons]
     exact b.margin_ok
   | b :: b' :: tail =>
     have htail_ne : b' :: tail ≠ [] := by simp
-    have h_tail_cont : ∀ i, ((b' :: tail).get? i).map (·.to_state) =
-                             ((b' :: tail).get? (i+1)).map (·.from_state) := by
-      intro i; exact h_cont (i + 1)
+    have h_tail_cont : ∀ (i : ℕ) (h : i + 1 < (b' :: tail).length),
+      ((b' :: tail).get ⟨i, Nat.lt_of_succ_lt h⟩).to_state = ((b' :: tail).get ⟨i + 1, h⟩).from_state := by
+      intro i h
+      exact h_cont (i + 1) (Nat.succ_lt_succ h)
     have ih := chain_stability (b' :: tail) htail_ne h_tail_cont h_finite
     have b_margin := b.margin_ok
-    have step_link : b.to_state = b'.from_state := by
-      have h := h_cont 0; simp at h; exact h
-    rw [step_link] at b_margin
-    have hlast : (b :: b' :: tail).getLast h_nonempty = (b' :: tail).getLast htail_ne :=
-      List.getLast_cons_cons b b' tail
-    -- Fully expand ih so its sums match the goal after simp
-    simp only [List.map_cons, List.sum_cons, List.head_cons] at ih ⊢
-    rw [hlast]
-    -- ih  : V(getLast t).to + (sp_b' + Σsp_t) ≤ V(b'.from) + (df_b' + Σdf_t) + (au_b' + Σau_t)
-    -- b_margin : V(b'.from) + sp_b ≤ V(b.from) + df_b + au_b  [after step_link rewrite]
-    -- goal: V(getLast t).to + (sp_b + (sp_b' + Σsp_t)) ≤ V(b.from) + (df_b + (df_b' + Σdf_t)) + (au_b + (au_b' + Σau_t))
-    -- coh_compose_linear composes ordered monoid inequalities
-    have key := coh_compose_linear b_margin ih
-    -- key is in the shape: V(getLast t) + (sp_b + (sp_b' + Σsp_t)) ≤ V(b.from) + ...
-    -- The add_comm_group shape may differ; use add_assoc + add_comm to bridge
-    calc S.V (List.getLast (b' :: tail) htail_ne).to_state +
-         (S.spend b.action + (S.spend b'.action + List.sum (List.map (fun x => S.spend x.action) tail)))
-        ≤ S.V b.from_state +
-          (S.defect b.action + (S.defect b'.action + List.sum (List.map (fun x => S.defect x.action) tail))) +
-          (S.authority b.action + (S.authority b'.action + List.sum (List.map (fun x => S.authority x.action) tail))) :=
-          coh_compose_linear b_margin ih
-  | [] => contradiction
+    
+    -- Link v_post of b to v_pre of b'
+    have v_link : b.v_post = b'.v_pre := by
+      have step := h_cont 0 (by simp; exact Nat.succ_pos 0)
+      simp [List.get] at step
+      rw [← b.v_post_ok, ← b'.v_pre_ok, step]
+    
+    rw [v_link] at b_margin
+    rw [List.getLast_cons_cons]
+    simp only [List.map_cons, List.sum_cons, List.head_cons, List.getLast_cons] at ih ⊢
+    exact Coh.coh_compose_linear b_margin ih
 
 end Coh.Boundary

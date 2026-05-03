@@ -3,6 +3,7 @@ import Mathlib.Analysis.InnerProductSpace.Projection
 import Mathlib.Data.Matrix.Basic
 import Mathlib.Data.Complex.Basic
 import Mathlib.Algebra.BigOperators.Basic
+import Mathlib.Data.Matrix.Notation
 
 namespace Coh.Physics.Spinor
 
@@ -23,19 +24,16 @@ def gamma0_mat : GammaMatrix := !![
   0, 0, 0, -1
 ]
 
-/--
-## gamma0^2 = I [PROVED]
-In the Dirac representation, (gamma^0)^2 = diag(1,1,-1,-1)^2 = diag(1,1,1,1) = I.
--/
-/--
-## gamma0^2 = I [PROVED]
-In the Dirac representation, (gamma^0)^2 = diag(1,1,-1,-1)^2 = diag(1,1,1,1) = I.
--/
+theorem sum_fin_four {α : Type _} [AddCommMonoid α] (f : Fin 4 → α) :
+  Finset.univ.sum f = f 0 + f 1 + f 2 + f 3 := by
+  simp [Finset.univ, Finset.sum_insert, Finset.sum_singleton]
+
 theorem gamma0_sq_eq_one : gamma0_mat * gamma0_mat = (1 : GammaMatrix) := by
   ext i j
   unfold gamma0_mat
   rw [Matrix.mul_apply, Matrix.one_apply]
-  fin_cases i <;> fin_cases j <;> simp [Finset.sum_fin_four] <;> norm_num
+  rw [sum_fin_four]
+  fin_cases i <;> fin_cases j <;> simp <;> norm_num
 
 /-!
 ## Lean Proof: Projection Weight Non-Negativity
@@ -78,7 +76,7 @@ theorem coord_proj_idem (k : Fin 4) : coord_proj k * coord_proj k = coord_proj k
   ext i j
   unfold coord_proj
   rw [Matrix.mul_apply]
-  fin_cases k <;> fin_cases i <;> fin_cases j <;> simp <;> rfl
+  fin_cases k <;> fin_cases i <;> fin_cases j <;> simp
 
 /--
 ## coord_proj is Hermitian [PROVED]
@@ -89,7 +87,7 @@ theorem coord_proj_hermitian (k : Fin 4) : (coord_proj k).conjTranspose = coord_
   unfold coord_proj
   rw [Matrix.conjTranspose_apply]
   simp
-  fin_cases k <;> fin_cases i <;> fin_cases j <;> simp <;> rfl
+  fin_cases k <;> fin_cases i <;> fin_cases j <;> simp
 
 /--
 ## Coordinate Projector Weight Sum = density [PROVED]
@@ -100,7 +98,7 @@ theorem coord_proj_weight_sum (v : SpinorVec) :
   vec_density v := by
   unfold vec_density coord_proj
   simp [Matrix.mulVec, Matrix.dotProduct]
-  -- Use simp_rw to handle the inner summation over j
+  -- handle the inner summation over j
   simp_rw [Finset.sum_ite_eq]
   simp [Complex.normSq_zero]
   -- Use sum_comm to group by k and then apply sum_ite_eq

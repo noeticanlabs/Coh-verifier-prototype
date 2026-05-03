@@ -1,0 +1,3 @@
+{"context":"v_post + spend ≤ v_pre + defect + authority","detected_kind":"ArithmeticInequality","expected_kind":"ArithmeticInequality","goal":"v_post ≤ v_pre + defect + authority","success":true}
+{"context":"ConservativeCompression τ Ac","detected_kind":"InvariantExtraction","expected_kind":"InvariantExtraction","goal":"AxiomDeps Ac = AxiomDeps τ","success":true}
+{"context":"x, y, z : ℝ","detected_kind":"RingEquality","expected_kind":"RingEquality","goal":"(x + y) * z = x * z + y * z","success":true}

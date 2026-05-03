@@ -2,3 +2,9 @@
 {"id": "compression_bisim_001", "object_a": "Trajectory τ", "object_b": "SummaryAtom Ac", "expected_equivalence_kind": "CompressionEquivalence", "expected_repair_action": "UseEquivalence"}
 {"id": "hamiltonian_iso_001", "object_a": "Hamiltonian H", "object_b": "Valuation V", "expected_equivalence_kind": "Isomorphism", "expected_repair_action": "UseEquivalence"}
 {"id": "normalization_001", "object_a": "x + 0", "object_b": "x", "expected_equivalence_kind": "NormalFormEquivalence", "expected_repair_action": "UseEquivalence"}
+{"id": "state_trajectory_iso_001", "object_a": "states.map phi", "object_b": "sigma_list", "expected_equivalence_kind": "Isomorphism", "expected_repair_action": "UseEquivalence"}
+{"id": "action_mapping_001", "object_a": "actions.map psi", "object_b": "e_list", "expected_equivalence_kind": "Isomorphism", "expected_repair_action": "UseEquivalence"}
+{"id": "bisim_state_001", "object_a": "τ.states.getLast", "object_b": "Ac.final_state", "expected_equivalence_kind": "CompressionEquivalence", "expected_repair_action": "UseEquivalence"}
+{"id": "alpha_rename_001", "object_a": "λ x, x + 1", "object_b": "λ y, y + 1", "expected_equivalence_kind": "AlphaEquivalence", "expected_repair_action": "UseEquivalence"}
+{"id": "def_eq_001", "object_a": " valuation(x)", "object_b": "H(x)", "expected_equivalence_kind": "Isomorphism", "expected_repair_action": "UseEquivalence"}
+{"id": "quotient_equiv_001", "object_a": "⟦x⟧", "object_b": "⟦y⟧", "expected_equivalence_kind": "QuotientEquivalence", "expected_repair_action": "UseEquivalence"}

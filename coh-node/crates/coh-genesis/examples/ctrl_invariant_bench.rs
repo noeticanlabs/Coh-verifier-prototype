@@ -1,7 +1,10 @@
 use coh_genesis::invariant_hunter::{InvariantHunter, InvariantKind};
+use std::fs::OpenOptions;
+use std::io::Write;
+use serde_json::json;
 
 fn main() {
-    println!("--- CTRL-v1.2 Invariant Hunter Benchmark ---");
+    println!("--- CTRL-v1.3 Invariant Hunter Benchmark ---");
 
     let cases = vec![
         (
@@ -24,6 +27,16 @@ fn main() {
         ),
     ];
 
+    // Ensure directory exists
+    std::fs::create_dir_all("reports").ok();
+    let log_path = "reports/ctrl_invariant_bench.ndjson";
+    let mut file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(log_path)
+        .expect("Failed to open invariant log");
+
     let mut total_passed = 0;
     for (name, stmt, ctx, expected_missing) in &cases {
         let diagnosis = InvariantHunter::hunt(name, stmt, ctx);
@@ -33,6 +46,17 @@ fn main() {
 
         let success = all_missing_found && no_extra_missing;
         
+        let log_entry = json!({
+            "theorem_name": name,
+            "statement": stmt,
+            "context": ctx,
+            "detected_missing": diagnosis.missing,
+            "expected_missing": expected_missing,
+            "success": success,
+        });
+
+        writeln!(file, "{}", log_entry.to_string()).expect("Failed to write log entry");
+
         println!("Theorem: {}", name);
         println!("  Context: {}", ctx);
         println!("  Missing: {:?}", diagnosis.missing);

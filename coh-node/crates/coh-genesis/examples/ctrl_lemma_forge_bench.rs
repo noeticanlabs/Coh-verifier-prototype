@@ -1,4 +1,7 @@
 use coh_genesis::lemma_forge::{LemmaForge, DerivationKind};
+use std::fs::OpenOptions;
+use std::io::Write;
+use serde_json::json;
 
 fn main() {
     println!("--- CTRL-v1.3 Lemma Forge Benchmark ---");
@@ -21,6 +24,16 @@ fn main() {
         ),
     ];
 
+    // Ensure directory exists
+    std::fs::create_dir_all("reports").ok();
+    let log_path = "reports/ctrl_lemma_forge_bench.ndjson";
+    let mut file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(log_path)
+        .expect("Failed to open lemma forge log");
+
     let mut total_passed = 0;
     for (goal, context, expected_kind) in &cases {
         let plan = LemmaForge::plan(goal, context);
@@ -32,9 +45,18 @@ fn main() {
         
         let success = kind_match && contains_lemma && contains_by;
 
+        let log_entry = json!({
+            "goal": goal,
+            "context": context,
+            "detected_kind": plan.derivation_kind,
+            "expected_kind": expected_kind,
+            "success": success,
+        });
+
+        writeln!(file, "{}", log_entry.to_string()).expect("Failed to write log entry");
+
         println!("Goal: {}", goal);
         println!("  Kind:   {:?}", plan.derivation_kind);
-        println!("  Lemma:  \n{}", lemma);
         println!("  Result: {}", if success { "OK" } else { "FAIL" });
 
         if success {
@@ -43,6 +65,4 @@ fn main() {
     }
 
     println!("\nSummary: {}/{} cases passed.", total_passed, cases.len());
-    let accuracy = total_passed as f32 / cases.len() as f32;
-    println!("LemmaForgeSynthesisAccuracy: {:.2}", accuracy);
 }

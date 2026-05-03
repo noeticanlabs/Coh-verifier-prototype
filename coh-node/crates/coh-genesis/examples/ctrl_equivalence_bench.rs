@@ -1,7 +1,10 @@
 use coh_genesis::equivalence_hunter::{EquivalenceHunter, EquivalenceKind};
+use std::fs::OpenOptions;
+use std::io::Write;
+use serde_json::json;
 
 fn main() {
-    println!("--- CTRL-v1.4 Equivalence Hunter Benchmark ---");
+    println!("--- CTRL-v1.3 Equivalence Hunter Benchmark ---");
 
     let cases = vec![
         (
@@ -26,10 +29,30 @@ fn main() {
         ),
     ];
 
+    // Ensure directory exists
+    std::fs::create_dir_all("reports").ok();
+    let log_path = "reports/ctrl_equivalence_bench.ndjson";
+    let mut file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(log_path)
+        .expect("Failed to open equivalence log");
+
     let mut total_passed = 0;
     for (source, target, expected_kind) in &cases {
         let diagnosis = EquivalenceHunter::hunt(source, target);
         let success = diagnosis.kind == *expected_kind;
+
+        let log_entry = json!({
+            "source": source,
+            "target": target,
+            "detected_kind": diagnosis.kind,
+            "expected_kind": expected_kind,
+            "success": success,
+        });
+
+        writeln!(file, "{}", log_entry.to_string()).expect("Failed to write log entry");
 
         println!("Source: {}", source);
         println!("  Target: {}", target);
@@ -42,6 +65,4 @@ fn main() {
     }
 
     println!("\nSummary: {}/{} cases passed.", total_passed, cases.len());
-    let accuracy = total_passed as f32 / cases.len() as f32;
-    println!("EquivalenceDetectionAccuracy: {:.2}", accuracy);
 }

@@ -2,4 +2,13 @@
 {"id": "unsolved_goals_001", "raw_error": "unsolved goals\ncase neg\n⊢ 0 ≤ authority", "expected_error_kind": "UnsolvedGoals", "expected_repair_action": "DecomposeGoals"}
 {"id": "linarith_failed_001", "raw_error": "linarith failed to find a contradiction", "expected_error_kind": "LinarithFailed", "expected_repair_action": "StrengthenArithmeticContext"}
 {"id": "unknown_identifier_001", "raw_error": "unknown identifier 'trajectory_admissible'", "expected_error_kind": "UnknownIdentifier", "expected_repair_action": "SearchImportOrNamespace"}
-{"id": "forbidden_sorry_001", "raw_error": "sorry used in proof", "expected_error_kind": "ForbiddenShortcut", "expected_repair_action": "HardReject"}
+{"id": "forbidden_sorry_001", "raw_error": "sorry used in proof", "expected_error_kind": "UsesForbiddenShortcut", "expected_repair_action": "RejectPolicyViolation"}
+{"id": "ring_failed_001", "raw_error": "ring failed to simplify the expression", "expected_error_kind": "RingFailed", "expected_repair_action": "TryGoalSpecificTactics"}
+{"id": "simp_no_progress_001", "raw_error": "simp made no progress", "expected_error_kind": "SimpMadeNoProgress", "expected_repair_action": "TryGoalSpecificTactics"}
+{"id": "missing_import_001", "raw_error": "unknown constant 'Real.sqrt'", "expected_error_kind": "UnknownConstant", "expected_repair_action": "AddImport"}
+{"id": "unification_failure_001", "raw_error": "unification failure: ?m.123 and Nat", "expected_error_kind": "UnificationFailure", "expected_repair_action": "TypeAlign"}
+{"id": "timeout_001", "raw_error": "deterministic timeout", "expected_error_kind": "Timeout", "expected_repair_action": "ReduceSearch"}
+{"id": "rewrite_failed_001", "raw_error": "rewrite tactic failed, did not find instance", "expected_error_kind": "RewriteFailed", "expected_repair_action": "RewriteAlternate"}
+{"id": "instance_synth_001", "raw_error": "failed to synthesize instance OrderedAddCommMonoid S", "expected_error_kind": "InstanceSynthesisFailed", "expected_repair_action": "AddMissingHypothesis"}
+{"id": "syntax_error_001", "raw_error": "unexpected token 'by'", "expected_error_kind": "SyntaxError", "expected_repair_action": "Escalate"}
+{"id": "omega_failed_001", "raw_error": "omega failed to find a solution", "expected_error_kind": "OmegaFailed", "expected_repair_action": "TryGoalSpecificTactics"}

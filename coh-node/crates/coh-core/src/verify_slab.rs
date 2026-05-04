@@ -1,5 +1,4 @@
 use crate::canon::CanonRegistry;
-use crate::math::CheckedMath;
 use crate::merkle;
 use crate::types::{Decision, RejectCode, SlabReceipt, SlabReceiptWire, VerifySlabResult};
 use std::convert::TryFrom;
@@ -31,7 +30,10 @@ pub fn verify_slab_envelope(wire: SlabReceiptWire) -> VerifySlabResult {
             code: Some(RejectCode::RejectSchema),
             message: format!(
                 "Invalid schema_id/version: {} v{} (Expected: {} v{})",
-                r.schema_id, r.version, CanonRegistry::SLAB_V1_ID, CanonRegistry::SLAB_V1_VERSION
+                r.schema_id,
+                r.version,
+                CanonRegistry::SLAB_V1_ID,
+                CanonRegistry::SLAB_V1_VERSION
             ),
             range_start: r.range_start,
             range_end: r.range_end,
@@ -76,12 +78,12 @@ pub fn verify_slab_envelope(wire: SlabReceiptWire) -> VerifySlabResult {
         };
     }
 
-    let left_side = match r.summary.v_post_last.safe_add(r.summary.total_spend) {
-        Ok(val) => val,
-        Err(e) => {
+    let left_side = match r.summary.v_post_last.checked_add(r.summary.total_spend) {
+        Some(val) => val,
+        None => {
             return VerifySlabResult {
                 decision: Decision::Reject,
-                code: Some(e),
+                code: Some(RejectCode::RejectOverflow),
                 message: "Overflow".to_string(),
                 range_start: r.range_start,
                 range_end: r.range_end,
@@ -90,13 +92,26 @@ pub fn verify_slab_envelope(wire: SlabReceiptWire) -> VerifySlabResult {
             }
         }
     };
-    let right_side = match r.summary.v_pre_first.safe_add(r.summary.total_defect) {
-        Ok(val) => val,
-        Err(e) => {
+    let right_side = match r.summary.v_pre_first.checked_add(r.summary.total_defect) {
+        Some(tmp) => match tmp.checked_add(r.summary.authority) {
+            Some(val) => val,
+            None => {
+                return VerifySlabResult {
+                    decision: Decision::Reject,
+                    code: Some(RejectCode::RejectOverflow),
+                    message: "Overflow (v_pre_first + total_defect + authority)".to_string(),
+                    range_start: r.range_start,
+                    range_end: r.range_end,
+                    micro_count: Some(r.micro_count),
+                    merkle_root: Some(r.merkle_root.to_hex()),
+                }
+            }
+        },
+        None => {
             return VerifySlabResult {
                 decision: Decision::Reject,
-                code: Some(e),
-                message: "Overflow".to_string(),
+                code: Some(RejectCode::RejectOverflow),
+                message: "Overflow (v_pre_first + total_defect)".to_string(),
                 range_start: r.range_start,
                 range_end: r.range_end,
                 micro_count: Some(r.micro_count),

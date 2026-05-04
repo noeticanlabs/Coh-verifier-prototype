@@ -71,8 +71,8 @@ impl Default for TrajectoryProbabilityResult {
 ///
 /// Implements the probability law for verifying chains of micro-receipts.
 /// Based on the telescoping property of the accounting law:
-/// if each step satisfies v_post + spend <= v_pre + defect,
-/// then the aggregate satisfies v_post_last + cumulative_spend <= v_pre_first + total_defect
+/// if each step satisfies v_post + spend <= v_pre + defect + authority,
+/// then the aggregate satisfies v_post_last + cumulative_spend <= v_pre_first + total_defect + total_authority
 pub struct TrajectoryProbabilityVerifier {
     config: TrajectoryProbabilityConfig,
 }

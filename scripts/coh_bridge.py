@@ -58,40 +58,55 @@ def safe_float(v, default=0.0) -> float:
         return default
 
 
+def _require_coh_available() -> None:
+    """Fail-fast if COH module unavailable.
+    
+    Per Constraint 1: Python must never act as primary arbiter of state.
+    If Rust module is unavailable, fail immediately rather than
+    falling back to Python-only verification.
+    
+    Raises:
+        RuntimeError: If COH module unavailable
+    """
+    if not COH_AVAILABLE:
+        raise RuntimeError(
+            "COH Rust module unavailable. Cannot verify. "
+            "Python fallback disabled per Constraint 1 (verification-first architecture). "
+            "Ensure Rust module is compiled and accessible."
+        )
+
+
 def deterministic_verify(receipt: dict) -> Tuple[str, Optional[str], str]:
     """
-    Fallback deterministic verification using accounting law.
+    DEPRECATED: Fallback verification REMOVED per Constraint 1.
     
-    Accounting law: margin = v_pre + defect - v_post - spend >= 0
+    This function is kept only for backward compatibility with test fixtures.
+    It now enforces Rust-core verification.
     
     Args:
         receipt: Micro-receipt dict
-    
+        
     Returns:
-        Tuple of (outcome, detail, path)
+        Always delegates to Rust module (never executes here)
+        
+    Raises:
+        RuntimeError: If COH module unavailable
     """
-    metrics = receipt.get("metrics", {})
+    # Per Constraint 1: Force Rust verification
+    _require_coh_available()
     
-    v_pre = safe_float(metrics.get("v_pre"))
-    v_post = safe_float(metrics.get("v_post"))
-    spend = safe_float(metrics.get("spend"))
-    defect = safe_float(metrics.get("defect"))
-    
-    margin = v_pre + defect - v_post - spend
-    
-    # Check for non-finite values
-    if not all(float(v).isfinite() for v in [v_pre, v_post, spend, defect]):
-        return ("MALFORMED", "nonfinite values", "deterministic.nan")
-    
-    # Check accounting law
-    if margin < MARGIN_MIN:
-        return (
-            "REJECT_MARGIN",
-            f"margin={margin:.2f}",
-            f"deterministic.law_fail"
-        )
-    
-    return ("ACCEPT", f"margin={margin:.2f}", "deterministic.ok")
+    # Delegate to Rust - this will raise if verification fails
+    try:
+        COH.verify(receipt)
+        return ("ACCEPT", None, "coh.verify")
+    except Exception as e:
+        err_type = type(e).__name__
+        if err_type == "CohVerificationError" or "Verification" in err_type:
+            return ("REJECT_MARGIN", str(e), "coh.reject")
+        elif err_type == "CohMalformedError" or "Malformed" in err_type:
+            return ("MALFORMED", str(e), "coh.malformed")
+        else:
+            return ("MALFORMED", f"[{err_type}] {str(e)}", "coh.unknown")
 
 
 # =============================================================================
@@ -99,16 +114,21 @@ def deterministic_verify(receipt: dict) -> Tuple[str, Optional[str], str]:
 # =============================================================================
 def verify_receipt_coh(receipt: dict) -> Tuple[str, Optional[str], str]:
     """
-    Verify a micro-receipt with COH module or fallback.
+    Verify a micro-receipt with COH module.
+    
+    Per Constraint 1: Must use Rust core - never fallback to Python.
     
     Args:
         receipt: Micro-receipt dict
     
     Returns:
         Tuple of (outcome, detail, verification_path)
+        
+    Raises:
+        RuntimeError: If COH module unavailable
     """
-    if not COH_AVAILABLE:
-        return deterministic_verify(receipt)
+    # Always require Rust - fail fast if unavailable
+    _require_coh_available()
     
     try:
         COH.verify(receipt)

@@ -1,5 +1,4 @@
 use crate::canon::CanonRegistry;
-use crate::math::CheckedMath;
 use crate::merkle::build_merkle_root;
 use crate::types::{
     BuildSlabResult, Decision, MicroReceipt, MicroReceiptWire, RejectCode, SlabReceiptWire,
@@ -44,6 +43,7 @@ pub fn build_slab(receipts: Vec<MicroReceiptWire>) -> BuildSlabResult {
     let mut total_spend: u128 = 0;
     let mut total_defect: u128 = 0;
     let mut total_delta: u128 = 0;
+    let mut total_authority: u128 = 0; // Authority must be preserved in slab compression
     let first_wire = receipts.first().unwrap();
     let last_wire = receipts.last().unwrap();
 
@@ -67,13 +67,13 @@ pub fn build_slab(receipts: Vec<MicroReceiptWire>) -> BuildSlabResult {
             }
         };
 
-        total_spend = match total_spend.safe_add(r.metrics.spend) {
-            Ok(val) => val,
-            Err(e) => {
+        total_spend = match total_spend.checked_add(r.metrics.spend) {
+            Some(val) => val,
+            None => {
                 return BuildSlabResult {
                     decision: Decision::Reject,
-                    code: Some(e),
-                    message: format!("Total spend overflow: {:?}", e),
+                    code: Some(RejectCode::RejectOverflow),
+                    message: "Total spend overflow".to_string(),
                     range_start: None,
                     range_end: None,
                     micro_count: None,
@@ -83,13 +83,31 @@ pub fn build_slab(receipts: Vec<MicroReceiptWire>) -> BuildSlabResult {
                 }
             }
         };
-        total_defect = match total_defect.safe_add(r.metrics.defect) {
-            Ok(val) => val,
-            Err(e) => {
+        total_defect = match total_defect.checked_add(r.metrics.defect) {
+            Some(val) => val,
+            None => {
                 return BuildSlabResult {
                     decision: Decision::Reject,
-                    code: Some(e),
-                    message: format!("Total defect overflow: {:?}", e),
+                    code: Some(RejectCode::RejectOverflow),
+                    message: "Total defect overflow".to_string(),
+                    range_start: None,
+                    range_end: None,
+                    micro_count: None,
+                    merkle_root: None,
+                    output: None,
+                    slab: None,
+                }
+            }
+        };
+
+        // Authority must be preserved in slab compression (Patch 3)
+        total_authority = match total_authority.checked_add(r.metrics.authority) {
+            Some(val) => val,
+            None => {
+                return BuildSlabResult {
+                    decision: Decision::Reject,
+                    code: Some(RejectCode::RejectOverflow),
+                    message: "Total authority overflow".to_string(),
                     range_start: None,
                     range_end: None,
                     micro_count: None,
@@ -117,13 +135,13 @@ pub fn build_slab(receipts: Vec<MicroReceiptWire>) -> BuildSlabResult {
             }
         };
 
-        total_delta = match total_delta.safe_add(delta) {
-            Ok(val) => val,
-            Err(e) => {
+        total_delta = match total_delta.checked_add(delta) {
+            Some(val) => val,
+            None => {
                 return BuildSlabResult {
                     decision: Decision::Reject,
-                    code: Some(e),
-                    message: format!("Total delta overflow: {:?}", e),
+                    code: Some(RejectCode::RejectOverflow),
+                    message: "Total delta overflow".to_string(),
                     range_start: None,
                     range_end: None,
                     micro_count: None,

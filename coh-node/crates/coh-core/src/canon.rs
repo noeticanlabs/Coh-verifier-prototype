@@ -68,3 +68,32 @@ pub fn to_canonical_json_bytes<T: serde::Serialize>(val: &T) -> Result<Vec<u8>, 
     // ambiguous numeric/special types).
     serde_json::to_vec(val).map_err(|_| RejectCode::RejectNumericParse)
 }
+
+/// Strict RFC 8785 canonical JSON serialization
+///
+/// RFC 8785 requires:
+/// 1. Object keys sorted lexicographically
+/// 2. No whitespace insignificant to the value
+/// 3. Numbers encoded as decimal strings (no exponent)
+/// 4. String content escaped per RFC 8785
+///
+/// Current implementation is JCS-style (close but not strictly RFC 8785).
+/// To enable strict RFC 8785, use an external crate like:
+/// - `canonical-json` (not currently available on crates.io)
+/// - Custom implementation
+///
+/// Build with `--features strict-canonical` to enable strict mode
+/// (requires adding an appropriate crate to Cargo.toml)
+#[cfg(feature = "strict-canonical")]
+pub fn to_strict_canonical_json_bytes<T: serde::Serialize>(val: &T) -> Result<Vec<u8>, RejectCode> {
+    // RFC 8785: Canonical JSON requires deterministic encoding
+    // json-canonical handles: string ordering, number encoding, whitespace
+    let bytes = serde_json::to_vec(val).map_err(|_| RejectCode::RejectNumericParse)?;
+    json_canonical::serialize(&bytes).map_err(|_| RejectCode::RejectNumericParse)
+}
+
+#[cfg(not(feature = "strict-canonical"))]
+pub fn to_strict_canonical_json_bytes<T: serde::Serialize>(val: &T) -> Result<Vec<u8>, RejectCode> {
+    // Fallback: use JCS-style when strict-canonical not enabled
+    to_canonical_json_bytes(val)
+}

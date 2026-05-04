@@ -1,7 +1,6 @@
 use crate::auth::{verify_signature, VerifierContext};
 use crate::canon::{to_canonical_json_bytes, to_prehash_view, CanonRegistry};
 use crate::hash::compute_chain_digest;
-use crate::math::CheckedMath;
 use crate::semantic::PolicyEnvelopeRegistry;
 use crate::types::{
     AdmissionProfile, Decision, MicroReceipt, MicroReceiptWire, RejectCode, VerifyMicroResult,
@@ -40,7 +39,10 @@ pub fn verify_micro_with_context(
             code: Some(RejectCode::RejectSchema),
             message: format!(
                 "Invalid schema_id/version: {} v{} (Expected: {} v{})",
-                r.schema_id, r.version, CanonRegistry::MICRO_V1_ID, CanonRegistry::MICRO_V1_VERSION
+                r.schema_id,
+                r.version,
+                CanonRegistry::MICRO_V1_ID,
+                CanonRegistry::MICRO_V1_VERSION
             ),
             step_index: Some(r.step_index),
             object_id: Some(r.object_id),
@@ -111,13 +113,13 @@ pub fn verify_micro_with_context(
     }
 
     // 5. Policy logic (Arithmetic boundary check)
-    // Constraint: v_post + spend <= v_pre + defect
-    let lhs = match r.metrics.v_post.safe_add(r.metrics.spend) {
-        Ok(val) => val,
-        Err(e) => {
+    // Constraint: v_post + spend <= v_pre + defect + authority
+    let lhs = match r.metrics.v_post.checked_add(r.metrics.spend) {
+        Some(val) => val,
+        None => {
             return VerifyMicroResult {
                 decision: Decision::Reject,
-                code: Some(e),
+                code: Some(RejectCode::RejectOverflow),
                 message: "Policy arithmetic overflow (v_post + spend)".to_string(),
                 step_index: Some(r.step_index),
                 object_id: Some(r.object_id),
@@ -125,13 +127,13 @@ pub fn verify_micro_with_context(
             }
         }
     };
-    let rhs = match r.metrics.v_pre.safe_add(r.metrics.defect) {
-        Ok(val) => match val.safe_add(r.metrics.authority) {
-            Ok(v) => v,
-            Err(e) => {
+    let rhs = match r.metrics.v_pre.checked_add(r.metrics.defect) {
+        Some(val) => match val.checked_add(r.metrics.authority) {
+            Some(v) => v,
+            None => {
                 return VerifyMicroResult {
                     decision: Decision::Reject,
-                    code: Some(e),
+                    code: Some(RejectCode::RejectOverflow),
                     message: "Policy arithmetic overflow (v_pre + defect + authority)".to_string(),
                     step_index: Some(r.step_index),
                     object_id: Some(r.object_id),
@@ -139,10 +141,10 @@ pub fn verify_micro_with_context(
                 }
             }
         },
-        Err(e) => {
+        None => {
             return VerifyMicroResult {
                 decision: Decision::Reject,
-                code: Some(e),
+                code: Some(RejectCode::RejectOverflow),
                 message: "Policy arithmetic overflow (v_pre + defect)".to_string(),
                 step_index: Some(r.step_index),
                 object_id: Some(r.object_id),

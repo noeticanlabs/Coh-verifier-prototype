@@ -68,13 +68,18 @@ impl PolicyEnvelopeRegistry {
         }
     }
 
-    /// Check if the receipt's defect dominates the policy envelope: defect ≥ ŵδ
+    /// Check if the receipt's defect is within the policy envelope: defect <= delta_hat
     ///
-    /// KERNEL OBLIGATION: This check enforces d_f ≥ ŵδ(R_f) ⊸ d_f ≥ δ(R_f)
-    /// Only valid if the theorem δ(R) ≤ ŵδ(R) is proven.
+    /// DEFINITION: delta_hat is the MAXIMUM allowed defect envelope.
+    /// The check enforces: defect <= delta_hat (observed <= maximum allowed)
+    ///
+    /// NOTE: This is the opposite direction from some legacy checks.
+    /// We split the symbol as follows:
+    /// - delta_hat (or Δ_max) = maximum admissible defect envelope
+    /// - For coverage requirements, use a separate 'reserve' field
     pub fn verify_defect_bound(receipt: &MicroReceipt) -> Result<(), RejectCode> {
         let (delta_hat, _source) = Self::delta_hat(&receipt.step_type)?;
-        if receipt.metrics.defect >= delta_hat {
+        if receipt.metrics.defect <= delta_hat {
             Ok(())
         } else {
             Err(RejectCode::SemanticEnvelopeViolation)
@@ -85,5 +90,44 @@ impl PolicyEnvelopeRegistry {
     /// Lean Axiom: Identity traces have zero cost.
     pub fn is_identity(step_type: &Option<String>) -> bool {
         matches!(step_type, Some(t) if t == "coh.step.identity")
+    }
+
+    /// Oplax Subadditive Composition Law
+    ///
+    /// For composition R = R₂ ⊙ R₁:
+    /// δ(R) ≤ δ(R₁) + δ(R₂)  (subadditivity)
+    ///
+    /// This implements the "Coh Category" composition law:
+    /// The envelope defect of a composite trace cannot exceed
+    /// the sum of component envelope defects.
+    /// This accounts for hidden-fiber risk when traces are composed.
+    ///
+    /// # Arguments
+    /// * `delta_hat_1` - Envelope defect of first trace R₁
+    /// * `delta_hat_2` - Envelope defect of second trace R₂
+    ///
+    /// # Returns
+    /// Upper bound on composite trace defect: δ(R₂ ⊙ R₁) ≤ δ(R₁) + δ(R₂)
+    pub fn compose_delta_hat(delta_hat_1: u128, delta_hat_2: u128) -> u128 {
+        // Simple additive upper bound
+        // Lower bound would be max(delta_hat_1, delta_hat_2) for some compositions
+        delta_hat_1.saturating_add(delta_hat_2)
+    }
+
+    /// Verify composite trace envelope is admissible
+    ///
+    /// Checks: declared_delta ≥ composed_delta
+    /// where composed_delta = δ(R₂ ⊙ R₁)
+    pub fn verify_composed_envelope(
+        declared_delta_hat: u128,
+        delta_hat_1: u128,
+        delta_hat_2: u128,
+    ) -> Result<(), RejectCode> {
+        let composed = Self::compose_delta_hat(delta_hat_1, delta_hat_2);
+        if declared_delta_hat >= composed {
+            Ok(())
+        } else {
+            Err(RejectCode::SemanticEnvelopeViolation)
+        }
     }
 }

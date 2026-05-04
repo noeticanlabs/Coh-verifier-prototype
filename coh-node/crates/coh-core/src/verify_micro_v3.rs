@@ -5,13 +5,13 @@
 //! - Sequence guard checking
 //! - Policy governance checking
 
+use crate::phaseloom::{calculate_read_cost, validate_anchor_transition};
 use crate::reject::RejectCode;
 use crate::types::Decision;
 use crate::types_v3::{
     MicroReceiptV3, MicroReceiptV3Wire, PolicyGovernance, SequenceGuard, TieredConfig,
     VerificationMode,
 };
-use crate::phaseloom::{calculate_read_cost, validate_anchor_transition};
 use std::collections::HashMap;
 
 /// V3 verification result
@@ -120,13 +120,12 @@ pub fn verify_micro_v3(
 
     // 7. Base V1/V2 checks would go here (state hash, chain digest, etc.)
     // Base Policy logic (Arithmetic boundary check)
-    use crate::math::CheckedMath;
-    let lhs = match r.metrics.v_post.safe_add(r.metrics.spend) {
-        Ok(val) => val,
-        Err(e) => {
+    let lhs = match r.metrics.v_post.checked_add(r.metrics.spend) {
+        Some(val) => val,
+        None => {
             return VerifyMicroV3Result {
                 decision: Decision::Reject,
-                code: Some(e),
+                code: Some(RejectCode::RejectOverflow),
                 message: "Policy arithmetic overflow (v_post + spend)".to_string(),
                 step_index: Some(r.step_index),
                 object_id: Some(r.object_id.clone()),
@@ -136,12 +135,26 @@ pub fn verify_micro_v3(
             }
         }
     };
-    let rhs = match r.metrics.v_pre.safe_add(r.metrics.defect) {
-        Ok(val) => val,
-        Err(e) => {
+    let rhs = match r.metrics.v_pre.checked_add(r.metrics.defect) {
+        Some(tmp) => match tmp.checked_add(r.metrics.authority) {
+            Some(val) => val,
+            None => {
+                return VerifyMicroV3Result {
+                    decision: Decision::Reject,
+                    code: Some(RejectCode::RejectOverflow),
+                    message: "Policy arithmetic overflow (v_pre + defect + authority)".to_string(),
+                    step_index: Some(r.step_index),
+                    object_id: Some(r.object_id.clone()),
+                    objective_checked: Some(r.objective_satisfied()),
+                    sequence_checked: Some(r.sequence_valid),
+                    override_applied: Some(false),
+                }
+            }
+        },
+        None => {
             return VerifyMicroV3Result {
                 decision: Decision::Reject,
-                code: Some(e),
+                code: Some(RejectCode::RejectOverflow),
                 message: "Policy arithmetic overflow (v_pre + defect)".to_string(),
                 step_index: Some(r.step_index),
                 object_id: Some(r.object_id.clone()),
@@ -157,7 +170,7 @@ pub fn verify_micro_v3(
             decision: Decision::Reject,
             code: Some(RejectCode::RejectPolicyViolation),
             message: format!(
-                "Policy violation: v_post + spend ({}) exceeds v_pre + defect ({})",
+                "Policy violation: v_post + spend ({}) exceeds v_pre + defect + authority ({})",
                 lhs, rhs
             ),
             step_index: Some(r.step_index),
@@ -208,7 +221,8 @@ pub fn verify_micro_v3(
     // If this step accessed a projection, verify read cost and budget
     let zero_hash = crate::types::Hash32([0; 32]); // fixture_only: allow_mock
     if r.metrics.projection_hash != zero_hash {
-        let read_cost = calculate_read_cost(r.metrics.pl_tau, r.metrics.pl_tau, &r.metrics.pl_provenance);
+        let read_cost =
+            calculate_read_cost(r.metrics.pl_tau, r.metrics.pl_tau, &r.metrics.pl_provenance);
         if r.metrics.pl_budget < read_cost {
             return VerifyMicroV3Result {
                 decision: Decision::Reject,
@@ -231,10 +245,13 @@ pub fn verify_micro_v3(
     // For now, we validate the internal consistency of the receipt.
     if let Err(code) = validate_anchor_transition("EXT", &r.metrics.pl_provenance) {
         if !r.override_applied {
-             return VerifyMicroV3Result {
+            return VerifyMicroV3Result {
                 decision: Decision::Reject,
                 code: Some(code),
-                message: format!("PhaseLoom Epistemic Violation: unlawful provenance transition to {}", r.metrics.pl_provenance),
+                message: format!(
+                    "PhaseLoom Epistemic Violation: unlawful provenance transition to {}",
+                    r.metrics.pl_provenance
+                ),
                 step_index: Some(r.step_index),
                 object_id: Some(r.object_id.clone()),
                 objective_checked: Some(r.objective_satisfied()),
@@ -245,9 +262,9 @@ pub fn verify_micro_v3(
     }
 
     // 9. Cryptographic integrity & Signer Enforcement
+    use crate::auth::verify_signature;
     use crate::canon::{to_canonical_json_bytes, to_prehash_view};
     use crate::hash::compute_chain_digest;
-    use crate::auth::verify_signature;
 
     let v1_receipt = crate::types::MicroReceipt {
         schema_id: r.schema_id.clone(),
@@ -297,10 +314,14 @@ pub fn verify_micro_v3(
 
     // --- AUTHORITY CAP ENFORCEMENT ---
     if r.metrics.authority > crate::auth::MAX_AUTHORITY_PER_RECEIPT {
-         return VerifyMicroV3Result {
+        return VerifyMicroV3Result {
             decision: Decision::Reject,
             code: Some(RejectCode::AuthorityExceeded),
-            message: format!("Authority ({}) exceeds per-receipt cap ({})", r.metrics.authority, crate::auth::MAX_AUTHORITY_PER_RECEIPT),
+            message: format!(
+                "Authority ({}) exceeds per-receipt cap ({})",
+                r.metrics.authority,
+                crate::auth::MAX_AUTHORITY_PER_RECEIPT
+            ),
             step_index: Some(r.step_index),
             object_id: Some(r.object_id.clone()),
             objective_checked: Some(r.objective_satisfied()),
@@ -358,7 +379,7 @@ pub fn verify_micro_v3(
                 override_applied: Some(true),
             };
         } else {
-             return VerifyMicroV3Result {
+            return VerifyMicroV3Result {
                 decision: Decision::Reject,
                 code: Some(RejectCode::RejectPolicyViolation),
                 message: "Overrides not allowed".to_string(),

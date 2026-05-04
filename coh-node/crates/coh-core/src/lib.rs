@@ -1,18 +1,21 @@
 #![allow(clippy::needless_update)]
 #![allow(clippy::too_many_arguments)]
 
-pub mod auth;
 pub mod atom;
+pub mod auth;
 pub mod build_slab;
 pub mod canon;
+pub mod certified_state;
 pub mod cohbit;
-pub mod entanglement;
 pub mod decoherence;
+pub mod entanglement;
 pub mod execute;
+pub mod external;
 pub mod fixtures;
+pub mod gccp;
 pub mod hash;
-pub mod math;
 pub mod ignition;
+pub mod math;
 pub mod measurement;
 pub mod merkle;
 pub mod phaseloom;
@@ -24,15 +27,13 @@ pub mod trajectory;
 pub mod trajectory_probability;
 pub mod types;
 pub mod types_v3;
-pub mod vm;
 pub mod vectors;
 pub mod vectors_measurement;
 pub mod verify_chain;
 pub mod verify_micro;
 pub mod verify_micro_v3;
 pub mod verify_slab;
-pub mod gccp;
-pub mod external;
+pub mod vm;
 
 pub mod rv_kernel;
 pub mod tools;

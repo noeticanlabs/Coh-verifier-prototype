@@ -5,12 +5,14 @@
 //! - Sequence guard checking
 //! - Policy governance checking
 
+use crate::accounting_law::check_local_accounting_law_u128;
 use crate::phaseloom::{calculate_read_cost, validate_anchor_transition};
 use crate::reject::RejectCode;
+use crate::sequence_accumulator::{compute_sequence_accumulator, GENESIS_GUARD};
 use crate::types::Decision;
 use crate::types_v3::{
-    MicroReceiptV3, MicroReceiptV3Wire, PolicyGovernance, SequenceGuard, TieredConfig,
-    VerificationMode,
+    compute_v3_canonical_digest, MicroReceiptV3, MicroReceiptV3Wire, PolicyGovernance,
+    SequenceGuard, TieredConfig, VerificationMode,
 };
 use std::collections::HashMap;
 
@@ -98,18 +100,56 @@ pub fn verify_micro_v3(
             step_index: Some(r.step_index),
             object_id: Some(r.object_id.clone()),
             objective_checked: Some(false),
-            sequence_checked: Some(r.sequence_valid),
+            sequence_checked: Some(false),
             override_applied: Some(false),
         };
     }
 
-    // 6. Sequence guard check (V3 extension)
-    // Note: In real implementation, we'd check the rolling accumulator
-    if !r.sequence_valid {
+    // 6. Sequence guard check (V3 extension) - Patch 6
+    // The verifier must recompute the expected sequence accumulator.
+    // Simply having a value isn't enough - it must match what the verifier computes.
+
+    // First, compute this receipt's canonical digest
+    let receipt_digest = match compute_v3_canonical_digest(&wire) {
+        Ok(d) => d,
+        Err(code) => {
+            return VerifyMicroV3Result {
+                decision: Decision::Reject,
+                code: Some(code),
+                message: "Failed to compute V3 canonical digest".to_string(),
+                step_index: Some(r.step_index),
+                object_id: Some(r.object_id.clone()),
+                objective_checked: Some(r.objective_satisfied()),
+                sequence_checked: Some(false),
+                override_applied: Some(r.override_applied),
+            };
+        }
+    };
+
+    // Get previous sequence from parameter or use genesis
+    let prev_seq = _prev_chain_digest.unwrap_or(GENESIS_GUARD);
+
+    // Compute expected sequence accumulator
+    let expected_seq = compute_sequence_accumulator(
+        prev_seq,
+        receipt_digest,
+        r.step_index,
+        r.state_hash_prev,
+        r.state_hash_next,
+    );
+
+    // Verify claimed accumulator matches expected
+    let sequence_valid = r
+        .sequence_accumulator
+        .as_ref()
+        .map(|claimed| *claimed == expected_seq)
+        .unwrap_or(false);
+
+    if !sequence_valid {
         return VerifyMicroV3Result {
             decision: Decision::Reject,
             code: Some(RejectCode::RejectPolicyViolation),
-            message: "Sequence guard failed".to_string(),
+            message: "Sequence accumulator verification failed: claimed value does not match verifier-computed value".to_string(),
             step_index: Some(r.step_index),
             object_id: Some(r.object_id.clone()),
             objective_checked: Some(true),
@@ -120,65 +160,30 @@ pub fn verify_micro_v3(
 
     // 7. Base V1/V2 checks would go here (state hash, chain digest, etc.)
     // Base Policy logic (Arithmetic boundary check)
-    let lhs = match r.metrics.v_post.checked_add(r.metrics.spend) {
-        Some(val) => val,
-        None => {
+    // Constraint: v_post + spend <= v_pre + defect + authority
+    // Use shared accounting law kernel to prevent formula drift
+    match check_local_accounting_law_u128(
+        r.metrics.v_pre,
+        r.metrics.v_post,
+        r.metrics.spend,
+        r.metrics.defect,
+        r.metrics.authority,
+    ) {
+        Ok(_margin) => {
+            // Accounting law satisfied
+        }
+        Err(code) => {
             return VerifyMicroV3Result {
                 decision: Decision::Reject,
-                code: Some(RejectCode::RejectOverflow),
-                message: "Policy arithmetic overflow (v_post + spend)".to_string(),
+                code: Some(code),
+                message: "Policy arithmetic check failed".to_string(),
                 step_index: Some(r.step_index),
                 object_id: Some(r.object_id.clone()),
                 objective_checked: Some(r.objective_satisfied()),
-                sequence_checked: Some(r.sequence_valid),
+                sequence_checked: Some(false),
                 override_applied: Some(false),
-            }
+            };
         }
-    };
-    let rhs = match r.metrics.v_pre.checked_add(r.metrics.defect) {
-        Some(tmp) => match tmp.checked_add(r.metrics.authority) {
-            Some(val) => val,
-            None => {
-                return VerifyMicroV3Result {
-                    decision: Decision::Reject,
-                    code: Some(RejectCode::RejectOverflow),
-                    message: "Policy arithmetic overflow (v_pre + defect + authority)".to_string(),
-                    step_index: Some(r.step_index),
-                    object_id: Some(r.object_id.clone()),
-                    objective_checked: Some(r.objective_satisfied()),
-                    sequence_checked: Some(r.sequence_valid),
-                    override_applied: Some(false),
-                }
-            }
-        },
-        None => {
-            return VerifyMicroV3Result {
-                decision: Decision::Reject,
-                code: Some(RejectCode::RejectOverflow),
-                message: "Policy arithmetic overflow (v_pre + defect)".to_string(),
-                step_index: Some(r.step_index),
-                object_id: Some(r.object_id.clone()),
-                objective_checked: Some(r.objective_satisfied()),
-                sequence_checked: Some(r.sequence_valid),
-                override_applied: Some(false),
-            }
-        }
-    };
-
-    if lhs > rhs {
-        return VerifyMicroV3Result {
-            decision: Decision::Reject,
-            code: Some(RejectCode::RejectPolicyViolation),
-            message: format!(
-                "Policy violation: v_post + spend ({}) exceeds v_pre + defect + authority ({})",
-                lhs, rhs
-            ),
-            step_index: Some(r.step_index),
-            object_id: Some(r.object_id.clone()),
-            objective_checked: Some(r.objective_satisfied()),
-            sequence_checked: Some(r.sequence_valid),
-            override_applied: Some(false),
-        };
     }
 
     // Vacuous zero receipt
@@ -195,7 +200,7 @@ pub fn verify_micro_v3(
             step_index: Some(r.step_index),
             object_id: Some(r.object_id.clone()),
             objective_checked: Some(r.objective_satisfied()),
-            sequence_checked: Some(r.sequence_valid),
+            sequence_checked: Some(false),
             override_applied: Some(false),
         };
     }
@@ -212,7 +217,7 @@ pub fn verify_micro_v3(
             step_index: Some(r.step_index),
             object_id: Some(r.object_id.clone()),
             objective_checked: Some(r.objective_satisfied()),
-            sequence_checked: Some(r.sequence_valid),
+            sequence_checked: Some(false),
             override_applied: Some(false),
         };
     }
@@ -234,7 +239,7 @@ pub fn verify_micro_v3(
                 step_index: Some(r.step_index),
                 object_id: Some(r.object_id.clone()),
                 objective_checked: Some(r.objective_satisfied()),
-                sequence_checked: Some(r.sequence_valid),
+                sequence_checked: Some(false),
                 override_applied: Some(false),
             };
         }
@@ -255,7 +260,7 @@ pub fn verify_micro_v3(
                 step_index: Some(r.step_index),
                 object_id: Some(r.object_id.clone()),
                 objective_checked: Some(r.objective_satisfied()),
-                sequence_checked: Some(r.sequence_valid),
+                sequence_checked: Some(false),
                 override_applied: Some(false),
             };
         }
@@ -294,7 +299,7 @@ pub fn verify_micro_v3(
                     step_index: Some(r.step_index),
                     object_id: Some(r.object_id.clone()),
                     objective_checked: Some(r.objective_satisfied()),
-                    sequence_checked: Some(r.sequence_valid),
+                    sequence_checked: Some(false),
                     override_applied: Some(r.override_applied),
                 };
             }
@@ -307,7 +312,7 @@ pub fn verify_micro_v3(
             step_index: Some(r.step_index),
             object_id: Some(r.object_id.clone()),
             objective_checked: Some(r.objective_satisfied()),
-            sequence_checked: Some(r.sequence_valid),
+            sequence_checked: Some(false),
             override_applied: Some(r.override_applied),
         };
     }
@@ -325,7 +330,7 @@ pub fn verify_micro_v3(
             step_index: Some(r.step_index),
             object_id: Some(r.object_id.clone()),
             objective_checked: Some(r.objective_satisfied()),
-            sequence_checked: Some(r.sequence_valid),
+            sequence_checked: Some(false),
             override_applied: Some(r.override_applied),
         };
     }
@@ -341,7 +346,7 @@ pub fn verify_micro_v3(
                 step_index: Some(r.step_index),
                 object_id: Some(r.object_id.clone()),
                 objective_checked: Some(r.objective_satisfied()),
-                sequence_checked: Some(r.sequence_valid),
+                sequence_checked: Some(false),
                 override_applied: Some(false),
             };
         }
@@ -360,7 +365,7 @@ pub fn verify_micro_v3(
             step_index: Some(r.step_index),
             object_id: Some(r.object_id.clone()),
             objective_checked: Some(r.objective_satisfied()),
-            sequence_checked: Some(r.sequence_valid),
+            sequence_checked: Some(false),
             override_applied: Some(false),
         };
     }
@@ -375,7 +380,7 @@ pub fn verify_micro_v3(
                 step_index: Some(r.step_index),
                 object_id: Some(r.object_id.clone()),
                 objective_checked: Some(r.objective_satisfied()),
-                sequence_checked: Some(r.sequence_valid),
+                sequence_checked: Some(false),
                 override_applied: Some(true),
             };
         } else {
@@ -386,7 +391,7 @@ pub fn verify_micro_v3(
                 step_index: Some(r.step_index),
                 object_id: Some(r.object_id.clone()),
                 objective_checked: Some(r.objective_satisfied()),
-                sequence_checked: Some(r.sequence_valid),
+                sequence_checked: Some(false),
                 override_applied: Some(true),
             };
         }
@@ -399,7 +404,7 @@ pub fn verify_micro_v3(
         step_index: Some(r.step_index),
         object_id: Some(r.object_id.clone()),
         objective_checked: Some(r.objective_satisfied()),
-        sequence_checked: Some(r.sequence_valid),
+        sequence_checked: Some(false),
         override_applied: Some(false),
     }
 }

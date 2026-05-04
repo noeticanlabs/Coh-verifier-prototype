@@ -1,3 +1,4 @@
+use crate::accounting_law::check_cumulative_accounting_law_u128;
 use crate::trajectory_probability::TrajectoryProbabilityVerifier;
 use crate::types::{Decision, MicroReceipt, MicroReceiptWire, RejectCode, VerifyChainResult};
 use crate::verify_micro::verify_micro_dev_fixture;
@@ -325,21 +326,24 @@ pub fn verify_chain(receipts: Vec<MicroReceiptWire>) -> VerifyChainResult {
     }
 
     // Cumulative telescoping bound check (GradientDescent defense — Q1)
-    // The Accounting Law telescopes: v_post_last + cumulative_spend <= v_pre_first + total_defect
+    // The Accounting Law telescopes: v_post_last + cumulative_spend <= v_pre_first + total_defect + total_authority
+    // Use shared accounting law kernel to prevent formula drift
     if let Some(v_pre_0) = first_v_pre {
-        let lhs = last_v_post.checked_add(cumulative_spend);
-        let rhs = v_pre_0
-            .checked_add(total_defect)
-            .and_then(|v| v.checked_add(total_authority));
-        match (lhs, rhs) {
-            (Some(l), Some(r)) if l > r => {
+        match check_cumulative_accounting_law_u128(
+            v_pre_0,
+            last_v_post,
+            cumulative_spend,
+            total_defect,
+            total_authority,
+        ) {
+            Ok(_margin) => {
+                // Cumulative accounting law satisfied
+            }
+            Err(code) => {
                 return VerifyChainResult {
                     decision: Decision::Reject,
-                    code: Some(RejectCode::CumulativeDriftDetected),
-                    message: format!(
-                        "Cumulative drift detected: v_post_last + cumulative_spend ({}) > v_pre_first + total_defect + total_authority ({})",
-                        l, r
-                    ),
+                    code: Some(code),
+                    message: format!("Cumulative accounting law check failed"),
                     steps_verified: (last_good_index - first_index + 1),
                     first_step_index: first_index,
                     last_step_index: last_good_index,
@@ -348,7 +352,6 @@ pub fn verify_chain(receipts: Vec<MicroReceiptWire>) -> VerifyChainResult {
                     steps_verified_before_failure: None,
                 };
             }
-            _ => {} // Overflow case handled by existing TrajectoryCostExceeded
         }
     }
 

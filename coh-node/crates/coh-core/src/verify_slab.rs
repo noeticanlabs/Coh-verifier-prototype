@@ -1,3 +1,4 @@
+use crate::accounting_law::check_cumulative_accounting_law_u128;
 use crate::canon::CanonRegistry;
 use crate::merkle;
 use crate::types::{Decision, RejectCode, SlabReceipt, SlabReceiptWire, VerifySlabResult};
@@ -78,58 +79,30 @@ pub fn verify_slab_envelope(wire: SlabReceiptWire) -> VerifySlabResult {
         };
     }
 
-    let left_side = match r.summary.v_post_last.checked_add(r.summary.total_spend) {
-        Some(val) => val,
-        None => {
+    // Cumulative accounting law check for slab
+    // Constraint: v_post_last + total_spend <= v_pre_first + total_defect + total_authority
+    // Use shared accounting law kernel to prevent formula drift
+    match check_cumulative_accounting_law_u128(
+        r.summary.v_pre_first,
+        r.summary.v_post_last,
+        r.summary.total_spend,
+        r.summary.total_defect,
+        r.summary.authority,
+    ) {
+        Ok(_margin) => {
+            // Accounting law satisfied
+        }
+        Err(code) => {
             return VerifySlabResult {
                 decision: Decision::Reject,
-                code: Some(RejectCode::RejectOverflow),
-                message: "Overflow".to_string(),
+                code: Some(code),
+                message: "Macro accounting law check failed".to_string(),
                 range_start: r.range_start,
                 range_end: r.range_end,
                 micro_count: Some(r.micro_count),
                 merkle_root: Some(r.merkle_root.to_hex()),
-            }
+            };
         }
-    };
-    let right_side = match r.summary.v_pre_first.checked_add(r.summary.total_defect) {
-        Some(tmp) => match tmp.checked_add(r.summary.authority) {
-            Some(val) => val,
-            None => {
-                return VerifySlabResult {
-                    decision: Decision::Reject,
-                    code: Some(RejectCode::RejectOverflow),
-                    message: "Overflow (v_pre_first + total_defect + authority)".to_string(),
-                    range_start: r.range_start,
-                    range_end: r.range_end,
-                    micro_count: Some(r.micro_count),
-                    merkle_root: Some(r.merkle_root.to_hex()),
-                }
-            }
-        },
-        None => {
-            return VerifySlabResult {
-                decision: Decision::Reject,
-                code: Some(RejectCode::RejectOverflow),
-                message: "Overflow (v_pre_first + total_defect)".to_string(),
-                range_start: r.range_start,
-                range_end: r.range_end,
-                micro_count: Some(r.micro_count),
-                merkle_root: Some(r.merkle_root.to_hex()),
-            }
-        }
-    };
-
-    if left_side > right_side {
-        return VerifySlabResult {
-            decision: Decision::Reject,
-            code: Some(RejectCode::RejectPolicyViolation),
-            message: "Macro inequality violated.".to_string(),
-            range_start: r.range_start,
-            range_end: r.range_end,
-            micro_count: Some(r.micro_count),
-            merkle_root: Some(r.merkle_root.to_hex()),
-        };
     }
 
     VerifySlabResult {

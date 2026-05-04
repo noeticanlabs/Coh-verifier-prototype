@@ -1,3 +1,4 @@
+use crate::accounting_law::check_local_accounting_law_u128;
 use crate::auth::{verify_signature, VerifierContext};
 use crate::canon::{to_canonical_json_bytes, to_prehash_view, CanonRegistry};
 use crate::hash::compute_chain_digest;
@@ -114,57 +115,27 @@ pub fn verify_micro_with_context(
 
     // 5. Policy logic (Arithmetic boundary check)
     // Constraint: v_post + spend <= v_pre + defect + authority
-    let lhs = match r.metrics.v_post.checked_add(r.metrics.spend) {
-        Some(val) => val,
-        None => {
+    // Use shared accounting law kernel to prevent formula drift
+    match check_local_accounting_law_u128(
+        r.metrics.v_pre,
+        r.metrics.v_post,
+        r.metrics.spend,
+        r.metrics.defect,
+        r.metrics.authority,
+    ) {
+        Ok(_margin) => {
+            // Accounting law satisfied
+        }
+        Err(code) => {
             return VerifyMicroResult {
                 decision: Decision::Reject,
-                code: Some(RejectCode::RejectOverflow),
-                message: "Policy arithmetic overflow (v_post + spend)".to_string(),
+                code: Some(code),
+                message: "Policy arithmetic check failed".to_string(),
                 step_index: Some(r.step_index),
                 object_id: Some(r.object_id),
                 chain_digest_next: None,
-            }
+            };
         }
-    };
-    let rhs = match r.metrics.v_pre.checked_add(r.metrics.defect) {
-        Some(val) => match val.checked_add(r.metrics.authority) {
-            Some(v) => v,
-            None => {
-                return VerifyMicroResult {
-                    decision: Decision::Reject,
-                    code: Some(RejectCode::RejectOverflow),
-                    message: "Policy arithmetic overflow (v_pre + defect + authority)".to_string(),
-                    step_index: Some(r.step_index),
-                    object_id: Some(r.object_id),
-                    chain_digest_next: None,
-                }
-            }
-        },
-        None => {
-            return VerifyMicroResult {
-                decision: Decision::Reject,
-                code: Some(RejectCode::RejectOverflow),
-                message: "Policy arithmetic overflow (v_pre + defect)".to_string(),
-                step_index: Some(r.step_index),
-                object_id: Some(r.object_id),
-                chain_digest_next: None,
-            }
-        }
-    };
-
-    if lhs > rhs {
-        return VerifyMicroResult {
-            decision: Decision::Reject,
-            code: Some(RejectCode::RejectPolicyViolation),
-            message: format!(
-                "Policy violation: v_post + spend ({}) exceeds v_pre + defect + authority ({})",
-                lhs, rhs
-            ),
-            step_index: Some(r.step_index),
-            object_id: Some(r.object_id),
-            chain_digest_next: None,
-        };
     }
 
     // 5. Semantic integrity checks (TypeConfusion defense)

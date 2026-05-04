@@ -149,6 +149,7 @@ mod tests {
         let tampered = verify_sequence_accumulator(
             g2,
             g1,
+            h2,  // receipt_digest
             999, // wrong index
             Hash32([11; 32]),
             Hash32([12; 32]),

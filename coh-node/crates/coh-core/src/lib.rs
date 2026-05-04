@@ -1,6 +1,7 @@
 #![allow(clippy::needless_update)]
 #![allow(clippy::too_many_arguments)]
 
+pub mod accounting_law; // NEW - shared accounting kernel
 pub mod atom;
 pub mod auth;
 pub mod build_slab;
@@ -8,6 +9,7 @@ pub mod canon;
 pub mod certified_state;
 pub mod cohbit;
 pub mod decoherence;
+pub mod defect_semantics; // NEW - defect semantic ladder
 pub mod entanglement;
 pub mod execute;
 pub mod external;
@@ -21,6 +23,7 @@ pub mod merkle;
 pub mod phaseloom;
 pub mod reject;
 pub mod semantic;
+pub mod sequence_accumulator; // NEW - sequence guard accumulator
 pub mod spinor;
 pub mod stabilization;
 pub mod trajectory;

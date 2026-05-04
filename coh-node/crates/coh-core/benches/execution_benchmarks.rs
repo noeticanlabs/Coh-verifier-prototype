@@ -142,32 +142,31 @@ fn bench_verify_before_execute(c: &mut Criterion) {
 /// Benchmark the Coh Physics Hierarchy (Bit -> Atom -> Spinor -> Yang-Mills)
 fn bench_physics_hierarchy(c: &mut Criterion) {
     let mut group = c.benchmark_group("physics_hierarchy");
-    
+
+    use coh_core::atom::{AtomGeometry, AtomMetabolism, CohAtom};
     use coh_core::cohbit::{CohBit, CohBitState};
-    use coh_core::atom::{CohAtom, AtomGeometry, AtomMetabolism};
-    use coh_physics::CohSpinor;
+    use coh_core::types::{Decision, Hash32};
     use coh_physics::current::CoherenceCurrent;
-    use coh_core::types::{Hash32, Decision};
-    use num_rational::Rational64;
+    use coh_physics::CohSpinor;
     use num_complex::Complex64;
+    use num_rational::Rational64;
 
     let state_x = Hash32([0; 32]);
     let bit = CohBit {
         from_state: state_x,
         to_state: Hash32([1; 32]),
-        transition_id: "bench".to_string(),
+        action_hash: Hash32([1; 32]),
         projection_hash: state_x,
         valuation_pre: Rational64::new(100, 1),
         valuation_post: Rational64::new(90, 1),
         spend: Rational64::new(5, 1),
         defect: Rational64::new(2, 1),
         delta_hat: Rational64::new(2, 1),
-        utility: 10.0,
-        probability_soft: 0.0,
-        probability_exec: 0.0,
-        rv_status: Decision::Accept,
+        utility: Rational64::new(10, 1),
+        probability_soft: Rational64::zero(),
+        probability_exec: Rational64::zero(),
+        rv_status: RvStatus::Accept,
         receipt_hash: Hash32([2; 32]),
-        state: CohBitState::Superposed,
         ..Default::default()
     };
 
@@ -223,13 +222,20 @@ fn bench_physics_hierarchy(c: &mut Criterion) {
 
     // 4. Effective Metric Coupling (1,000 operations)
     let current = CoherenceCurrent::compute(&psi);
-    let g_base = [[1.0, 0.0, 0.0, 0.0], [0.0, -1.0, 0.0, 0.0], [0.0, 0.0, -1.0, 0.0], [0.0, 0.0, 0.0, -1.0]];
+    let g_base = [
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, -1.0, 0.0, 0.0],
+        [0.0, 0.0, -1.0, 0.0],
+        [0.0, 0.0, 0.0, -1.0],
+    ];
     group.bench_function("metric_coupling_x1000", |b| {
         let current = criterion::black_box(current);
         let g_base = criterion::black_box(g_base);
         b.iter(|| {
             for _ in 0..1000 {
-                let _ = criterion::black_box(current.effective_metric_coupling(g_base, 0.1, 0.05, 0.02));
+                let _ = criterion::black_box(
+                    current.effective_metric_coupling(g_base, 0.1, 0.05, 0.02),
+                );
             }
         });
     });
@@ -249,15 +255,18 @@ fn bench_physics_hierarchy(c: &mut Criterion) {
     });
 
     // 6. Wilson Loop Holonomy (100 steps, 100 iterations)
-    use coh_physics::gauge::WilsonLoopReceipt;
     use coh_core::trajectory::path_integral::CohHistory;
+    use coh_physics::gauge::WilsonLoopReceipt;
     let history = CohHistory {
-        steps: vec![CohBit {
-            from_state: state_x,
-            to_state: Hash32([1; 32]),
-            rv_status: Decision::Accept,
-            ..Default::default()
-        }; 100],
+        steps: vec![
+            CohBit {
+                from_state: state_x,
+                to_state: Hash32([1; 32]),
+                rv_status: Decision::Accept,
+                ..Default::default()
+            };
+            100
+        ],
     };
     group.bench_function("wilson_loop_100_steps_x100", |b| {
         let history = criterion::black_box(history.clone());
@@ -272,5 +281,10 @@ fn bench_physics_hierarchy(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_execution, bench_verify_before_execute, bench_physics_hierarchy);
+criterion_group!(
+    benches,
+    bench_execution,
+    bench_verify_before_execute,
+    bench_physics_hierarchy
+);
 criterion_main!(benches);

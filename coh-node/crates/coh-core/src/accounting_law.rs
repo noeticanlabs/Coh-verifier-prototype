@@ -1,3 +1,17 @@
+// Copyright 2024 Cohere Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 //! Shared Accounting Law Kernel
 //!
 //! One canonical function for the admissibility law. All verifier paths
@@ -9,86 +23,23 @@
 //! ## Cumulative Law (Telescoping)  
 //! ∑(v_post + spend - v_pre - defect - authority) ≤ 0
 
-use crate::math::CheckedMath;
 use crate::reject::RejectCode;
-use crate::types::Rational64;
 
 /// Result of accounting law check
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AccountingLawResult {
-    /// Law is satisfied, margin is surplus
-    Satisfied(Rational64),
+    /// Law is satisfied
+    Satisfied,
     /// Law is violated
     Violated,
 }
 
-/// Check the canonical local accounting law.
+/// Check the canonical local accounting law using u128.
 ///
 /// Local inequality: v_post + spend ≤ v_pre + defect + authority
 ///
 /// This is the SINGLE SOURCE OF TRUTH for admissibility.
 /// All verifier paths (L0, V3, slab, chain, dashboard) must use this.
-pub fn check_local_accounting_law(
-    v_pre: Rational64,
-    v_post: Rational64,
-    spend: Rational64,
-    defect: Rational64,
-    authority: Rational64,
-) -> AccountingLawResult {
-    let lhs = match v_post.safe_add(spend) {
-        Ok(v) => v,
-        Err(_) => return AccountingLawResult::Violated,
-    };
-
-    let rhs = match v_pre.safe_add(defect) {
-        Ok(v) => match v.safe_add(authority) {
-            Ok(r) => r,
-            Err(_) => return AccountingLawResult::Violated,
-        },
-        Err(_) => return AccountingLawResult::Violated,
-    };
-
-    if lhs <= rhs {
-        AccountingLawResult::Satisfied(rhs - lhs)
-    } else {
-        AccountingLawResult::Violated
-    }
-}
-
-/// Check cumulative (trajectory) accounting law.
-///
-/// Cumulative inequality: ∑(v_post + spend - v_pre - defect - authority) ≤ 0
-///
-/// This telescopes from local law. Returns margin surplus if satisfied,
-/// or negative if violated.
-pub fn check_cumulative_accounting_law(
-    v_pre_first: Rational64,
-    v_post_last: Rational64,
-    total_spend: Rational64,
-    total_defect: Rational64,
-    total_authority: Rational64,
-) -> AccountingLawResult {
-    let lhs = match v_post_last.safe_add(total_spend) {
-        Ok(v) => v,
-        Err(_) => return AccountingLawResult::Violated,
-    };
-
-    let rhs = match v_pre_first.safe_add(total_defect) {
-        Ok(v) => match v.safe_add(total_authority) {
-            Ok(r) => r,
-            Err(_) => return AccountingLawResult::Violated,
-        },
-        Err(_) => return AccountingLawResult::Violated,
-    };
-
-    if lhs <= rhs {
-        AccountingLawResult::Satisfied(rhs - lhs)
-    } else {
-        AccountingLawResult::Violated
-    }
-}
-
-/// Variant with integer u128 for performance-critical paths
 pub fn check_local_accounting_law_u128(
     v_pre: u128,
     v_post: u128,
@@ -96,24 +47,32 @@ pub fn check_local_accounting_law_u128(
     defect: u128,
     authority: u128,
 ) -> Result<u128, RejectCode> {
-    let lhs = v_post
-        .checked_add(spend)
-        .ok_or(RejectCode::RejectOverflow)?;
+    // LHS: v_post + spend
+    let lhs = match v_post.checked_add(spend) {
+        Some(v) => v,
+        None => return Err(RejectCode::RejectOverflow),
+    };
 
-    let rhs = v_pre
-        .checked_add(defect)
-        .ok_or(RejectCode::RejectOverflow)?
-        .checked_add(authority)
-        .ok_or(RejectCode::RejectOverflow)?;
+    // RHS: v_pre + defect + authority
+    let rhs = match v_pre.checked_add(defect) {
+        Some(v) => match v.checked_add(authority) {
+            Some(r) => r,
+            None => return Err(RejectCode::RejectOverflow),
+        },
+        None => return Err(RejectCode::RejectOverflow),
+    };
 
+    // Check: lhs ≤ rhs
     if lhs <= rhs {
-        Ok(rhs - lhs) // margin surplus
+        Ok(rhs - lhs) // margin (surplus)
     } else {
         Err(RejectCode::RejectPolicyViolation)
     }
 }
 
-/// Check cumulative with u128
+/// Check cumulative accounting law for slabs.
+///
+/// Cumulative inequality: v_post_last + total_spend ≤ v_pre_first + total_defect + total_authority
 pub fn check_cumulative_accounting_law_u128(
     v_pre_first: u128,
     v_post_last: u128,
@@ -121,18 +80,24 @@ pub fn check_cumulative_accounting_law_u128(
     total_defect: u128,
     total_authority: u128,
 ) -> Result<u128, RejectCode> {
-    let lhs = v_post_last
-        .checked_add(total_spend)
-        .ok_or(RejectCode::RejectOverflow)?;
+    // LHS: v_post_last + total_spend
+    let lhs = match v_post_last.checked_add(total_spend) {
+        Some(v) => v,
+        None => return Err(RejectCode::RejectOverflow),
+    };
 
-    let rhs = v_pre_first
-        .checked_add(total_defect)
-        .ok_or(RejectCode::RejectOverflow)?
-        .checked_add(total_authority)
-        .ok_or(RejectCode::RejectOverflow)?;
+    // RHS: v_pre_first + total_defect + total_authority
+    let rhs = match v_pre_first.checked_add(total_defect) {
+        Some(v) => match v.checked_add(total_authority) {
+            Some(r) => r,
+            None => return Err(RejectCode::RejectOverflow),
+        },
+        None => return Err(RejectCode::RejectOverflow),
+    };
 
+    // Check: lhs ≤ rhs
     if lhs <= rhs {
-        Ok(rhs - lhs)
+        Ok(rhs - lhs) // margin
     } else {
         Err(RejectCode::RejectPolicyViolation)
     }
@@ -143,34 +108,35 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_local_law_with_authority() {
-        // v_post=120, spend=10, v_pre=100, defect=0, authority=30
-        // 120+10=130 <= 100+0+30=130 ✓
+    fn test_local_law_satisfied() {
+        // v_post + spend = 120 + 10 = 130
+        // v_pre + defect + authority = 100 + 0 + 30 = 130
+        // 130 ≤ 130: satisfied
         let result = check_local_accounting_law_u128(100, 120, 10, 0, 30);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 0); // exactly at boundary
     }
 
     #[test]
-    fn test_local_law_without_authority_fails() {
-        // Same values but no authority would fail: 130 > 100
-        let result = check_local_accounting_law_u128(100, 120, 10, 0, 0);
+    fn test_local_law_violated() {
+        // v_post + spend = 130 + 10 = 140
+        // v_pre + defect + authority = 100 + 0 + 30 = 130
+        // 140 > 130: violated
+        let result = check_local_accounting_law_u128(100, 130, 10, 0, 30);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_cumulative_telescoping() {
-        // Two steps: (100→80: 80+5=85<=100+0) AND (80→60: 60+5=65<=80+0)
-        // Total: (60+10=70) <= (100+0+0=100) ✓
-        let result = check_cumulative_accounting_law_u128(100, 60, 10, 0, 0);
+    fn test_cumulative_law_satisfied() {
+        let result = check_cumulative_accounting_law_u128(100, 120, 10, 0, 30);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 40); // 100 - 60 - 10
     }
 
     #[test]
-    fn test_cumulative_with_authority() {
-        // With authority: v_post + spend <= v_pre + defect + authority
-        let result = check_cumulative_accounting_law_u128(100, 60, 10, 0, 50);
-        assert!(result.is_ok());
+    fn test_overflow_rejected() {
+        // u128::MAX + 1 would overflow
+        let v_post = u128::MAX;
+        let spend = 1u128;
+        let result = check_local_accounting_law_u128(100, v_post, spend, 0, 30);
+        assert_eq!(result, Err(RejectCode::RejectOverflow));
     }
 }

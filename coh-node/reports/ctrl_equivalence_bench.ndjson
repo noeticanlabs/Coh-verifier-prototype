@@ -1,0 +1,4 @@
+{"detected_kind":"CompressionEquivalence","expected_kind":"CompressionEquivalence","source":"trajectory_bisimulation_atom","success":true,"target":"SummaryAtom Ac"}
+{"detected_kind":"Isomorphism","expected_kind":"Isomorphism","source":"hamiltonian_valuation_mapping","success":true,"target":"Valuation V"}
+{"detected_kind":"GaugeEquivalence","expected_kind":"GaugeEquivalence","source":"gauge_potential_phi","success":true,"target":"Gauge field A'"}
+{"detected_kind":"NormalFormEquivalence","expected_kind":"NormalFormEquivalence","source":"energy_normalization","success":true,"target":"E + 0"}

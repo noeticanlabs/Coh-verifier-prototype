@@ -21,6 +21,7 @@ pub mod math;
 pub mod measurement;
 pub mod merkle;
 pub mod phaseloom;
+pub mod receipt_trace; // NEW - receipt verification trace
 pub mod reject;
 pub mod semantic;
 pub mod sequence_accumulator; // NEW - sequence guard accumulator

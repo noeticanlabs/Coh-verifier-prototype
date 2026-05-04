@@ -5,7 +5,7 @@
 //!
 //! Law of Genesis (Admission): M(g') + C(p) <= M(g) + D(p)
 //!
-//! A Coh-bit is a verifier-governed computational cell that does not merely encode 
+//! A Coh-bit is a verifier-governed computational cell that does not merely encode
 //! information, but certifies its own admissibility under resource-bounded laws.
 //!
 //! ## Modules
@@ -94,75 +94,98 @@ impl FormationResult {
 }
 
 // Re-export modules for NPE Wildness Boundary Test
+pub mod atom;
+pub mod audit_trail;
+pub mod causal_cone;
+pub mod ctrl;
+pub mod equivalence_hunter;
+pub mod failure_memory;
 pub mod fusion_wedge;
+pub mod governor_tests;
+pub mod invariant_hunter;
+pub mod lean_error;
+pub mod lean_json_export;
+pub mod lean_worker;
+pub mod ledger;
+pub mod lemma_forge;
 pub mod math_analytic_failure;
 pub mod npe_verifier_integration;
 pub mod proof_receipt;
+pub mod repair;
+pub mod repair_candidate;
 pub mod report;
 pub mod sweep;
-pub mod governor_tests;
-pub mod lean_error;
-pub mod repair;
-pub mod invariant_hunter;
-pub mod equivalence_hunter;
-pub mod lemma_forge;
-pub mod failure_memory;
-pub mod ctrl;
-pub mod lean_worker;
-pub mod lean_json_export;
-pub mod causal_cone;
-pub mod ledger;
 pub mod verifier_tools;
-pub mod atom;
 pub use atom::GmiAtom;
 pub mod kernel_invariants;
+mod refinery_tests;
+mod safety_audit_tests;
 pub mod vm_runtime;
 pub mod vm_runtime_lean;
-mod safety_audit_tests;
-mod refinery_tests;
 
 // Re-export PhaseLoomLite types and functions
-pub use fusion_wedge::verify_governed_step;
+pub use coh_npe::{
+    BoundaryReceiptSummary, LeanClosureStatus, MathlibEffect, NpeConfig, NpeEngine, NpeError,
+    NpeProposal, NpeState, ProposalStatus, StrategyWeights,
+};
+
+pub mod theorem_state;
 pub use coh_phaseloom as phaseloom_lite;
+pub use coh_phaseloom::budget::PhaseLoomBudget;
+pub use coh_phaseloom::kernel::PhaseLoomKernel;
 pub use coh_phaseloom::{
     phaseloom_circuit_broken, phaseloom_ingest, phaseloom_init, phaseloom_sample,
     phaseloom_serialize, PhaseLoomConfig, PhaseLoomState,
 };
-pub use coh_phaseloom::kernel::PhaseLoomKernel;
-pub use coh_phaseloom::budget::PhaseLoomBudget;
-pub use coh_npe::{
-    BoundaryReceiptSummary, MathlibEffect, StrategyWeights, LeanClosureStatus,
-    NpeError, NpeProposal, ProposalStatus, NpeConfig, NpeEngine, NpeState,
-};
+pub use fusion_wedge::verify_governed_step;
 pub mod npe {
     pub use coh_npe::*;
 }
-pub use coh_npe::kernel::{NpeKernel, NpeGoverningState, NpeBudget};
-pub use coh_core::rv_kernel::{RvKernel, RvGoverningState, ProtectedRvBudget};
+pub use coh_core::rv_kernel::{ProtectedRvBudget, RvGoverningState, RvKernel};
+pub use coh_npe::kernel::{NpeBudget, NpeGoverningState, NpeKernel};
 pub mod rv {
     pub use coh_core::rv_kernel::*;
 }
 
 pub use coh_npe::tools::code_patch;
-pub use coh_npe::tools::mathlib_advisor;
 pub use coh_npe::tools::lean_proof;
+pub use coh_npe::tools::mathlib_advisor;
 
 // Re-export key types for convenience
 pub use coh_npe::candidate::{
     GenesisCandidate as NpeGenesisCandidate, ProjectedCohClaim, WildnessLevel, WildnessResult,
 };
 
-pub use coh_npe::tools::code_patch::{
-    build_formation_result, check_hard_gates, compute_coherence_metrics, compute_genesis_metrics,
-    compute_patch_scores, is_formation_admissible, patch_type_for_wildness, CodePatchCandidate,
-    CodePatchFirstFailure, CodePatchFormationResult, CodePatchReport, PatchHardGate, PatchPolicy,
-    PatchSelectorMode, RejectPathImpact, RejectPolicyMode,
-    // NEW: Dependency upgrades
-    check_cargo_outdated, generate_dep_upgrade_text, is_upgrade_admissible, 
-    parse_cargo_toml, UpgradeClass, UpgradeTarget, DependencyUpgradeCandidate, 
-    DependencyUpgradeReport, CrateUpdate, ParsedDependency,
-};
 pub use coh_npe::generator::SyntheticNpeGenerator;
+pub use coh_npe::tools::code_patch::{
+    build_formation_result,
+    // NEW: Dependency upgrades
+    check_cargo_outdated,
+    check_hard_gates,
+    compute_coherence_metrics,
+    compute_genesis_metrics,
+    compute_patch_scores,
+    generate_dep_upgrade_text,
+    is_formation_admissible,
+    is_upgrade_admissible,
+    parse_cargo_toml,
+    patch_type_for_wildness,
+    CodePatchCandidate,
+    CodePatchFirstFailure,
+    CodePatchFormationResult,
+    CodePatchReport,
+    CrateUpdate,
+    DependencyUpgradeCandidate,
+    DependencyUpgradeReport,
+    ParsedDependency,
+    PatchHardGate,
+    PatchPolicy,
+    PatchSelectorMode,
+    RejectPathImpact,
+    RejectPolicyMode,
+    UpgradeClass,
+    UpgradeTarget,
+};
 pub use report::{
     export_csv, export_json, print_boundary_margin_stats, print_boundary_seeker_result,
     print_first_failure_table, print_rejection_breakdown, print_reproducibility_info,
@@ -173,9 +196,9 @@ pub use sweep::{
     run_wildness_sweep, standard_levels, SweepConfig,
 };
 
+pub use causal_cone::*;
 use coh_core::rv_kernel::RvDecisionKind;
 use coh_core::types::FormalStatus;
-pub use causal_cone::*;
 
 /// Level 0: Environmental Envelope (Outer physical limits)
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -257,29 +280,38 @@ impl GmiGovernor {
             system,
             rv: rv.budget.clone(),
             npe: npe.budget.clone(),
-            phaseloom: PhaseLoomBudget { work_capacity: phaseloom.state.budget },
+            phaseloom: PhaseLoomBudget {
+                work_capacity: phaseloom.state.budget,
+            },
         };
-        Self { 
-            atom: atom::GmiAtom::new(npe, rv, phaseloom, budgets, carrier)
+        Self {
+            atom: atom::GmiAtom::new(npe, rv, phaseloom, budgets, carrier),
         }
     }
 
     /// Whole-System Admissibility Law
-    pub fn is_globally_admissible(&self, prev_v: u128, next_v: u128, spend: u128, defect: u128) -> bool {
+    pub fn is_globally_admissible(
+        &self,
+        prev_v: u128,
+        next_v: u128,
+        spend: u128,
+        defect: u128,
+    ) -> bool {
         self.atom.is_stable(prev_v, next_v, spend, defect)
     }
 
     /// Execute a governed loop step (Hierarchical Budget Edition)
     pub fn step(
-        &mut self, 
-        proposal_id: &str, 
-        content: &str, 
-        distance: num_rational::Rational64, 
-        c_g: num_rational::Rational64, 
-        dt_g: num_rational::Rational64, 
-        formal_status: FormalStatus
+        &mut self,
+        proposal_id: &str,
+        content: &str,
+        distance: num_rational::Rational64,
+        c_g: num_rational::Rational64,
+        dt_g: num_rational::Rational64,
+        formal_status: FormalStatus,
     ) -> (bool, GmiStepTrace) {
-        self.atom.emit_cohbit(proposal_id, content, distance, c_g, dt_g, formal_status)
+        self.atom
+            .emit_cohbit(proposal_id, content, distance, c_g, dt_g, formal_status)
     }
 }
 

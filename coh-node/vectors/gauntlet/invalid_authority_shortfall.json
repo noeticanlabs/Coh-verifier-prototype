@@ -1,0 +1,19 @@
+{
+    "name": "invalid_authority_shortfall",
+    "description": "Authority insufficient: v_post + spend > v_pre + defect + authority",
+    "expected_decision": "Reject",
+    "expected_reject_code": "RejectPolicyViolation",
+    "inputs": {
+        "v_pre": "100",
+        "v_post": "120",
+        "spend": "10",
+        "defect": "0",
+        "authority": "29"
+    },
+    "accounting_inequality": "120 + 10 = 130 > 100 + 0 + 29 = 129",
+    "tags": [
+        "boundary",
+        "negative_control",
+        "authority"
+    ]
+}

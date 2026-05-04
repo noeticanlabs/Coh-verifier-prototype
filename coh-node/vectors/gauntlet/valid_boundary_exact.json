@@ -1,0 +1,19 @@
+{
+    "name": "valid_boundary_exact",
+    "description": "Exact boundary case: v_post + spend = v_pre + defect + authority",
+    "expected_decision": "Accept",
+    "expected_margin": 0,
+    "inputs": {
+        "v_pre": "100",
+        "v_post": "120",
+        "spend": "10",
+        "defect": "0",
+        "authority": "30"
+    },
+    "accounting_inequality": "120 + 10 = 130 <= 100 + 0 + 30 = 130",
+    "tags": [
+        "boundary",
+        "exact",
+        "canonical"
+    ]
+}

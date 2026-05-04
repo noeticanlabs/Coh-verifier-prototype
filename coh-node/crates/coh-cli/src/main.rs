@@ -60,6 +60,18 @@ enum Commands {
         #[arg(long, default_value = "5")]
         iterations: usize,
     },
+    /// Repair a Lean theorem using CTRL loop
+    Repair {
+        /// Path to the Lean project (containing lake-manifest.json)
+        #[arg(long)]
+        project: String,
+        /// Theorem name to repair
+        #[arg(long)]
+        theorem: String,
+        /// Candidate tactics to try (comma-separated)
+        #[arg(long, default_value = "sorry")]
+        tactics: String,
+    },
 }
 
 fn main() {
@@ -139,19 +151,23 @@ fn main() {
             let res = verify_slab_envelope(wire);
             output_result(res, cli.format);
         }
-        Commands::GmiStep { proposal_id, content, distance } => {
+        Commands::GmiStep {
+            proposal_id,
+            content,
+            distance,
+        } => {
             let mut gov = setup_mock_governor();
             let dist_rational = parse_rational(&distance);
-            
+
             let (success, trace) = gov.step(
-                &proposal_id, 
-                &content, 
+                &proposal_id,
+                &content,
                 dist_rational,
-                Rational64::new(10, 1), 
+                Rational64::new(10, 1),
                 Rational64::new(1, 1),
-                FormalStatus::ClosedNoSorry
+                FormalStatus::ClosedNoSorry,
             );
-            
+
             if cli.format == Format::Json {
                 println!("{}", serde_json::to_string_pretty(&trace).unwrap());
             } else {
@@ -165,7 +181,7 @@ fn main() {
         Commands::WildnessSweep { steps } => {
             println!("Running Wildness Sweep ({} steps per level)...", steps);
             let results = run_wildness_sweep(&standard_levels(), steps, 42);
-            
+
             if cli.format == Format::Json {
                 println!("{}", serde_json::to_string_pretty(&results).unwrap());
             } else {
@@ -175,7 +191,7 @@ fn main() {
         Commands::NpeLoop { iterations } => {
             println!("Running NPE Loop ({} iterations)...", iterations);
             let mut gov = setup_mock_governor();
-            
+
             for i in 0..iterations {
                 let pid = format!("prop-{}", i);
                 let (success, _) = gov.step(
@@ -184,9 +200,105 @@ fn main() {
                     Rational64::new(100, 1),
                     Rational64::new(10, 1),
                     Rational64::new(1, 1),
-                    FormalStatus::BuildPassedWithSorry
+                    FormalStatus::BuildPassedWithSorry,
                 );
-                println!("  Iteration {}: {}", i, if success { "COMMITTED" } else { "REJECTED" });
+                println!(
+                    "  Iteration {}: {}",
+                    i,
+                    if success { "COMMITTED" } else { "REJECTED" }
+                );
+            }
+        }
+        Commands::Repair {
+            project,
+            theorem,
+            tactics,
+        } => {
+            use coh_genesis::ctrl::CtrlLoop;
+            use std::path::PathBuf;
+
+            println!(
+                "Running CTRL repair on theorem '{}' in project '{}'",
+                theorem, project
+            );
+
+            let project_path = PathBuf::from(&project);
+            if !project_path.exists() {
+                exit_with_error(format!("Project not found: {}", project), 1, cli.format);
+            }
+
+            // Parse tactics
+            let tactic_list: Vec<&str> = tactics.split(',').collect();
+            println!("Trying tactics: {:?}", tactic_list);
+
+            // Create CTRL loop
+            let mut ctrl = match CtrlLoop::new(project_path) {
+                Ok(c) => c,
+                Err(e) => {
+                    exit_with_error(format!("Failed to start CTRL loop: {}", e), 1, cli.format)
+                }
+            };
+
+            // Run repair
+            let result = ctrl.repair_theorem(&theorem, tactic_list);
+
+            match result {
+                Ok(res) => {
+                    if cli.format == Format::Json {
+                        // Manual JSON output - CtrlResult may not derive Serialize
+                        let json = serde_json::json!({
+                            "theorem": res.theorem,
+                            "tactic": res.tactic,
+                            "proof_hash": res.proof_hash,
+                            "success": res.success,
+                            "error_kind": res.error_kind,
+                            "cohbit_candidate": res.cohbit_candidate.as_ref().map(|c| {
+                                serde_json::json!({
+                                    "admissible": c.admissible,
+                                    "decision": c.decision(),
+                                    "candidate_hash": c.receipt.candidate_hash
+                                })
+                            }),
+                            "cohbit_receipt": res.cohbit_receipt.as_ref().map(|r| {
+                                serde_json::json!({
+                                    "theorem_name": r.theorem_name,
+                                    "theorem_hash_pre": r.theorem_hash_pre,
+                                    "theorem_hash_post": r.theorem_hash_post,
+                                    "spend": r.spend,
+                                    "sequence_accumulator": r.sequence_accumulator
+                                })
+                            })
+                        });
+                        println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                    } else {
+                        println!("=== CTRL Repair Result ===");
+                        println!("Theorem: {}", res.theorem);
+                        println!("Tactic: {}", res.tactic);
+                        println!("Success: {}", res.success);
+                        println!("Proof Hash: {}", res.proof_hash);
+                        if res.success {
+                            if let Some(ref candidate) = res.cohbit_candidate {
+                                println!("=== CohBit Candidate ===");
+                                println!("Admissible: {}", candidate.admissible);
+                                println!("Decision: {}", candidate.decision());
+                                println!("Receipt Hash: {}", candidate.receipt.candidate_hash);
+                            }
+                            if let Some(ref receipt) = res.cohbit_receipt {
+                                println!("=== CohBit Receipt ===");
+                                println!("  Theorem: {}", receipt.theorem_name);
+                                println!("  Pre Hash: {}", receipt.theorem_hash_pre);
+                                println!("  Post Hash: {}", receipt.theorem_hash_post);
+                                println!("  Spend: {}", receipt.spend);
+                                println!("  Sequence: {}", receipt.sequence_accumulator);
+                            }
+                        } else {
+                            println!("Error Kind: {:?}", res.error_kind);
+                        }
+                    }
+                }
+                Err(e) => {
+                    exit_with_error(format!("Repair failed: {}", e), 1, cli.format);
+                }
             }
         }
     }
@@ -206,7 +318,7 @@ fn parse_rational(s: &str) -> Rational64 {
 fn setup_mock_governor() -> GmiGovernor {
     let npe = NpeKernel {
         state: NpeState::new(NpeConfig::default()),
-        governing_state: NpeGoverningState { 
+        governing_state: NpeGoverningState {
             disorder: 1000,
             accumulated_cost: 0,
             wildness: 1.0,
@@ -216,7 +328,7 @@ fn setup_mock_governor() -> GmiGovernor {
         budget: NpeBudget::default(),
     };
     let rv = RvKernel {
-        state: RvGoverningState { 
+        state: RvGoverningState {
             valuation: 5000,
             verified_spend: 0,
             allowable_defect: 1000,
@@ -244,7 +356,7 @@ fn setup_mock_governor() -> GmiGovernor {
         recovery_ops: 10,
         scheduler_ticks: 1000,
     };
-    
+
     GmiGovernor::new(npe, rv, phaseloom, env, system, None)
 }
 

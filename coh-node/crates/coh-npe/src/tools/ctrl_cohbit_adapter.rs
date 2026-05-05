@@ -403,25 +403,26 @@ pub fn candidate_to_v3_wire(
 
 /// Compute V3-compatible digest for a CTRL repair receipt
 /// This binds all fields - any change produces a different digest
+/// Uses SHA-256 for canonical digest (NOT DefaultHasher)
 pub fn compute_receipt_digest(receipt: &CtrlRepairReceipt) -> String {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
+    use sha2::{Digest, Sha256};
 
-    let mut hasher = DefaultHasher::new();
+    let mut hasher = Sha256::new();
 
-    // Hash all binding fields - order matters
-    receipt.theorem_hash_pre.hash(&mut hasher);
-    receipt.theorem_hash_post.hash(&mut hasher);
-    receipt.candidate_hash.hash(&mut hasher);
-    receipt.tactic_hash.hash(&mut hasher);
-    receipt.lean_result_hash.hash(&mut hasher);
-    receipt.audit_hash.hash(&mut hasher);
-    receipt.spend.hash(&mut hasher);
-    receipt.defect_reserve.hash(&mut hasher);
-    receipt.authority.hash(&mut hasher);
-    receipt.sequence_accumulator.hash(&mut hasher);
+    // Hash all binding fields - order matters for canonical digest
+    hasher.update(receipt.theorem_hash_pre.as_bytes());
+    hasher.update(receipt.theorem_hash_post.as_bytes());
+    hasher.update(receipt.candidate_hash.as_bytes());
+    hasher.update(receipt.tactic_hash.as_bytes());
+    hasher.update(receipt.lean_result_hash.as_bytes());
+    hasher.update(receipt.audit_hash.as_bytes());
+    hasher.update(receipt.spend.to_le_bytes());
+    hasher.update(receipt.defect_reserve.to_le_bytes());
+    hasher.update(receipt.authority.to_le_bytes());
+    hasher.update(receipt.sequence_accumulator.as_bytes());
 
-    format!("{:016x}", hasher.finish())
+    // Return hex encoding of SHA-256
+    hex::encode(hasher.finalize())
 }
 
 /// Verify receipt integrity - returns true if digest matches

@@ -194,7 +194,7 @@ fn test_h6_sequence_advances() {
 /// H7: Full trace through the pipeline
 #[test]
 fn test_h7_full_trace() {
-    use coh_core::hash::Hash32;
+    use coh_core::types::Hash32;
 
     let wire = build_h_test_wire(100, 80, 10, 0, 30);
 
@@ -203,11 +203,11 @@ fn test_h7_full_trace() {
     // Stage 1: Canonical bytes
     let canonical = to_canonical_json_bytes(&wire).expect("canonical");
     let canonical_str = String::from_utf8_lossy(&canonical[..64.min(canonical.len())]);
-    trace = trace.with_canonical(&canonical_str);
+    trace = trace.with_canonical(canonical_str.as_ref());
 
     // Stage 2: Core digest
     let core_digest = compute_objective_digest(&canonical);
-    trace = trace.with_core_digest(&core_digest);
+    trace = trace.with_core_digest(core_digest.to_hex());
 
     // Stage 3: Chain linkage (genesis case)
     let genesis = "0000000000000000000000000000000000000000000000000000000000000000";
